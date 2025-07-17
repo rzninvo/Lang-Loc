@@ -1,0 +1,34 @@
+render:
+  resolution:
+    width: 1920
+    height: 1080
+  fov: 75
+  fov_type: vertical  # options: vertical, horizontal
+  radius: 1.5
+  height: 1.0
+  num_views: 6
+  up_vector: [0, 0, 1]
+  output_folder: output_images
+
+paths:
+  base_data_dir: data
+  dataset_path: data/scans
+  annotations_file: data/results/scannet_annotations.json
+  uninterpretable_file: data/results/uninterpretable_images.json
+  download_script: scripts/download_subset.sh
+
+download:
+  label_map_filename: scannetv2-labels.combined.tsv
+  file_types:
+    - "_vh_clean_2.ply"
+    - "_vh_clean_2.labels.ply"
+    - "_vh_clean_2.0.010000.segs.json"
+    - ".aggregation.json"
+    - ".txt"
+
+ui:
+  sample_scene: scene0000_00
+  sample_view: view_1
+  sample_description: >
+    A studio apartment On the left, there's a bed with blue bedding next to a worn rug and a wooden desk. A bicycle leans against a corrugated metal wall near the center, beside a dark L-shaped sofa with pillows and two ottomans in front. To the right, there's a small table or counter with stools. The bicycle is placed next to the TV cabinet, the TV is facing the shorter side of the L-shaped sofa.
+  
