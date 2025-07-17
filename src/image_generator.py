@@ -14,7 +14,7 @@ Arguments:
 
 Expected directory structure:
     data/scans/<scene_id>/<scene_id>_vh_clean_2.ply
-    data/scans/<scene_id>/output_images/view_*.png
+    data/scans/<scene_id>/output/view_*.png
 """
 
 import open3d as o3d
@@ -23,8 +23,34 @@ import os
 import sys
 import subprocess
 from tqdm import tqdm
+import json
 from src.utils.config_loader import load_config
 
+def normalize(v):
+    """Normalize a vector."""
+    return v / np.linalg.norm(v)
+
+def compute_camera_pose_matrix(cam_pos, look_at, up_vector):
+    """
+    Compute SE(3) camera pose matrix from camera position and orientation.
+    
+    Args:
+        cam_pos (np.ndarray): Camera position (3,)
+        look_at (np.ndarray): Look-at point (3,)
+        up_vector (np.ndarray): Up direction (3,)
+    
+    Returns:
+        np.ndarray: 4x4 transformation matrix
+    """
+    f = normalize(look_at - cam_pos)  # forward
+    r = normalize(np.cross(f, up_vector))  # right
+    u = np.cross(r, f)  # true up
+
+    R = np.stack([r, u, -f], axis=1)  # Rotation matrix
+    T = np.eye(4)
+    T[:3, :3] = R
+    T[:3, 3] = cam_pos
+    return T
 
 def render_scene(scene_id, config):
     """
@@ -83,6 +109,7 @@ def render_scene(scene_id, config):
     center = mesh.get_center()
     output_dir = os.path.join(base_dir, output_folder)
     os.makedirs(output_dir, exist_ok=True)
+    camera_poses = {}
 
     for i in tqdm(range(num_views), desc=f"Rendering {scene_id}"):
         angle = i * 2 * np.pi / num_views
@@ -92,11 +119,18 @@ def render_scene(scene_id, config):
             center[2] + cam_height
         ])
 
+        T = compute_camera_pose_matrix(cam_pos, center, up_vector)
+        camera_poses[f"view_{i+1}"] = T.tolist()
+
         scene.camera.look_at(center, cam_pos, up_vector)
         img = renderer.render_to_image()
         o3d.io.write_image(os.path.join(output_dir, f"view_{i+1}.png"), img)
 
-    print(f"[INFO] Done. Rendered images saved to {output_dir}")
+    pose_path = os.path.join(output_dir, path_cfg.get('camera_pose_file', 'camera_pose.json'))
+    with open(pose_path, "w") as f:
+        json.dump(camera_poses, f, indent=2)
+
+    print(f"[INFO] Done. Rendered images and saved camera poses to {output_dir}")
 
 if __name__ == "__main__":
     import argparse

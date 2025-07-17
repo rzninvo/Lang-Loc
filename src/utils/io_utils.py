@@ -12,6 +12,14 @@ def load_json_file(path):
             return []
     return []
 
+def load_camera_poses(scene_index, output_folder, base_dir="data/scans", pose_filename="camera_pose.json"):
+    pose_path = os.path.join(base_dir, scene_index, output_folder, pose_filename)
+    if os.path.exists(pose_path):
+        with open(pose_path, "r") as f:
+            return json.load(f)
+    else:
+        return {}
+
 def save_json_file(data, path):
     try:
         with open(path, 'w') as f:
@@ -21,20 +29,22 @@ def save_json_file(data, path):
         st.error(f"Error saving to {path}: {str(e)}")
         return False
 
-def save_annotation(description, annotations, scene_index, image_index):
-    scene_pose = (image_index - 1) * 60
+def save_annotation(description, annotations, scene_index, image_index, output_folder="output"):
+    pose_dict = load_camera_poses(scene_index, output_folder)
+    pose_matrix = pose_dict.get(f"view_{image_index}", None)
     annotation = {
         'scene_index': scene_index,
         'image_index': f"view_{image_index}",
-        'scene_pose': scene_pose,
+        'scene_pose': pose_matrix,
         'description': description,
         'timestamp': datetime.now().isoformat()
     }
     annotations.append(annotation)
     return annotations
 
-def mark_uninterpretable(scene_index, image_index, uninterpretable_images):
-    scene_pose = (image_index - 1) * 60
+def mark_uninterpretable(scene_index, image_index, uninterpretable_images, output_folder="output"):
+    pose_dict = load_camera_poses(scene_index, output_folder)
+    pose_matrix = pose_dict.get(f"view_{image_index}", None)
 
     for item in uninterpretable_images:
         if item['scene_index'] == scene_index and item['image_index'] == f"view_{image_index}":
@@ -43,7 +53,7 @@ def mark_uninterpretable(scene_index, image_index, uninterpretable_images):
     uninterpretable_entry = {
         'scene_index': scene_index,
         'image_index': f"view_{image_index}",
-        'scene_pose': scene_pose,
+        'scene_pose': pose_matrix,
         'timestamp': datetime.now().isoformat(),
         'reason': 'marked_as_uninterpretable'
     }

@@ -8,13 +8,14 @@ render:
   height: 1.0
   num_views: 6
   up_vector: [0, 0, 1]
-  output_folder: output_images
+  output_folder: output
 
 paths:
   base_data_dir: data
   dataset_path: data/scans
   annotations_file: data/results/scannet_annotations.json
   uninterpretable_file: data/results/uninterpretable_images.json
+  camera_pose_file: camera_pose.json
   download_script: scripts/download_subset.sh
 
 download:
