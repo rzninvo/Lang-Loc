@@ -2,11 +2,11 @@ import streamlit as st
 from PIL import Image
 import os
 
-def render_sample_reference(dataset_path, sample_scene, sample_view, sample_description):
+def render_sample_reference(dataset_path, output_folder, sample_scene, sample_view, sample_description):
     col1, col2 = st.columns(2)
     with col1:
         st.subheader("Sample Image")
-        path = os.path.join(dataset_path, sample_scene, "output_images", f"{sample_view}.png")
+        path = os.path.join(dataset_path, sample_scene, output_folder, f"{sample_view}.png")
         if os.path.exists(path):
             st.image(Image.open(path), use_container_width=True)
         else:

@@ -8,7 +8,7 @@ This project helps you automatically download specific scenes from the [ScanNet 
 
 - `download_subset.sh`: Bash script to download all required files for a given `scene_id`
 - `render_scene.py`: Python script to generate 6 synthetic views around a scene
-- Example output: `output_images/view_1.png` ... `view_6.png`
+- Example output: `output/view_1.png` ... `view_6.png`
 
 ---
 
@@ -40,7 +40,8 @@ project-root/
 │       └── scene0000_00/
 │           ├── scene0000_00_vh_clean_2.ply
 │           ├── ...
-│           └── output_images/
+│           └── output/
+                ├── camera_pose.json
 │               ├── view_1.png
 │               ├── ...
 │               └── view_6.png
@@ -73,7 +74,7 @@ This will:
 3. Render **6 images** from different camera angles and save them to:
 
 ```
-data/scans/scene0000_00/output_images/
+data/scans/scene0000_00/output/
 ```
 
 ---

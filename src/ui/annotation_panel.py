@@ -5,6 +5,7 @@ from src.utils.io_utils import is_image_uninterpretable
 
 def render_annotation_panel(
     dataset_path,
+    output_folder,
     images_per_scene,
     save_annotation_fn,
     mark_uninterpretable_fn,
@@ -34,7 +35,7 @@ def render_annotation_panel(
         else:
             st.info("✅ Interpretable")
 
-    current_image_path = os.path.join(dataset_path, current_scene, 'output_images', f"{current_view}.png")
+    current_image_path = os.path.join(dataset_path, current_scene, output_folder, f"{current_view}.png")
     if os.path.exists(current_image_path):
         st.image(Image.open(current_image_path), caption=f"{current_scene} - {current_view}", use_container_width=True)
     else:

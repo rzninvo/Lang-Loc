@@ -29,6 +29,7 @@ SAMPLE_SCENE = CONFIG["ui"]["sample_scene"]
 SAMPLE_VIEW = CONFIG["ui"]["sample_view"]
 SAMPLE_DESCRIPTION = CONFIG["ui"]["sample_description"]
 IMAGES_PER_SCENE = CONFIG["render"]["num_views"]
+OUTPUT_FOLDER = CONFIG["render"]["output_folder"]
 
 # --- Helpers ---
 def handle_save_annotation(description):
@@ -74,6 +75,7 @@ render_sidebar(
 # --- Sample & Guidelines ---
 render_sample_reference(
     dataset_path=DATASET_PATH,
+    output_folder=OUTPUT_FOLDER,
     sample_scene=SAMPLE_SCENE,
     sample_view=SAMPLE_VIEW,
     sample_description=SAMPLE_DESCRIPTION
@@ -82,6 +84,7 @@ render_sample_reference(
 # --- Annotation Panel ---
 render_annotation_panel(
     dataset_path=DATASET_PATH,
+    output_folder=OUTPUT_FOLDER,
     images_per_scene=IMAGES_PER_SCENE,
     save_annotation_fn=lambda description: handle_save_annotation(description),
     mark_uninterpretable_fn = lambda: handle_mark_uninterpretable(),

@@ -23,7 +23,8 @@ def render_instructions():
         ```
         /Users/abu/Desktop/master_project/data_sample/
         ├── scene0000_00/
-        │   └── output_images/
+        │   └── output/
+        │       ├── camera_pose.json
         │       ├── view_1.png
         │       ├── view_2.png
         │       └── ...
