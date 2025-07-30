@@ -10,6 +10,14 @@ render:
   up_vector: [0, 0, 1]
   output_folder: output
 
+keyframe:
+  num_frames: 6
+  blur_threshold: 150.0
+  voxel_size: 0.02
+  kmeans_n_init: 10
+  kmeans_max_iter: 300
+  kmeans_tol: 1e-4
+
 paths:
   base_data_dir: data
   dataset_path: data/scans
@@ -26,6 +34,7 @@ download:
     - "_vh_clean_2.0.010000.segs.json"
     - ".aggregation.json"
     - ".txt"
+    - ".sens"
 
 ui:
   sample_scene: scene0000_00

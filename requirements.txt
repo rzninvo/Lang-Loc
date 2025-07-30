@@ -1,0 +1,8 @@
+streamlit>=1.35.0
+PyYAML>=6.0
+open3d>=0.17.0
+numpy>=1.24
+pandas>=2.0
+Pillow>=10.0
+tqdm>=4.64
+png
