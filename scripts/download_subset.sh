@@ -43,3 +43,22 @@ for file_type in "${FILES_TO_DOWNLOAD[@]}"; do
 done
 
 echo "[INFO] Download complete for scan: $SCAN_ID"
+
+# -------- EXTRACT FROM .sens FILE --------
+SENS_FILE="$OUT_DIR/scans/$SCAN_ID/${SCAN_ID}.sens"
+SCAN_OUTPUT_DIR="$OUT_DIR/scans/$SCAN_ID"
+
+if [ -f "$SENS_FILE" ]; then
+    echo "[INFO] Extracting RGB, depth, poses, and intrinsics from: $SENS_FILE"
+    python3 src/utils/sens_reader.py \
+        --filename "$SENS_FILE" \
+        --output_path "$SCAN_OUTPUT_DIR" \
+        --export_depth_images \
+        --export_color_images \
+        --export_poses \
+        --export_intrinsics
+    echo "[INFO] Extraction complete: $SCAN_OUTPUT_DIR"
+else
+    echo "[ERROR] .sens file not found at: $SENS_FILE"
+    exit 1
+fi
