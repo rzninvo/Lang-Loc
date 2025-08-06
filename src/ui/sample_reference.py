@@ -6,11 +6,23 @@ def render_sample_reference(dataset_path, output_folder, sample_scene, sample_vi
     col1, col2 = st.columns(2)
     with col1:
         st.subheader("Example Image")
-        path = os.path.join(dataset_path, sample_scene, output_folder, f"{sample_view}.png")
-        if os.path.exists(path):
-            st.image(Image.open(path), use_container_width=True)
+        # Try different possible paths for the sample image
+        possible_paths = [
+            os.path.join(dataset_path, sample_scene, output_folder, "color", f"{sample_view}.jpg"),
+            os.path.join(dataset_path, sample_scene, output_folder, f"{sample_view}.jpg"),
+            os.path.join(dataset_path, sample_scene, output_folder, f"{sample_view}.png"),
+        ]
+        
+        sample_image_path = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                sample_image_path = path
+                break
+        
+        if sample_image_path:
+            st.image(Image.open(sample_image_path), use_container_width=True)
         else:
-            st.error("Example image not found")
+            st.error(f"Example image not found. Tried paths: {possible_paths}")
 
     with col2:
         st.subheader("Example Description")
