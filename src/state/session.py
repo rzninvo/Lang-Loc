@@ -21,7 +21,24 @@ def load_dataset_structure(dataset_path, output_folder, num_views):
     for item in os.listdir(dataset_path):
         scene_path = os.path.join(dataset_path, item, output_folder)
         if os.path.isdir(scene_path):
-            views = [f"view_{i}.png" for i in range(1, num_views + 1)]
-            if all(os.path.exists(os.path.join(scene_path, v)) for v in views):
-                scenes.append(item)
+            # Check for different possible image structures
+            possible_image_dirs = [
+                os.path.join(scene_path, "color"),  # New structure with color subdirectory
+                scene_path  # Old structure with images directly in output folder
+            ]
+            
+            for img_dir in possible_image_dirs:
+                if os.path.isdir(img_dir):
+                    # Check for both .jpg and .png extensions
+                    views_jpg = [f"view_{i}.jpg" for i in range(1, num_views + 1)]
+                    views_png = [f"view_{i}.png" for i in range(1, num_views + 1)]
+                    
+                    # Check if all jpg files exist
+                    if all(os.path.exists(os.path.join(img_dir, v)) for v in views_jpg):
+                        scenes.append(item)
+                        break
+                    # Check if all png files exist
+                    elif all(os.path.exists(os.path.join(img_dir, v)) for v in views_png):
+                        scenes.append(item)
+                        break
     return sorted(scenes)
