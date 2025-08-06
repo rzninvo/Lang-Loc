@@ -6,7 +6,7 @@ render:
   fov_type: vertical  # options: vertical, horizontal
   radius: 1.5
   height: 1.0
-  num_views: 6
+  num_views: 38
   up_vector: [0, 0, 1]
   output_folder: output
 
@@ -40,5 +40,4 @@ ui:
   sample_scene: scene0000_00
   sample_view: view_1
   sample_description: >
-    A studio apartment On the left, there's a bed with blue bedding next to a worn rug and a wooden desk. A bicycle leans against a corrugated metal wall near the center, beside a dark L-shaped sofa with pillows and two ottomans in front. To the right, there's a small table or counter with stools. The bicycle is placed next to the TV cabinet, the TV is facing the shorter side of the L-shaped sofa.
-  
+      Part of the room with a desk and a low wooden table. There's an office chair, some papers, books, a remote control, and a few other items on the table. A curtain and some shelves are also visible.  
