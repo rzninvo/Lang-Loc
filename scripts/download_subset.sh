@@ -3,6 +3,7 @@
 # ---------------------------------------------------------------------------------
 # This script downloads selected ScanNet files for a given scan ID using the Python
 # utility `download-scannet.py`. It reads configuration from `config/render_config.yaml`.
+# After download + extraction, it runs keyframe generation and auto-cleans temp files.
 #
 # Usage:
 #     ./scripts/download_subset.sh <scan_id>

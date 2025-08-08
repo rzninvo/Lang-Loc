@@ -31,10 +31,10 @@ def save_json_file(data, path):
 
 def save_annotation(description, annotations, scene_index, image_index, output_folder="output"):
     pose_dict = load_camera_poses(scene_index, output_folder)
-    pose_matrix = pose_dict.get(f"view_{image_index}", None)
+    pose_matrix = pose_dict.get(f"{image_index}", None)
     annotation = {
         'scene_index': scene_index,
-        'image_index': f"view_{image_index}",
+        'image_index': f"{image_index}",
         'scene_pose': pose_matrix,
         'description': description,
         'timestamp': datetime.now().isoformat()
@@ -44,15 +44,15 @@ def save_annotation(description, annotations, scene_index, image_index, output_f
 
 def mark_uninterpretable(scene_index, image_index, uninterpretable_images, output_folder="output"):
     pose_dict = load_camera_poses(scene_index, output_folder)
-    pose_matrix = pose_dict.get(f"view_{image_index}", None)
+    pose_matrix = pose_dict.get(f"{image_index}", None)
 
     for item in uninterpretable_images:
-        if item['scene_index'] == scene_index and item['image_index'] == f"view_{image_index}":
+        if item['scene_index'] == scene_index and item['image_index'] == f"{image_index}":
             return uninterpretable_images  # Already marked
 
     uninterpretable_entry = {
         'scene_index': scene_index,
-        'image_index': f"view_{image_index}",
+        'image_index': f"{image_index}",
         'scene_pose': pose_matrix,
         'timestamp': datetime.now().isoformat(),
         'reason': 'marked_as_uninterpretable'
@@ -62,6 +62,6 @@ def mark_uninterpretable(scene_index, image_index, uninterpretable_images, outpu
 
 def is_image_uninterpretable(scene_index, image_index, uninterpretable_images):
     for item in uninterpretable_images:
-        if item['scene_index'] == scene_index and item['image_index'] == f"view_{image_index}":
+        if item['scene_index'] == scene_index and item['image_index'] == f"{image_index}":
             return True
     return False

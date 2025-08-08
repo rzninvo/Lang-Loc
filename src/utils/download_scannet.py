@@ -209,9 +209,6 @@ def main():
             use_v1_sens = not is_test_scan
             if not is_test_scan and not args.v1 and '.sens' in scan_file_types:
                 print('Note: ScanNet v2 uses the same .sens files as ScanNet v1: Press \'n\' to exclude downloading .sens files for each scan')
-                key = input('')
-                if key.strip().lower() == 'n':
-                    scan_file_types.remove('.sens')
             download_scan(scan_id, out_dir, scan_file_types, use_v1_sens, skip_existing=args.skip_existing)
     else:  # download entire release
         if len(file_types) == len(FILETYPES):
@@ -223,9 +220,6 @@ def main():
         print('Press any key to continue, or CTRL-C to exit.')
         if not args.v1 and '.sens' in file_types:
             print('Note: ScanNet v2 uses the same .sens files as ScanNet v1: Press \'n\' to exclude downloading .sens files for each scan')
-            key = input('')
-            if key.strip().lower() == 'n':
-                file_types.remove('.sens')
         download_release(release_scans, out_dir_scans, file_types, use_v1_sens=True, skip_existing=args.skip_existing)
         if not args.v1:
             download_label_map(args.out_dir)

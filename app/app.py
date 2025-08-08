@@ -28,30 +28,46 @@ UNINTERPRETABLE_FILE = CONFIG["paths"]["uninterpretable_file"]
 SAMPLE_SCENE = CONFIG["ui"]["sample_scene"]
 SAMPLE_VIEW = CONFIG["ui"]["sample_view"]
 SAMPLE_DESCRIPTION = CONFIG["ui"]["sample_description"]
-IMAGES_PER_SCENE = CONFIG["render"]["num_views"]
 OUTPUT_FOLDER = CONFIG["render"]["output_folder"]
 
 # --- Helpers ---
 def handle_save_annotation(description):
     current_scene = st.session_state.scene_list[st.session_state.current_scene_index]
-    image_index = st.session_state.current_image_index + 1
+    # Get current filename
+    scene_color_dir = os.path.join(DATASET_PATH, current_scene, OUTPUT_FOLDER, "color")
+    scene_images = sorted([
+        f for f in os.listdir(scene_color_dir)
+        if f.lower().endswith((".jpg", ".png"))
+    ])
+    current_filename = scene_images[st.session_state.current_image_index]
+    file_id = os.path.splitext(current_filename)[0]  # without .jpg/.png
+
     st.session_state.annotations = save_annotation(
         description,
         st.session_state.annotations,
         current_scene,
-        image_index
+        file_id
     )
     return save_json_file(st.session_state.annotations, ANNOTATIONS_FILE)
 
+
 def handle_mark_uninterpretable():
     current_scene = st.session_state.scene_list[st.session_state.current_scene_index]
-    image_index = st.session_state.current_image_index + 1
+    scene_color_dir = os.path.join(DATASET_PATH, current_scene, OUTPUT_FOLDER, "color")
+    scene_images = sorted([
+        f for f in os.listdir(scene_color_dir)
+        if f.lower().endswith((".jpg", ".png"))
+    ])
+    current_filename = scene_images[st.session_state.current_image_index]
+    file_id = os.path.splitext(current_filename)[0]
+
     st.session_state.uninterpretable_images = mark_uninterpretable(
         current_scene,
-        image_index,
+        file_id,
         st.session_state.uninterpretable_images
     )
     return save_json_file(st.session_state.uninterpretable_images, UNINTERPRETABLE_FILE)
+
 
 # --- Streamlit page setup ---
 st.set_page_config(
@@ -62,6 +78,7 @@ st.set_page_config(
 
 # --- Session state ---
 initialize_session_state(CONFIG)
+IMAGES_PER_SCENE = st.session_state.num_view
 
 # --- Sidebar ---
 render_sidebar(
