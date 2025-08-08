@@ -11,12 +11,12 @@ render:
   output_folder: output
 
 keyframe:
-  num_frames: 6
+  num_frames: 10
   blur_threshold: 150.0
   voxel_size: 0.02
   kmeans_n_init: 10
   kmeans_max_iter: 300
-  kmeans_tol: 1e-4
+  kmeans_tol: 0.0001
 
 paths:
   base_data_dir: data
@@ -38,6 +38,6 @@ download:
 
 ui:
   sample_scene: scene0000_00
-  sample_view: view_1
+  sample_view: 001945.jpg
   sample_description: >
-      Part of the room with a desk and a low wooden table. There's an office chair, some papers, books, a remote control, and a few other items on the table. A curtain and some shelves are also visible.  
+      Part of the room with a sofa and a low wooden table. There's a remote control, and a few other items on the table. There is a TV visible. A bookshelf with a lot of books can be seen. A curtain and some shelves are also visible.  

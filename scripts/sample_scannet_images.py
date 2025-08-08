@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+Deprecated: This script is now replaced by `setup_sample_data.sh` for generating keyframes from ScanNet scenes.
 Sample ScanNet Images Script
 
 This script samples every Nth image from a ScanNet scene's color folder and copies

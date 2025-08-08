@@ -1,4 +1,5 @@
 """
+DEPRECATED: This script is now replaced by `keyframe.py` for generating keyframes from ScanNet scenes.
 Image Generator Script for ScanNet Scenes
 
 This script loads a ScanNet scene mesh and generates multiple rendered views
