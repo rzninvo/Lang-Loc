@@ -33,40 +33,20 @@ OUTPUT_FOLDER = CONFIG["render"]["output_folder"]
 # --- Helpers ---
 def handle_save_annotation(description):
     current_scene = st.session_state.scene_list[st.session_state.current_scene_index]
-    # Get current filename
-    scene_color_dir = os.path.join(DATASET_PATH, current_scene, OUTPUT_FOLDER, "color")
-    scene_images = sorted([
-        f for f in os.listdir(scene_color_dir)
-        if f.lower().endswith((".jpg", ".png"))
-    ])
-    current_filename = scene_images[st.session_state.current_image_index]
-    file_id = os.path.splitext(current_filename)[0]  # without .jpg/.png
-
-    st.session_state.annotations = save_annotation(
-        description,
-        st.session_state.annotations,
-        current_scene,
-        file_id
-    )
+    files = st.session_state.scene_to_files[current_scene]
+    current_filename = files[st.session_state.current_image_index]
+    file_id = os.path.splitext(current_filename)[0]
+    st.session_state.annotations = save_annotation(description, st.session_state.annotations, current_scene, file_id)
     return save_json_file(st.session_state.annotations, ANNOTATIONS_FILE)
-
 
 def handle_mark_uninterpretable():
     current_scene = st.session_state.scene_list[st.session_state.current_scene_index]
-    scene_color_dir = os.path.join(DATASET_PATH, current_scene, OUTPUT_FOLDER, "color")
-    scene_images = sorted([
-        f for f in os.listdir(scene_color_dir)
-        if f.lower().endswith((".jpg", ".png"))
-    ])
-    current_filename = scene_images[st.session_state.current_image_index]
+    files = st.session_state.scene_to_files[current_scene]
+    current_filename = files[st.session_state.current_image_index]
     file_id = os.path.splitext(current_filename)[0]
-
-    st.session_state.uninterpretable_images = mark_uninterpretable(
-        current_scene,
-        file_id,
-        st.session_state.uninterpretable_images
-    )
+    st.session_state.uninterpretable_images = mark_uninterpretable(current_scene, file_id, st.session_state.uninterpretable_images)
     return save_json_file(st.session_state.uninterpretable_images, UNINTERPRETABLE_FILE)
+
 
 
 # --- Streamlit page setup ---
@@ -78,13 +58,12 @@ st.set_page_config(
 
 # --- Session state ---
 initialize_session_state(CONFIG)
-IMAGES_PER_SCENE = st.session_state.num_view
 
 # --- Sidebar ---
 render_sidebar(
     dataset_path=DATASET_PATH,
     total_scenes=len(st.session_state.scene_list),
-    total_images=len(st.session_state.scene_list) * IMAGES_PER_SCENE,
+    total_images=st.session_state.total_images,
     annotation_count=len(st.session_state.annotations),
     uninterpretable_count=len(st.session_state.uninterpretable_images)
 )
@@ -102,11 +81,10 @@ render_sample_reference(
 render_annotation_panel(
     dataset_path=DATASET_PATH,
     output_folder=OUTPUT_FOLDER,
-    images_per_scene=IMAGES_PER_SCENE,
     save_annotation_fn=lambda description: handle_save_annotation(description),
-    mark_uninterpretable_fn = lambda: handle_mark_uninterpretable(),
-    next_image_fn=lambda: next_image(IMAGES_PER_SCENE),
-    previous_image_fn=lambda: previous_image(IMAGES_PER_SCENE)
+    mark_uninterpretable_fn=lambda: handle_mark_uninterpretable(),
+    next_image_fn=lambda: next_image(),
+    previous_image_fn=lambda: previous_image()
 )
 
 # --- Admin Tables ---
