@@ -101,6 +101,7 @@ def main(scene_id, config_path, auto_clean=False):
     kmeans_n_init = config["keyframe"]["kmeans_n_init"]
     kmeans_max_iter = config["keyframe"]["kmeans_max_iter"]
     kmeans_tol = config["keyframe"]["kmeans_tol"]
+    max_retries = config["keyframe"].get("max_retries", 3)
 
     # Paths
     dataset_path = config["paths"]["dataset_path"]
@@ -117,20 +118,28 @@ def main(scene_id, config_path, auto_clean=False):
     frame_ids = sorted([f.stem for f in color_dir.glob("*.jpg")])
     intrinsics = load_intrinsics(intrinsic_path)
 
-    # Evaluate frames in parallel
-    with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
-        futures = [executor.submit(
-            evaluate_frame, fid, color_dir, depth_dir, pose_dir, label_dir, intrinsics, voxel_size, blur_threshold
-        ) for fid in frame_ids]
+    # Retry loop: relax thresholds if too few frames
+    retry_count = 0
+    frame_scores = []
 
-        frame_scores = []
-        for f in tqdm(futures, desc="Processing frames"):
-            result = f.result()
-            if result is not None:
-                frame_scores.append(result)
+    while retry_count <= max_retries:
+        print(f"[INFO] Attempt {retry_count+1}: blur_threshold={blur_threshold}, voxel_size={voxel_size}")
 
-    if len(frame_scores) < num_frames:
-        print(f"Warning: Only {len(frame_scores)} usable frames found, fewer than requested {num_frames}.")
+        with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
+            futures = [executor.submit(
+                evaluate_frame, fid, color_dir, depth_dir, pose_dir, label_dir, intrinsics,
+                voxel_size, blur_threshold
+            ) for fid in frame_ids]
+
+            frame_scores = [res for f in tqdm(futures, desc="Processing frames") if (res := f.result())]
+
+        if len(frame_scores) >= num_frames or retry_count == max_retries:
+            break  # we have enough frames or hit max tries
+
+        # Relax thresholds
+        blur_threshold *= 0.8      # allow slightly blurrier images
+        voxel_size *= 1.2          # accept sparser geometry
+        retry_count += 1
 
     # Normalize scores
     semantic_vals = np.array([f["semantic_score"] for f in frame_scores])
@@ -146,6 +155,8 @@ def main(scene_id, config_path, auto_clean=False):
 
     # K-Means on pose vectors
     pose_matrix = np.stack([f["pose_vector"] for f in frame_scores])
+    mask = np.isfinite(pose_matrix).all(axis=1)
+    pose_matrix = pose_matrix[mask]
     kmeans = KMeans(
         n_clusters=min(num_frames, len(frame_scores)),
         random_state=42,

@@ -6,55 +6,46 @@ from src.utils.io_utils import is_image_uninterpretable
 def render_annotation_panel(
     dataset_path,
     output_folder,
-    images_per_scene,
     save_annotation_fn,
     mark_uninterpretable_fn,
     next_image_fn,
     previous_image_fn,
 ):
-    # Check if we have any scenes available
     if not st.session_state.scene_list:
         st.error("❌ No scenes found!")
-        st.info(f"Please ensure that:")
-        st.info(f"1. The dataset path exists: `{dataset_path}`")
-        st.info(f"2. Scenes are downloaded and rendered in the expected structure:")
-        st.info(f"   - Each scene should have an `{output_folder}` directory")
-        st.info(f"   - Each scene should have {images_per_scene} rendered images (any filenames)")
-        st.info(f"3. You can run the sampling script to create a manageable dataset.")
+        st.info("Check dataset path and output structure.")
         return
 
-    current_scene = st.session_state.scene_list[st.session_state.current_scene_index]
-    scene_color_dir = os.path.join(dataset_path, current_scene, output_folder, "color")
+    scenes = st.session_state.scene_list
+    scene_to_files = st.session_state.scene_to_files
+    current_scene = scenes[st.session_state.current_scene_index]
+    files = scene_to_files.get(current_scene, [])
 
-    # Get sorted list of available image files for this scene
-    if not os.path.exists(scene_color_dir):
-        st.error(f"❌ No color folder found: {scene_color_dir}")
+    if not files:
+        st.error(f"❌ No valid images found for scene: {current_scene}")
         return
 
-    scene_images = sorted([
-        f for f in os.listdir(scene_color_dir)
-        if f.lower().endswith((".jpg", ".png"))
-    ])
+    # Clamp index within this scene
+    st.session_state.current_image_index = min(
+        st.session_state.current_image_index,
+        max(0, len(files) - 1)
+    )
 
-    if not scene_images:
-        st.error(f"❌ No images found in {scene_color_dir}")
-        return
+    current_filename = files[st.session_state.current_image_index]
+    color_dir = os.path.join(dataset_path, current_scene, output_folder, "color")
+    current_image_path = os.path.join(color_dir, current_filename)
+    file_id = os.path.splitext(current_filename)[0]
 
-    # Ensure we don't go out of bounds
-    total_images_for_scene = len(scene_images)
-    if st.session_state.current_image_index >= total_images_for_scene:
-        st.session_state.current_image_index = 0
+    # --- Progress over all scenes/images ---
+    # cumulative images before current scene
+    prior = 0
+    for s in scenes[:st.session_state.current_scene_index]:
+        prior += len(scene_to_files.get(s, []))
+    current_global_index = prior + st.session_state.current_image_index + 1
+    total_images = st.session_state.total_images if st.session_state.total_images else 1
 
-    current_filename = scene_images[st.session_state.current_image_index]
-    current_image_path = os.path.join(scene_color_dir, current_filename)
-    file_id = os.path.splitext(current_filename)[0]  # without .jpg/.png
-
-    # Progress bar (based on total number of scenes * images_per_scene assumption)
-    total_images = len(st.session_state.scene_list) * images_per_scene
-    current_image_number = st.session_state.current_scene_index * images_per_scene + st.session_state.current_image_index + 1
-
-    st.progress(current_image_number / total_images)
-    st.write(f"**Progress:** {current_image_number} / {total_images} images")
+    st.progress(current_global_index / total_images)
+    st.write(f"**Progress:** {current_global_index} / {total_images} images")
 
     col1, col2, col3 = st.columns(3)
     with col1: st.metric("Scene", current_scene)
@@ -65,10 +56,8 @@ def render_annotation_panel(
         else:
             st.info("✅ Interpretable")
 
-    # Display image
     st.image(Image.open(current_image_path), caption=f"{current_scene} - {current_filename}", use_container_width=True)
 
-    # Annotation box
     is_unint = is_image_uninterpretable(current_scene, file_id, st.session_state.uninterpretable_images)
     description = st.text_area(
         "📝 Describe this image:",
@@ -78,11 +67,9 @@ def render_annotation_panel(
     )
 
     if is_unint:
-        st.warning("This image has been marked as uninterpretable. Use navigation buttons to move to another image.")
+        st.warning("This image has been marked as uninterpretable. Use navigation to move on.")
 
-    # Navigation buttons
     col1, col2, col3, col4 = st.columns(4)
-
     with col1:
         if st.button("⬅️ Previous", use_container_width=True):
             previous_image_fn()
@@ -92,7 +79,7 @@ def render_annotation_panel(
         if st.button("💾 Save & Next", use_container_width=True, type="primary", disabled=is_unint):
             if description.strip():
                 if save_annotation_fn(description):
-                    st.success("Annotation saved successfully!")
+                    st.success("Annotation saved!")
                     next_image_fn()
                     st.rerun()
                 else:
@@ -103,7 +90,7 @@ def render_annotation_panel(
     with col3:
         if st.button("❌ Uninterpretable", use_container_width=True):
             if mark_uninterpretable_fn():
-                st.success("Image marked as uninterpretable!")
+                st.success("Marked as uninterpretable!")
                 next_image_fn()
                 st.rerun()
             else:

@@ -45,7 +45,24 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # -------- RUN KEYFRAME GENERATION --------
 echo "[INFO] Step 2/2: Running keyframe generation for $SCAN_ID..."
-python3 -m src.image_generation.keyframe "$SCAN_ID" --config "$CONFIG_PATH" --auto_clean
+python3 -m src.image_generation.scannetpp_best_views "$SCAN_ID" --config "$CONFIG_PATH" --auto_clean
+
+# -------- PRINT WHERE WE SAVED THINGS --------
+DATASET_PATH=$(python3 - <<PY "$2"
+import sys, yaml
+with open(sys.argv[1]) as f:
+    cfg = yaml.safe_load(f)
+print(cfg["paths"]["dataset_path"])
+PY
+)
+
+OUTPUT_FOLDER=$(python3 - <<PY "$2"
+import sys, yaml
+with open(sys.argv[1]) as f:
+    cfg = yaml.safe_load(f)
+print(cfg["render"]["output_folder"])
+PY
+)
 
 echo "[INFO] Setup complete for $SCAN_ID."
-echo "[INFO] Keyframes saved in: $(echo "$CONFIG_JSON" | python3 -c "import sys, json; print(json.load(sys.stdin)['dataset_path'])")/$SCAN_ID/$(echo "$CONFIG_JSON" | python3 -c "import sys, json; print(json.load(sys.stdin)['render']['output_folder'])")"
+echo "[INFO] Keyframes saved in: ${DATASET_PATH}/${SCAN_ID}/${OUTPUT_FOLDER}"
