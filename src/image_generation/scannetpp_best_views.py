@@ -689,7 +689,7 @@ def plot_clusters(camera_poses: List[np.ndarray], cluster_labels: List[int]):
     Plot the camera poses in 3D with color mapping for each cluster.
     """
     # Extract positions (translation vectors) from the camera poses
-    positions = np.array([pose[1] for pose in camera_poses])
+    positions = np.stack([pose[:3, 3] for pose in camera_poses], axis=0)  # (N,3)
 
     # Plot the clusters
     fig = plt.figure(figsize=(10, 8))
@@ -706,7 +706,7 @@ def plot_clusters(camera_poses: List[np.ndarray], cluster_labels: List[int]):
 # ----------------------------------- Main -------------------------------------
 
 def main(scene_id: str, config_path: str, device_str: str | None = None,
-         debug: bool = False, viz_first: int = 3, viz_selected: int = 0, auto_clean: bool = False) -> None:
+         debug: bool = False, viz_first: int = 3, viz_selected: int = 0, auto_clean: bool = False, save_semantic_masks: bool = False, save_instance_masks: bool = False) -> None:
     """
     End-to-end pipeline orchestrator.
 
@@ -752,8 +752,6 @@ def main(scene_id: str, config_path: str, device_str: str | None = None,
     imq_threshold = float(spp.get("imq_threshold", 40.0))  # BRISQUE quality threshold
 
     # Mask export knobs
-    save_instance_masks = bool(spp.get("save_instance_masks", True))
-    save_semantic_masks = bool(spp.get("save_semantic_masks", True))
     mask_ds = int(spp.get("mask_downsample_factor", 1))
     semantic_id_key = str(spp.get("semantic_id_key", "nyu40id"))
     labelmap_tsv = Path(spp.get("labelmap_tsv", "data/scannetv2-labels.combined.tsv"))
@@ -768,14 +766,23 @@ def main(scene_id: str, config_path: str, device_str: str | None = None,
     device = torch.device(device_str) if device_str else torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"[INFO] Using device: {device}")
 
-    # Collect frames (optionally subsampled/limited)
+    # Collect frames
     frame_ids = filter_sharp_images(color_dir, threshold=imq_threshold)
     if subsample_factor > 1:
         frame_ids = frame_ids[::subsample_factor]
     if limit_images is not None:
         frame_ids = frame_ids[:int(limit_images)]
     if not frame_ids:
-        raise RuntimeError(f"No sharp images found in {color_dir}")
+        # progressively relax threshold up to a cap
+        relax_seq = [imq_threshold + 10, 45, 50, 60]
+        for thr in relax_seq:
+            frame_ids = filter_sharp_images(color_dir, threshold=thr)
+            if frame_ids:
+                print(f"[WARN] Relaxed BRISQUE threshold to {thr}; kept {len(frame_ids)} frames.")
+                break
+
+    if not frame_ids:
+        raise RuntimeError(f"No sharp images found in {color_dir} even after relaxing threshold.")
     if debug:
         print(f"[DEBUG] Using {len(frame_ids)} sharp frames after subsample/limit.")
 
@@ -870,105 +877,141 @@ def main(scene_id: str, config_path: str, device_str: str | None = None,
         torch.save(best_views, order_cache)
         print(f"[INFO] Saved best-views order: {order_cache}")
 
-    # --------------------------- K-means Clustering ---------------------------
+   # --------------------------- K-means Clustering -----------------------------
     print("[INFO] Applying K-means clustering to selected camera poses...")
-    camera_poses = []  # Store camera poses for clustering
-    camera_ids = []    # Store the corresponding frame ids for reference
 
+    # Build pose list and positions for only the NBV-ordered frames
+    camera_poses = []
+    camera_ids = []
     for fid in best_views:
         pose = load_cam2world(pose_dir / f"{fid}.txt")
         camera_poses.append(pose)
         camera_ids.append(fid)
 
-    # Convert camera poses into a numpy array of positions (translations)
-    positions = np.array([pose[1] for pose in camera_poses])  # Only use translations (x, y, z)
+    # Positions = translation vector from 4x4 cam2world
+    positions = np.stack([pose[:3, 3] for pose in camera_poses], axis=0)  # (N,3)
 
-    # Dynamically adjust n_clusters based on the number of available poses
-    n_clusters = min(len(positions), kmeans_n_clusters)  # Use either the requested or available number of poses
-
-    if n_clusters < 2:
-        print("[WARNING] Not enough frames for meaningful clustering. Skipping clustering.")
-        cluster_labels = np.zeros(len(positions))  # All points in the same cluster (since we can't cluster with 1 or fewer points)
+    # Choose number of clusters robustly
+    n_candidates = len(camera_ids)
+    if isinstance(kmeans_n_clusters, int) and kmeans_n_clusters > 0:
+        n_clusters = min(n_candidates, kmeans_n_clusters)
     else:
-        # Apply K-means clustering with the adjusted number of clusters
-        kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+        # fallback: about one per ~12 views, clamped
+        n_clusters = max(6, min(40, int(round(n_candidates / 12)))) if n_candidates >= 6 else n_candidates
+
+    if n_candidates <= 1 or n_clusters <= 1:
+        print("[WARNING] Not enough frames for meaningful clustering. Skipping clustering.")
+        cluster_labels = np.zeros(n_candidates, dtype=int)
+    else:
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init="auto")
         cluster_labels = kmeans.fit_predict(positions)
-        print(f"[INFO] K-means clustering result: {cluster_labels}")
+        print(f"[INFO] K-means clustering into {n_clusters} clusters done.")
 
-    # --------------------------- Grouping by Cluster --------------------------
-    cluster_groups = {}
-    for cluster_id, fid in zip(cluster_labels, camera_ids):
-        if cluster_id not in cluster_groups:
-            cluster_groups[cluster_id] = []
-        cluster_groups[cluster_id].append(fid)
+    # Map frame id -> NBV rank (lower is better)
+    rank = {fid: i for i, fid in enumerate(best_views)}
 
-    # Print the groups of frames
-    for cluster_id, frames in cluster_groups.items():
-        print(f"[INFO] Cluster {cluster_id}: {len(frames)} frames")
+    # Group frames by cluster id
+    clusters = {}
+    for lbl, fid in zip(cluster_labels, camera_ids):
+        clusters.setdefault(int(lbl), []).append(fid)
 
-    # --------------------------- Saving One Frame per Cluster -----------------
+    # Pick the top-ranked (earliest in NBV order) frame per cluster
+    cluster_representatives = []
+    for lbl, fids in clusters.items():
+        best_fid = min(fids, key=lambda x: rank[x])
+        cluster_representatives.append(best_fid)
+
+    # (Optional) sort chosen reps by their NBV rank for a nice, stable order
+    cluster_representatives.sort(key=lambda x: rank[x])
+
+    print(f"[INFO] Selected {len(cluster_representatives)} cluster representatives.")
+
+    # --------------------------- Save selected frames ----------------------------
     color_output_dir = output_dir / "color"
     pose_output_dir = output_dir / "pose"
     depth_output_dir = output_dir / "depth"
     label_output_dir = output_dir / "label"
-    color_output_dir.mkdir(parents=True, exist_ok=True)
-    pose_output_dir.mkdir(parents=True, exist_ok=True)
-    depth_output_dir.mkdir(parents=True, exist_ok=True)
-    label_output_dir.mkdir(parents=True, exist_ok=True)
+    for d in (color_output_dir, pose_output_dir, depth_output_dir, label_output_dir):
+        d.mkdir(parents=True, exist_ok=True)
 
     camera_pose_json = {}
+    for fid in cluster_representatives:
+        pose = load_cam2world(pose_dir / f"{fid}.txt")
+        camera_pose_json[fid] = pose.tolist()
 
-    for cluster_id, frames in cluster_groups.items():
-        # Pick the first frame (or you can modify the logic to pick another frame, e.g., the one with the best coverage)
-        selected_frame = frames[0]
+        shutil.copy(color_dir / f"{fid}.jpg",  color_output_dir / f"{fid}.jpg")
+        shutil.copy(depth_dir / f"{fid}.png",  depth_output_dir / f"{fid}.png")
+        shutil.copy(pose_dir  / f"{fid}.txt",  pose_output_dir / f"{fid}.txt")
+        lp = label_dir / f"{fid}.png"
+        if lp.exists():
+            shutil.copy(lp, label_output_dir / f"{fid}.png")
+        print(f"[INFO] Saved cluster-representative frame {fid} to {output_dir}")
 
-        pose = load_cam2world(pose_dir / f"{selected_frame}.txt")
-        pose_matrix = pose.tolist()
-        camera_pose_json[selected_frame] = pose_matrix
-
-        # Save the selected frame
-        shutil.copy(color_dir / f"{selected_frame}.jpg", color_output_dir / f"{selected_frame}.jpg")
-        shutil.copy(depth_dir / f"{selected_frame}.png", depth_output_dir / f"{selected_frame}.png")
-        shutil.copy(pose_dir / f"{selected_frame}.txt", pose_output_dir / f"{selected_frame}.txt")
-
-        label_path = label_dir / f"{selected_frame}.png"
-        if label_path.exists():
-            shutil.copy(label_path, label_output_dir / f"{selected_frame}.png")
-
-        print(f"[INFO] Saved frame {selected_frame} from Cluster {cluster_id} to {output_dir}")
-
-    # Save the camera pose JSON
     with open(output_dir / "camera_pose.json", "w") as f:
         json.dump(camera_pose_json, f, indent=2)
 
-    # --------------------------- Visualization -------------------------------
+    # --------------------------- (Optional) Debug plot ---------------------------
     if debug:
-        # Plot the clustered camera poses in 3D
         fig = plt.figure(figsize=(10, 8))
         ax = fig.add_subplot(111, projection='3d')
 
-        # Assign colors based on cluster labels
-        unique_labels = np.unique(cluster_labels)
-        for label in unique_labels:
-            # Get the indices of frames in this cluster
-            indices = np.where(cluster_labels == label)[0]
-            
-            # Plot the positions in this cluster
-            ax.scatter(positions[indices, 0], positions[indices, 1], positions[indices, 2],
-                        label=f"Cluster {label}", s=50)
+        # Plot all candidates, colored by cluster
+        for lbl in np.unique(cluster_labels):
+            idx = np.where(cluster_labels == lbl)[0]
+            ax.scatter(positions[idx, 0], positions[idx, 1], positions[idx, 2], label=f"C{int(lbl)}", s=30)
 
-        ax.set_xlabel('X')
-        ax.set_ylabel('Y')
-        ax.set_zlabel('Z')
-        ax.set_title('Clustered Camera Poses')
+        # Highlight chosen representatives (larger markers)
+        rep_idx = [camera_ids.index(fid) for fid in cluster_representatives]
+        ax.scatter(positions[rep_idx, 0], positions[rep_idx, 1], positions[rep_idx, 2], s=120, marker='*')
 
-        # Add legend and show the plot
+        ax.set_xlabel('X'); ax.set_ylabel('Y'); ax.set_zlabel('Z')
+        ax.set_title('Clustered Camera Poses (+ reps)')
         ax.legend()
         plt.show()
 
     # print("\n[DONE] Best views (first 50):")
     # for i, fid in enumerate(best_views[:50], start=1):
     #     print(f"{i:>3d}. {fid}")
+
+    # --------------------------- Export instance/semantic masks -------------------
+    if save_instance_masks or save_semantic_masks:
+        print("[INFO] Rendering masks for selected frames...")
+        # Build image size / intrinsics for mask resolution
+        Hm = max(1, H0 // max(1, mask_ds))
+        Wm = max(1, W0 // max(1, mask_ds))
+        fx_m, fy_m, cx_m, cy_m = fx / mask_ds, fy / mask_ds, cx / mask_ds, cy / mask_ds
+
+        rasterizer_mask = make_rasterizer(
+            Hm, Wm,
+            faces_per_pixel=1,
+            bin_size=bin_size,
+            max_faces_per_bin=max_faces_per_bin,
+            blur_radius=0.0,
+        )
+
+        inst_dir = output_dir / "instance"
+        sem_dir  = output_dir / "semantic"
+        if save_instance_masks: inst_dir.mkdir(parents=True, exist_ok=True)
+        if save_semantic_masks: sem_dir.mkdir(parents=True, exist_ok=True)
+
+        # numpy copy of face->object ids for fast indexing
+        face_obj_ids_np = np.asarray(face_obj_ids, dtype=np.int32)
+
+        for fid in tqdm(cluster_representatives, desc="Masks", dynamic_ncols=True):
+            pose = load_cam2world(pose_dir / f"{fid}.txt")
+            R_cv, t_cv = invert_se3_to_opencv(pose)
+
+            cams_mask = make_p3d_from_opencv(R_cv, t_cv, fx_m, fy_m, cx_m, cy_m, Hm, Wm, device)
+            pix_to_face, _ = rasterize_visibility(meshes, cams_mask, rasterizer_mask)
+            p2f_np = pix_to_face.cpu().numpy()
+
+            if save_instance_masks:
+                inst = pix_to_instance_mask(p2f_np, face_obj_ids_np, void_val=VOID_ID)
+                save_png16(inst_dir / f"{fid}.png", inst)
+
+            if save_semantic_masks:
+                sem = pix_to_semantic_mask(p2f_np, face_obj_ids_np, obj_to_sem_id, void_val=VOID_ID)
+                save_png16(sem_dir / f"{fid}.png", sem)
 
     # Auto-clean if enabled
     if auto_clean:
@@ -990,6 +1033,8 @@ if __name__ == "__main__":
     parser.add_argument("--viz_first", type=int, default=3, help="Visualize this many initial frames")
     parser.add_argument("--viz_selected", type=int, default=0, help="Visualize this many top selected frames")
     parser.add_argument("--auto_clean", action="store_true", help="Auto-clean intermediate files (color/depth/pose/label dirs and .sens file)")
+    parser.add_argument("--save_semantic_masks", action="store_true", help="Save semantic masks (16-bit PNGs)")
+    parser.add_argument("--save_instance_masks", action="store_true", help="Save instance masks (16-bit PNGs)")
     args = parser.parse_args()
 
     main(
@@ -999,5 +1044,7 @@ if __name__ == "__main__":
         debug=args.debug,
         viz_first=args.viz_first,
         viz_selected=args.viz_selected,
-        auto_clean=args.auto_clean
+        auto_clean=args.auto_clean,
+        save_semantic_masks=args.save_semantic_masks,
+        save_instance_masks=args.save_instance_masks,
     )
