@@ -1,10 +1,6 @@
 import os
 from src.utils.io_utils import load_json_file
 import streamlit as st
-import random
-
-# setting seed for reproducibility
-random.seed(42)
 
 def initialize_session_state(config):
     if 'current_scene_index' not in st.session_state:
@@ -60,6 +56,5 @@ def load_dataset_structure(dataset_path, output_folder):
             scene_to_files[scene_name] = valid_files
 
     scenes = sorted(scene_to_files.keys())
-    random.shuffle(scenes)  # Shuffle scenes for variety
     total_images = sum(len(v) for v in scene_to_files.values())
     return scenes, scene_to_files, total_images
