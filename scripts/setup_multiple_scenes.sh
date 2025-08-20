@@ -4,7 +4,7 @@
 # setup_multiple_scenes.sh
 #
 # Downloads, extracts, and generates keyframes for multiple ScanNet scenes.
-# Loops through scene0000_00 → scene0019_00 (first 20 scenes).
+# Loops through scene0000_00 → scene0200_00 (first 200 scenes).
 # Skips scenes already present in data/scans/.
 #
 # Usage:
@@ -20,7 +20,7 @@ set -e  # Exit immediately if a command fails
 # -------- ARGUMENT CHECK --------
 if [ "$#" -lt 1 ]; then
     echo "Usage: $0 <config_path> [num_scenes]"
-    echo "Example: $0 config/default.yaml 20"
+    echo "Example: $0 config/default.yaml 100"
     exit 1
 fi
 
