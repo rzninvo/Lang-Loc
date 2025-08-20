@@ -1,122 +1,172 @@
-# 🏗️ ScanNet Scene Downloader & Renderer
+# ScanNet Scene Setup & Keyframe Generation
 
-This project helps you automatically download specific scenes from the [ScanNet dataset](http://www.scan-net.org/) and render **multi-view images** from them using `Open3D`.
+This repo automates preparing ScanNet scenes for annotation or model training.
+It downloads required assets, extracts RGB/Depth/Poses from `.sens`, and runs a **ScanNet++-style Next-Best-View (NBV) pipeline** to pick sharp, diverse keyframes.
 
----
+Selected frames (RGB, depth, poses, and optional instance/semantic masks) are saved in each scene’s `output/` folder. Temporary raw files can be auto-cleaned.
 
-## 📦 What’s Included?
+## Requirements
 
-- `download_subset.sh`: Bash script to download all required files for a given `scene_id`
-- `render_scene.py`: Python script to generate 6 synthetic views around a scene
-- Example output: `output/view_1.png` ... `view_6.png`
+* Python ≥ 3.10
+* Linux recommended (headless EGL rendering + `.sens` extraction)
+* ScanNet credentials (see [ScanNet site](http://www.scan-net.org/))
 
----
+### Python packages
 
-## ✅ Requirements
-
-### Python Packages
-
-Make sure you have Python ≥3.7 and the following packages:
+Install everything:
 
 ```bash
-pip install open3d numpy
-````
-
-> 🧠 Note: You need an OpenGL-compatible GPU and drivers. Open3D uses **EGL headless rendering** on Linux.
-
----
-
-## 📂 Directory Structure
-
-After running the scripts, your project will look like:
-
-```
-project-root/
-│
-├── download_subset.sh
-├── render_scene.py
-├── data/
-│   └── scans/
-│       └── scene0000_00/
-│           ├── scene0000_00_vh_clean_2.ply
-│           ├── ...
-│           └── output/
-                ├── camera_pose.json
-│               ├── view_1.png
-│               ├── ...
-│               └── view_6.png
+pip install -r requirements.txt
 ```
 
----
+Key dependencies used:
 
-## 🚀 How to Use
+```
+numpy
+opencv-python
+Pillow
+tqdm
+matplotlib
+scikit-learn
+scikit-image
+scipy
+PyYAML
+open3d
+torch            # + CUDA if available
+pytorch3d
+brisque
+```
 
-### 1. Make the download script executable
+> ⚠️ Make sure `torch` and `pytorch3d` are installed with the correct CUDA/CPU build. See [PyTorch docs](https://pytorch.org/get-started/locally/) for wheels.
+
+## Dataset Structure
+
+After running the pipeline, each scene looks like:
+
+```
+data/scans/
+└── scene0000_00
+    ├── intrinsic/
+    │   └── intrinsic_color.txt
+    ├── output/
+    │   ├── cache_scannetpp/         # per-scene caches (NBV order, stats)
+    │   ├── camera_pose.json         # poses for selected frames
+    │   ├── color/                   # selected RGB frames
+    │   │   ├── 002800.jpg
+    │   │   └── ...
+    │   ├── depth/                   # matched depth maps
+    │   │   ├── 002800.png
+    │   │   └── ...
+    │   ├── pose/                    # matched camera->world matrices
+    │   │   ├── 002800.txt
+    │   │   └── ...
+    │   ├── instance/                # (optional) 16-bit instance masks
+    │   └── semantic/                # (optional) 16-bit semantic masks
+    ├── scene0000_00.aggregation.json
+    ├── scene0000_00_vh_clean_2.0.010000.segs.json
+    ├── scene0000_00_vh_clean_2.labels.ply
+    └── scene0000_00_vh_clean_2.ply
+```
+
+> Raw `color/`, `depth/`, `pose/`, and `.sens` files are extracted temporarily.
+> If `--auto_clean` is used (default), they are deleted after keyframe selection.
+> The **final outputs** always live in `output/`.
+
+## ⚙️ Configuration
+
+The pipeline is driven by a YAML config (e.g. `config/default.yaml`).
+
+### Key sections
+
+- **`paths.dataset_path`** — root dataset folder (default: `data/scans/`)  
+- **`render.output_folder`** — subfolder where outputs are written (default: `output/`)  
+- **`scannetpp.*`** — Next-Best-View (NBV) & rasterization parameters, e.g.:  
+  - `imq_threshold`: BRISQUE image quality cutoff  
+  - `image_downsample_factor`: downsample factor for candidate images  
+  - `kmeans_n_clusters`: number of pose clusters for spatial diversity  
+  - `min_gain_pixels`: minimum new coverage (pixels) required to keep a view  
+
+### Runtime flags
+
+You can override defaults at runtime with:
+
+- `--debug` — show extra visualization/debug info  
+- `--auto_clean` — remove temporary raw folders after keyframe selection  
+- `--save_semantic_masks` — export semantic masks (16-bit PNGs)  
+- `--save_instance_masks` — export instance masks (16-bit PNGs)  
+
+
+## Usage
+
+### One scene
+
+Run download + extraction + NBV selection in one command:
 
 ```bash
-chmod +x download_subset.sh
+bash scripts/setup_sample_data.sh scene0000_00 config/default.yaml
 ```
 
----
+Steps performed:
 
-### 2. Render a scene
+1. Downloads all required ScanNet files (`.ply`, `.sens`, annotations, labels).
+2. Extracts RGB, depth, poses, intrinsics from `.sens`.
+3. Runs NBV pipeline:
 
-To download and render a specific ScanNet scene:
+   * filters blurry frames (BRISQUE, auto-relaxes if needed),
+   * maximizes object coverage + diversity,
+   * clusters poses and picks best NBV per cluster.
+4. Saves selected frames + optional masks into `output/`.
+5. Cleans temporary raw files (if `--auto_clean` enabled).
+
+### Many scenes
+
+Loop through the first *N* scenes (default 20):
 
 ```bash
-python3 render_scene.py scene0000_00
+# Prepare the first 100 scenes
+bash scripts/setup_multiple_scenes.sh config/default.yaml 100
+```
+
+Scenes already existing in `data/scans/` are skipped.
+
+### Download only
+
+Fetch scene files and extract RGB/Depth/Poses without NBV:
+
+```bash
+bash scripts/download_subset.sh scene0000_00
 ```
 
 This will:
 
-1. Check if `scene0000_00` exists locally.
-2. If not, download it via `download_subset.sh`.
-3. Render **6 images** from different camera angles and save them to:
+* Download files listed in config (`*_vh_clean_2.ply`, `.labels.ply`, `.aggregation.json`, `.segs.json`, `.sens`, etc.)
+* Extract RGB/depth/poses/intrinsics from `.sens` via `src/utils/sens_reader.py`
 
-```
-data/scans/scene0000_00/output/
-```
+## Pipeline Details
 
----
+* **NBV Selection**
+  Iteratively selects frames to maximize coverage across object instances.
 
-## 🔧 What Does It Download?
+* **Pose Clustering**
+  After NBV ranking, camera translations are clustered (K-means).
+  From each cluster, the **highest-ranked NBV** is chosen.
+  → Enforces spatial diversity while keeping coverage intact.
 
-For each `scene_id`, the following files are fetched:
+* **BRISQUE Filtering**
+  Low-quality frames are discarded.
+  If all are filtered out, the threshold is auto-relaxed so enough candidates survive.
 
-* `*_vh_clean_2.ply` – cleaned mesh
-* `*_vh_clean_2.labels.ply` – semantic labels
-* `*_vh_clean_2.0.010000.segs.json` – segment mapping
-* `*.aggregation.json` – object instance annotations
-* `*.txt` – metadata (e.g., intrinsics)
-* `scannetv2-labels.combined.tsv` – global label map
+* **Outputs**
 
----
+  * RGB (`color/`)
+  * Depth (`depth/`)
+  * Poses (`pose/` + `camera_pose.json`)
+  * Instance/semantic masks (optional, 16-bit PNGs)
+  * Cached NBV stats in `cache_scannetpp/`
 
-## 🖼️ What Do the Rendered Images Show?
+## Troubleshooting
 
-Each rendered image is a **60° rotation step** around the mesh, simulating a virtual camera orbit. You get **6 total views** (front, sides, back, etc.), rendered at:
-
-* Resolution: 1920×1080
-* Field of View: 90° vertical (customizable)
-* View height: 1.0 m above mesh center
-
----
-
-## 📌 Troubleshooting
-
-* ❌ `PermissionError` on script:
-  → Run `chmod +x download_subset.sh`
-
-* ❌ Open3D rendering doesn't show expected mesh:
-  → Make sure you're using `read_triangle_mesh` (not `read_point_cloud`)
-  → Make sure you use a recent version of Open3D (≥0.16 recommended)
-
----
-
-## 📬 Questions?
-
-Feel free to open an issue or reach out if you'd like to:
-
-* Add depth map rendering
-* Use real camera poses from ScanNet
-* Render semantic overlays
+* **0 frames after BRISQUE** → Lower `imq_threshold` (e.g., 35–40) or enable auto-relax in config.
+* **PyTorch3D errors** → Ensure `torch` and `pytorch3d` match your CUDA version.
+* **Headless rendering issues** → Install EGL/GL drivers (`libegl1`, `mesa-utils`, etc.).
+* **Scene skipped** → Confirm `config_loader.py` points to the right `base_dir` and `file_types`.
