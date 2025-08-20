@@ -21,13 +21,28 @@ def render_instructions():
         
         ### Dataset Structure:
         ```
-        /Users/abu/Desktop/master_project/data_sample/
-        ├── scene0000_00/
-        │   └── output/
-        │       ├── camera_pose.json
-        │       ├── view_1.png
-        │       ├── view_2.png
-        │       └── ...
-        └── ...
-        ```
+        ./data/scans/
+        ├── scene0000_00
+        │  ├── intrinsic
+        │  |  ...
+        │  ├──output
+        │  │  ├── cache_scannetpp
+        │  │  |   ├── ...
+        │  │  ├── camera_pose.json
+        │  │  ├── color
+        │  │  │   ├── 002800.jpg
+        │  │  │   └── ...
+        │  │  ├── depth
+        │  │  │   ├── 002800.png
+        │  │  │   └── ...
+        │  │  └── pose
+        │  │  ├── 002800.txt
+        │  │  └── ...
+        │  ├── scene0000_00.aggregation.json
+        │  ├── scene0000_00.txt
+        │  ├── scene0000_00_vh_clean_2.0.010000.segs.json
+        │  ├── scene0000_00_vh_clean_2.labels.ply
+        │  └── scene0000_00_vh_clean_2.ply
+        ├── ...
+
         """)
