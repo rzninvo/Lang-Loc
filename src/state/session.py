@@ -1,12 +1,9 @@
 import os
 from src.utils.io_utils import load_json_file
 import streamlit as st
+import random
 
 def initialize_session_state(config):
-    if 'current_scene_index' not in st.session_state:
-        st.session_state.current_scene_index = 0
-    if 'current_image_index' not in st.session_state:
-        st.session_state.current_image_index = 0
     if 'annotations' not in st.session_state:
         st.session_state.annotations = load_json_file(config['paths']['annotations_file'])
     if 'uninterpretable_images' not in st.session_state:
@@ -19,6 +16,29 @@ def initialize_session_state(config):
         st.session_state.scene_list = scenes
         st.session_state.scene_to_files = scene_to_files
         st.session_state.total_images = total
+    if "current_scene_index" not in st.session_state:
+        if st.session_state.scene_list:  # safe check
+            st.session_state.current_scene_index = random.randrange(len(st.session_state.scene_list))
+        else:
+            st.session_state.current_scene_index = 0
+
+    if "current_image_index" not in st.session_state:
+        if (
+            "scene_list" in st.session_state
+            and st.session_state.scene_list
+            and "scene_to_files" in st.session_state
+        ):
+            current_scene = st.session_state.scene_list[st.session_state.current_scene_index]
+            files = st.session_state.scene_to_files.get(current_scene, [])
+            if files:
+                st.session_state.current_image_index = random.randrange(len(files))
+            else:
+                st.session_state.current_image_index = 0
+        else:
+            st.session_state.current_image_index = 0
+
+    if "history" not in st.session_state:
+        st.session_state.history = []
 
 def load_dataset_structure(dataset_path, output_folder):
     """

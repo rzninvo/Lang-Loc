@@ -62,12 +62,12 @@ def render_annotation_panel(
     description = st.text_area(
         "📝 Describe this image:",
         height=100,
-        disabled=is_unint,
         key=f"description_{current_scene}_{current_filename}"
     )
 
     if is_unint:
-        st.warning("This image has been marked as uninterpretable. Use navigation to move on.")
+        st.warning("⚠️ This image has been marked as uninterpretable by someone else. "
+               "If you believe it *is* interpretable, you can still annotate it.")
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -76,7 +76,7 @@ def render_annotation_panel(
             st.rerun()
 
     with col2:
-        if st.button("💾 Save & Next", use_container_width=True, type="primary", disabled=is_unint):
+        if st.button("💾 Save & Next", use_container_width=True, type="primary"):
             if description.strip():
                 if save_annotation_fn(description):
                     st.success("Annotation saved!")
