@@ -52,6 +52,26 @@ scannetpp:
   output_folder: output
 
 # ------------------------------------------------------------
+# 3RScan NBV configuration (for 3rscan_best_views.py)
+# ------------------------------------------------------------
+3rscan:
+  image_downsample_factor: 2   # Downsample factor for NBV rasterization
+  mask_downsample_factor: 1    # Downsample factor for masks
+  subsample_factor: 1          # Keep every Nth frame
+  faces_per_pixel: 2
+  bin_size: null
+  max_faces_per_bin: null
+  blur_radius: 0.0
+  imq_threshold: 30.0          # BRISQUE image quality threshold
+  kmeans_n_clusters: 10        # Number of pose clusters for diversity
+  cache_dir: cache_rscan       # Where to store intermediate caches
+  raster_out_dir: cache_rscan
+  limit_images: null           # Optional cap on candidate images
+  max_best: 120                # Max frames kept in pre-selection
+  min_gain_pixels: 500         # Min new pixels gained per view
+  output_folder: output
+
+# ------------------------------------------------------------
 # File system paths
 # ------------------------------------------------------------
 paths:
@@ -61,6 +81,7 @@ paths:
   uninterpretable_file: data/results/uninterpretable_images.json
   camera_pose_file: camera_pose.json
   download_script: scripts/download_subset.sh
+  3rscan_release_scans_file: config/3RScan_release_scans.txt
 
 # ------------------------------------------------------------
 # Download settings
