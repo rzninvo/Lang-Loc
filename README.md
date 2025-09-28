@@ -1,172 +1,141 @@
-# ScanNet Scene Setup & Keyframe Generation
+# Scene Preparation & Annotation Tool (ScanNet + 3RScan)
 
-This repo automates preparing ScanNet scenes for annotation or model training.
-It downloads required assets, extracts RGB/Depth/Poses from `.sens`, and runs a **ScanNet++-style Next-Best-View (NBV) pipeline** to pick sharp, diverse keyframes.
+This repo provides a **complete pipeline** for working with ScanNet and 3RScan datasets:
 
-Selected frames (RGB, depth, poses, and optional instance/semantic masks) are saved in each scene’s `output/` folder. Temporary raw files can be auto-cleaned.
+1. **Dataset Preparation**
 
-## Requirements
+   * Download & extract ScanNet / 3RScan scenes
+   * Select sharp, diverse **Next-Best-View (NBV)** keyframes
+   * Export RGB, depth, poses, and optional masks
+
+2. **Web-based Annotation Tool**
+
+   * Streamlit app for annotating selected frames
+   * Supports saving annotations, marking uninterpretable frames, and managing progress
+   * Admin dashboard for reviewing annotations
+
+---
+
+## 🚀 Features
+
+* ScanNet & 3RScan support (UUID or scene IDs)
+* Sharp image filtering (BRISQUE)
+* NBV-based frame selection with clustering
+* 16-bit semantic & instance mask export
+* Auto-clean of raw extracted files
+* Streamlit UI for annotation & dataset inspection
+
+---
+
+## 🔧 Requirements
 
 * Python ≥ 3.10
-* Linux recommended (headless EGL rendering + `.sens` extraction)
-* ScanNet credentials (see [ScanNet site](http://www.scan-net.org/))
+* Linux recommended (for rendering & `.sens` extraction)
+* Dataset credentials:
 
-### Python packages
+  * [ScanNet](http://www.scan-net.org/)
+  * [3RScan](http://campar.in.tum.de/public_datasets/3RScan/)
 
-Install everything:
+Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Key dependencies used:
-
-```
-numpy
-opencv-python
-Pillow
-tqdm
-matplotlib
-scikit-learn
-scikit-image
-scipy
-PyYAML
-open3d
-torch            # + CUDA if available
-pytorch3d
-brisque
-```
-
-> ⚠️ Make sure `torch` and `pytorch3d` are installed with the correct CUDA/CPU build. See [PyTorch docs](https://pytorch.org/get-started/locally/) for wheels.
-
-## Dataset Structure
-
-After running the pipeline, each scene looks like:
-
-```
-data/scans/
-└── scene0000_00
-    ├── intrinsic/
-    │   └── intrinsic_color.txt
-    ├── output/
-    │   ├── cache_scannetpp/         # per-scene caches (NBV order, stats)
-    │   ├── camera_pose.json         # poses for selected frames
-    │   ├── color/                   # selected RGB frames
-    │   │   ├── 002800.jpg
-    │   │   └── ...
-    │   ├── depth/                   # matched depth maps
-    │   │   ├── 002800.png
-    │   │   └── ...
-    │   ├── pose/                    # matched camera->world matrices
-    │   │   ├── 002800.txt
-    │   │   └── ...
-    │   ├── instance/                # (optional) 16-bit instance masks
-    │   └── semantic/                # (optional) 16-bit semantic masks
-    ├── scene0000_00.aggregation.json
-    ├── scene0000_00_vh_clean_2.0.010000.segs.json
-    ├── scene0000_00_vh_clean_2.labels.ply
-    └── scene0000_00_vh_clean_2.ply
-```
-
-> Raw `color/`, `depth/`, `pose/`, and `.sens` files are extracted temporarily.
-> If `--auto_clean` is used (default), they are deleted after keyframe selection.
-> The **final outputs** always live in `output/`.
+---
 
 ## ⚙️ Configuration
 
-The pipeline is driven by a YAML config (e.g. `config/default.yaml`).
+Driven by `config/default.yaml`.
 
-### Key sections
+* `paths.dataset_path` → root folder for dataset (`data/scans` or `data/3RScan`)
+* `render.output_folder` → subfolder for outputs (default: `output/`)
+* `scannetpp.*` and `3rscan.*` → NBV selection settings
 
-- **`paths.dataset_path`** — root dataset folder (default: `data/scans/`)  
-- **`render.output_folder`** — subfolder where outputs are written (default: `output/`)  
-- **`scannetpp.*`** — Next-Best-View (NBV) & rasterization parameters, e.g.:  
-  - `imq_threshold`: BRISQUE image quality cutoff  
-  - `image_downsample_factor`: downsample factor for candidate images  
-  - `kmeans_n_clusters`: number of pose clusters for spatial diversity  
-  - `min_gain_pixels`: minimum new coverage (pixels) required to keep a view  
+---
 
-### Runtime flags
+## 📂 Dataset Preparation
 
-You can override defaults at runtime with:
+### Single Scene
 
-- `--debug` — show extra visualization/debug info  
-- `--auto_clean` — remove temporary raw folders after keyframe selection  
-- `--save_semantic_masks` — export semantic masks (16-bit PNGs)  
-- `--save_instance_masks` — export instance masks (16-bit PNGs)  
-
-
-## Usage
-
-### One scene
-
-Run download + extraction + NBV selection in one command:
+**ScanNet**
 
 ```bash
-bash scripts/setup_sample_data.sh scene0000_00 config/default.yaml
+bash scripts/setup_sample_data.sh --dataset scannet scene0000_00 config/default.yaml
 ```
 
-Steps performed:
-
-1. Downloads all required ScanNet files (`.ply`, `.sens`, annotations, labels).
-2. Extracts RGB, depth, poses, intrinsics from `.sens`.
-3. Runs NBV pipeline:
-
-   * filters blurry frames (BRISQUE, auto-relaxes if needed),
-   * maximizes object coverage + diversity,
-   * clusters poses and picks best NBV per cluster.
-4. Saves selected frames + optional masks into `output/`.
-5. Cleans temporary raw files (if `--auto_clean` enabled).
-
-### Many scenes
-
-Loop through the first *N* scenes (default 20):
+**3RScan**
 
 ```bash
-# Prepare the first 100 scenes
-bash scripts/setup_multiple_scenes.sh config/default.yaml 100
+bash scripts/setup_sample_data.sh --dataset 3RScan <scene-uuid> config/default.yaml
 ```
 
-Scenes already existing in `data/scans/` are skipped.
-
-### Download only
-
-Fetch scene files and extract RGB/Depth/Poses without NBV:
+### Multiple Scenes
 
 ```bash
-bash scripts/download_subset.sh scene0000_00
+bash scripts/setup_multiple_scenes.sh --dataset scannet config/default.yaml 50
+bash scripts/setup_multiple_scenes.sh --dataset 3RScan config/default.yaml 50
 ```
 
-This will:
+### Download Only
 
-* Download files listed in config (`*_vh_clean_2.ply`, `.labels.ply`, `.aggregation.json`, `.segs.json`, `.sens`, etc.)
-* Extract RGB/depth/poses/intrinsics from `.sens` via `src/utils/sens_reader.py`
+```bash
+bash scripts/download_subset.sh --dataset scannet scene0000_00
+bash scripts/download_subset.sh --dataset 3RScan <scene-uuid>
+```
 
-## Pipeline Details
+---
 
-* **NBV Selection**
-  Iteratively selects frames to maximize coverage across object instances.
+## 🖼️ Annotation Tool
 
-* **Pose Clustering**
-  After NBV ranking, camera translations are clustered (K-means).
-  From each cluster, the **highest-ranked NBV** is chosen.
-  → Enforces spatial diversity while keeping coverage intact.
+The **Streamlit-based web interface** lets you annotate prepared keyframes.
 
-* **BRISQUE Filtering**
-  Low-quality frames are discarded.
-  If all are filtered out, the threshold is auto-relaxed so enough candidates survive.
+### Run locally
 
-* **Outputs**
+```bash
+streamlit run app/app.py
+```
 
-  * RGB (`color/`)
-  * Depth (`depth/`)
-  * Poses (`pose/` + `camera_pose.json`)
-  * Instance/semantic masks (optional, 16-bit PNGs)
-  * Cached NBV stats in `cache_scannetpp/`
+Then open the provided URL (default: `http://localhost:8501`).
 
-## Troubleshooting
+### Features
 
-* **0 frames after BRISQUE** → Lower `imq_threshold` (e.g., 35–40) or enable auto-relax in config.
-* **PyTorch3D errors** → Ensure `torch` and `pytorch3d` match your CUDA version.
-* **Headless rendering issues** → Install EGL/GL drivers (`libegl1`, `mesa-utils`, etc.).
-* **Scene skipped** → Confirm `config_loader.py` points to the right `base_dir` and `file_types`.
+* **Sidebar Overview**: scene/image counts, progress, annotation stats
+* **Sample Reference**: shows an example frame + description
+* **Annotation Panel**:
+
+  * Navigate frames (next/previous)
+  * Enter annotations for each view
+  * Mark frames as uninterpretable
+* **Admin Tables**: review/save/export annotations
+* **Instructions**: annotation guidelines inline
+
+### Storage
+
+Annotations and uninterpretable frame IDs are saved as JSON under:
+
+* `CONFIG["paths"]["annotations_file"]`
+* `CONFIG["paths"]["uninterpretable_file"]`
+
+---
+
+## 📊 Outputs
+
+Per-scene `output/` folder contains:
+
+* `color/` — selected RGB frames
+* `depth/` — depth maps
+* `pose/` — camera-to-world matrices
+* `camera_pose.json` — consolidated pose file
+* `instance/` — instance masks (optional)
+* `semantic/` — semantic masks (optional)
+* Cached NBV stats (optional, in `cache_scannetpp/`)
+
+---
+
+## 🛠️ Troubleshooting
+
+* **FileNotFound (3RScan poses)** → ensure `sequence.zip` was extracted.
+* **Mesh index mismatch** → invalid faces filtered automatically.
+* **No frames after BRISQUE** → relax `imq_threshold`.
+* **PyTorch3D errors** → install matching `torch` + `pytorch3d`.
