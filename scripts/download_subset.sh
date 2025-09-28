@@ -102,9 +102,9 @@ elif [ "$DATASET" == "3RScan" ]; then
             shopt -u dotglob nullglob
         fi
         rm -rf "$TMP_EXTRACT"
-
+        
         # Optional: keep the zip or remove it (uncomment to delete)
-        # rm -f "$ZIP_PATH"
+        rm -f "$ZIP_PATH"
 
         echo "[INFO] Extraction complete. Verifying key files..."
         if [ ! -f "$SCAN_DIR/_info.txt" ]; then
