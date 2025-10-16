@@ -50,6 +50,9 @@ scannetpp:
   max_best: 120                # Max frames kept in pre-selection
   min_gain_pixels: 500         # Min new pixels gained per view
   output_folder: output
+  generate_descriptions: true
+  description_model: "gpt-4o-mini"
+  pixel_threshold: 500
 
 # ------------------------------------------------------------
 # 3RScan NBV configuration (for 3rscan_best_views.py)
@@ -76,9 +79,12 @@ scannetpp:
 # ------------------------------------------------------------
 paths:
   base_data_dir: data
-  dataset_path: data/scans
-  annotations_file: data/results/scannet_annotations.json
-  uninterpretable_file: data/results/uninterpretable_images.json
+  scannet_dataset_path: data/scans
+  3rscan_dataset_path: data/3RScan  
+  annotations_file_scannet: results/annotations_scannet.json
+  uninterpretable_file_scannet: results/uninterpretable_scannet.json
+  annotations_file_3rscan: results/annotations_3rscan.json
+  uninterpretable_file_3rscan: results/uninterpretable_3rscan.json
   camera_pose_file: camera_pose.json
   download_script: scripts/download_subset.sh
   3rscan_release_scans_file: config/3RScan_release_scans.txt
@@ -107,3 +113,6 @@ ui:
     the fridge are cabinets with a sink, dishes and utensils. To the right
     of the fridge are two trash cans. A doorknob is visible to the right
     of the trash cans.
+  sample_scene_3rscan: 8e0f1c2f-9e28-2339-85ae-05fc50d1a3a7
+  sample_view_3rscan: 000123.jpg
+  sample_description_3rscan: "Kitchen area with counter, sink, fridge..."

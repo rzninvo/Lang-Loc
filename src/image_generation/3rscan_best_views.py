@@ -84,7 +84,7 @@ def main(scene_id: str, config_path: str, device_str=None,
          save_semantic_masks=False, save_instance_masks=False):
 
     cfg = load_config(config_path)
-    dataset_path = Path(cfg["paths"]["base_data_dir"]) / "3RScan"
+    dataset_path = Path(cfg["paths"]["3rscan_dataset_path"])
     scan_path = dataset_path / scene_id
 
     rpp = cfg.get("3rscan", {})
