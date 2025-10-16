@@ -43,7 +43,7 @@ DATASET_PATH=$(python3 - <<PY "$CONFIG_PATH"
 import sys, yaml
 with open(sys.argv[1]) as f:
     cfg = yaml.safe_load(f)
-print(cfg["paths"]["dataset_path"])
+print(cfg["paths"]["scannet_dataset_path"])
 PY
 )
 

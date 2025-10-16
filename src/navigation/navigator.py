@@ -1,41 +1,42 @@
 import streamlit as st
 import random
 
-def next_image():
-    if not st.session_state.scene_list:
+def next_image(key: str):
+    if key not in st.session_state:
+        return
+    bucket = st.session_state[key]
+    if not bucket.get("scene_list"):
         return
 
-    scene_to_files = st.session_state.scene_to_files
-    scenes = st.session_state.scene_list
-    current_scene = st.session_state.scene_list[st.session_state.current_scene_index]
-    current_file = st.session_state.scene_to_files[current_scene][st.session_state.current_image_index]
+    scenes = bucket["scene_list"]
+    scene_to_files = bucket["scene_to_files"]
+    cur_si = bucket["current_scene_index"]
+    cur_scene = scenes[cur_si]
+    cur_fi = bucket["current_image_index"]
 
-    # push current state to history before moving
-    st.session_state.history.append((st.session_state.current_scene_index,
-                                     st.session_state.current_image_index))
+    # push current to history
+    bucket["history"].append((cur_si, cur_fi))
 
-    # pick a random new scene (can include current one too if you want)
+    # build candidate pool across all scenes
     candidates = [
         (si, fi)
         for si, s in enumerate(scenes)
         for fi in range(len(scene_to_files.get(s, [])))
-        if not (si == st.session_state.current_scene_index and fi == st.session_state.current_image_index)
+        if not (si == cur_si and fi == cur_fi)
     ]
-
     if not candidates:
         return
 
-    new_scene_index, new_image_index = random.choice(candidates)
-    st.session_state.current_scene_index = new_scene_index
-    st.session_state.current_image_index = new_image_index
+    si, fi = random.choice(candidates)
+    bucket["current_scene_index"] = si
+    bucket["current_image_index"] = fi
 
-
-def previous_image():
-    if not st.session_state.history:
-        return  # nothing to go back to
-
-    # pop last visited image
-    prev_scene_index, prev_image_index = st.session_state.history.pop()
-    st.session_state.current_scene_index = prev_scene_index
-    st.session_state.current_image_index = prev_image_index
-
+def previous_image(key: str):
+    if key not in st.session_state:
+        return
+    bucket = st.session_state[key]
+    if not bucket.get("history"):
+        return
+    si, fi = bucket["history"].pop()
+    bucket["current_scene_index"] = si
+    bucket["current_image_index"] = fi
