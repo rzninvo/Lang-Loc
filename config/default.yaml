@@ -44,8 +44,8 @@ scannetpp:
   blur_radius: 0.0
   imq_threshold: 30.0          # BRISQUE image quality threshold
   kmeans_n_clusters: 10        # Number of pose clusters for diversity
-  cache_dir: cache_scannetpp   # Where to store intermediate caches
-  raster_out_dir: cache_scannetpp
+  cache_dir: cache   # Where to store intermediate caches
+  raster_out_dir: cache
   limit_images: null           # Optional cap on candidate images
   max_best: 120                # Max frames kept in pre-selection
   min_gain_pixels: 500         # Min new pixels gained per view
