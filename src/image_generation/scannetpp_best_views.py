@@ -335,7 +335,7 @@ def make_rasterizer(
         bin_size=bin_size,
         max_faces_per_bin=max_faces_per_bin,
         perspective_correct=True,
-        cull_backfaces=False,   # explicit: avoid "holes" on thin/wrong-winding faces
+        cull_backfaces=True,  # Cull backfaces for efficiency and correctness
     )
     return MeshRasterizer(raster_settings=settings)
 
@@ -386,6 +386,7 @@ def filter_sharp_images(color_dir: Path, threshold: float, workers: int | None =
         return []
 
     if workers is None:
+        print(f"[WARN] workers not set; using max(1, cpu_count()-1) which is {max(1, cpu_count()-1)}")
         workers = max(1, cpu_count() - 1)
 
     sharp_set = {}
@@ -456,6 +457,193 @@ def compute_image_visibility(pix_to_face: torch.Tensor, face_obj_ids: np.ndarray
             vis[int(u)] += int(c)
     return dict(vis), total
 
+def compute_visible_objects(
+    V: np.ndarray,
+    F: np.ndarray,
+    vert_seg: np.ndarray,
+    seg_to_obj: Dict[int, int],
+    obj_to_label: Dict[int, str],
+    obj_px: Dict[int, int],
+    face_obj_ids: np.ndarray,
+    pix_to_face: torch.Tensor,
+    pose: np.ndarray,
+    R_cv: np.ndarray,
+    t_cv: np.ndarray,
+    fov_depth_clip=(0.2, 10.0)
+) -> Dict[int, Dict[str, object]]:
+    """
+    Compute per-object 3D and camera-space metadata for *actually visible surfaces*.
+    The centroid and bbox are computed only from the triangles that were rendered,
+    not the full mesh.
+
+    This function extracts geometric properties (centroid, bounding box, distance)
+    for all objects that are visible in the current view (as determined by `obj_px`).
+
+    The returned information is later used by GPT-based description models or
+    downstream spatial reasoning modules.
+
+    Coordinate conventions:
+      - `V` and `pose` are in **world coordinates**.
+      - `R_cv`, `t_cv` represent the OpenCV-style world→camera transform.
+      - The camera coordinate system follows OpenCV / PyTorch3D conventions:
+            X → right,  Y → down,  Z → forward (depth).
+
+    Args:
+        F (np.ndarray):         (Nf, 3) array of face indices.
+        V (np.ndarray):         (Nv, 3) array of vertex positions in world coordinates.
+        vert_seg (np.ndarray):  (Nv,) integer array mapping each vertex to a segment ID.
+        seg_to_obj (dict):      Mapping from segment ID → object ID (instance).
+        obj_to_label (dict):    Mapping from object ID → raw label string (lowercased).
+        obj_px (dict):          Mapping from visible object ID → number of visible pixels.
+        face_obj_ids (np.ndarray): (Nf,) integer array mapping each face to an object ID (-1 = unlabeled).
+        pix_to_face (torch.Tensor): (H,W) tensor of face indices per pixel (-
+        pose (np.ndarray):      (4,4) camera-to-world SE(3) matrix for this frame.
+        R_cv (np.ndarray):      (3,3) world→camera rotation matrix (OpenCV convention).
+        t_cv (np.ndarray):      (3,) world→camera translation vector (OpenCV convention).
+        fov_depth_clip (tuple): Min/max depth (m) for an object centroid to be considered visible.
+
+    Returns:
+        Dict[int, Dict[str, object]]:  
+        Mapping from object ID to a metadata dictionary with fields:
+            {
+              "label": str,                     # object name (e.g., "chair")
+              "centroid_world": [x, y, z],      # world-space centroid (meters)
+              "bbox_world": [[minx, miny, minz], [maxx, maxy, maxz]],
+              "centroid_cam": [x, y, z],        # camera-space centroid
+              "distance_from_camera": float     # Euclidean distance (m) from camera to centroid
+            }
+    """
+    cam_pos = pose[:3, 3]
+    visible_objects = {}
+
+    # Determine which faces were visible in the image
+    p2f_np = pix_to_face.cpu().numpy()
+    visible_face_ids = np.unique(p2f_np[p2f_np >= 0])
+
+    for oid, px_count in obj_px.items():
+        if px_count < 50:
+            continue
+
+        # Faces belonging to this object that are actually visible
+        mask = face_obj_ids[visible_face_ids] == oid
+        if not np.any(mask):
+            continue
+        obj_face_ids = visible_face_ids[mask]
+        if obj_face_ids.size == 0:
+            continue
+
+        # Collect all vertices of those faces
+        verts_idx = np.unique(F[obj_face_ids].reshape(-1))
+        verts_obj = V[verts_idx]
+        if verts_obj.size == 0:
+            continue
+
+        centroid_world = verts_obj.mean(axis=0)
+        centroid_cam = R_cv @ centroid_world + t_cv
+
+        # Filter: in front of camera & within depth range
+        if centroid_cam[2] < fov_depth_clip[0] or centroid_cam[2] > fov_depth_clip[1]:
+            continue
+        # Filter: near side FOV
+        if abs(centroid_cam[0] / centroid_cam[2]) > 0.9 or abs(centroid_cam[1] / centroid_cam[2]) > 0.9:
+            continue
+
+        dist_from_cam = float(np.linalg.norm(centroid_world - cam_pos))
+        bbox_min, bbox_max = verts_obj.min(axis=0), verts_obj.max(axis=0)
+
+        visible_objects[int(oid)] = {
+            "label": obj_to_label.get(int(oid), ""),
+            "centroid_world": centroid_world.tolist(),
+            "bbox_world": [bbox_min.tolist(), bbox_max.tolist()],
+            "centroid_cam": centroid_cam.tolist(),
+            "distance_from_camera": dist_from_cam,
+            "visible_faces": int(obj_face_ids.size),
+            "visible_pixels": int(px_count),
+        }
+
+    return visible_objects
+
+def compute_spatial_relations(
+    visible_objects: Dict[int, Dict[str, object]],
+    eps: float = 0.1
+) -> List[Dict[str, object]]:
+    """
+    Compute symbolic *spatial relations* between all pairs of visible objects
+    based on their 3D centroids in **camera coordinates**.
+
+    Instead of numeric distances, this function encodes *qualitative geometry*
+    (e.g., "left_of", "above", "in_front_of"), which is more useful for language
+    and scene description models such as GPT.
+
+    Relations are determined by the **dominant displacement axis** between centroids:
+      - X-axis → "left_of" / "right_of"
+      - Y-axis → "above" / "below"
+      - Z-axis → "in_front_of" / "behind"
+
+    The camera coordinate frame follows the OpenCV convention:
+      X → right,  Y → down,  Z → forward (depth).
+
+    Args:
+        visible_objects (dict): Mapping from object ID → metadata dictionary.
+                                Must include "centroid_cam" for each object.
+        eps (float): Minimum displacement (meters) required to consider a
+                     directional relation meaningful. Default = 0.1 m (10 cm).
+
+    Returns:
+        List[Dict[str, object]]: A list of pairwise relations:
+            [
+              {"subject": 12, "object": 27, "relation": "right_of"},
+              {"subject": 27, "object": 12, "relation": "left_of"},
+              {"subject": 45, "object": 12, "relation": "in_front_of"}
+            ]
+    """
+    spatial_relations = []
+    visible_ids = list(visible_objects.keys())
+
+    inverse_map = {
+        "left_of": "right_of", "right_of": "left_of",
+        "above": "below", "below": "above",
+        "in_front_of": "behind", "behind": "in_front_of",
+    }
+
+    for i in range(len(visible_ids)):
+        for j in range(i + 1, len(visible_ids)):
+            id_a, id_b = visible_ids[i], visible_ids[j]
+            ca = np.array(visible_objects[id_a]["centroid_cam"])
+            cb = np.array(visible_objects[id_b]["centroid_cam"])
+            delta = ca - cb
+
+            axis = np.argmax(np.abs(delta))
+            relation = None
+            if axis == 0:  # X-axis (left-right)
+                if delta[0] > eps:
+                    relation = "right_of"
+                elif delta[0] < -eps:
+                    relation = "left_of"
+            elif axis == 1:  # Y-axis (up-down)
+                if delta[1] > eps:
+                    relation = "below"
+                elif delta[1] < -eps:
+                    relation = "above"
+            elif axis == 2:  # Z-axis (front-back)
+                if delta[2] > eps:
+                    relation = "behind"
+                elif delta[2] < -eps:
+                    relation = "in_front_of"
+
+            if relation:
+                spatial_relations.append({
+                    "subject": int(id_a),
+                    "object": int(id_b),
+                    "relation": relation,
+                })
+                spatial_relations.append({
+                    "subject": int(id_b),
+                    "object": int(id_a),
+                    "relation": inverse_map[relation],
+                })
+
+    return spatial_relations
 
 def greedy_next_best_views(
     image_stats: List[Dict],
@@ -726,7 +914,7 @@ def main(scene_id: str, config_path: str, device_str: str | None = None,
     cfg = load_config(config_path)
 
     # Paths
-    dataset_path = Path(cfg["paths"]["dataset_path"])
+    dataset_path = Path(cfg["paths"]["scannet_dataset_path"])
     scan_path = dataset_path / scene_id
     intrinsic_path = scan_path / "intrinsic" / "intrinsic_color.txt"
     color_dir = scan_path / "color"
@@ -848,18 +1036,35 @@ def main(scene_id: str, config_path: str, device_str: str | None = None,
     else:
         print(f"[INFO] Computing visibility for {len(frame_ids)} frames at {H_vis}x{W_vis}...")
         image_stats: List[Dict] = []
+
         for idx, fid in enumerate(tqdm(frame_ids)):
             pose = load_cam2world(pose_dir / f"{fid}.txt")
             R_cv, t_cv = invert_se3_to_opencv(pose)
 
-            cams_vis = make_p3d_from_opencv(R_cv, t_cv, fx_vis, fy_vis, cx_vis, cy_vis, H_vis, W_vis, device)
+            cams_vis = make_p3d_from_opencv(
+                R_cv, t_cv, fx_vis, fy_vis, cx_vis, cy_vis, H_vis, W_vis, device
+            )
             pix_to_face, _ = rasterize_visibility(meshes, cams_vis, rasterizer_vis)
             obj_px, total_px = compute_image_visibility(pix_to_face, face_obj_ids)
 
-            if idx < 5:
-                if debug:
-                    print(f"[DEBUG] Frame {fid} → {len(obj_px)} objs (example ids): {list(obj_px.keys())[:10]}")
-            image_stats.append({"fid": fid, "obj_pixels": obj_px, "total_labeled_px": int(total_px)})
+            visible_objects = compute_visible_objects(
+                V, F, vert_seg, seg_to_obj, obj_to_label, 
+                obj_px, face_obj_ids, pix_to_face, 
+                pose, R_cv, t_cv
+            )
+            spatial_relations = compute_spatial_relations(visible_objects)
+
+            image_entry = {
+                "fid": fid,
+                "obj_pixels": obj_px,
+                "total_labeled_px": int(total_px),
+                "visible_objects": visible_objects,
+                "spatial_relations": spatial_relations,
+            }
+            image_stats.append(image_entry)
+
+            if idx < 5 and debug:
+                print(f"[DEBUG] Frame {fid}: {len(visible_objects)} objs, {len(spatial_relations)} relations")
 
         cache_json.write_text(json.dumps(image_stats, indent=2))
         print(f"[INFO] Saved visibility cache: {cache_json}")
