@@ -58,7 +58,7 @@ scannetpp:
 # 3RScan NBV configuration (for 3rscan_best_views.py)
 # ------------------------------------------------------------
 3rscan:
-  image_downsample_factor: 2   # Downsample factor for NBV rasterization
+  image_downsample_factor: 1   # Downsample factor for NBV rasterization
   mask_downsample_factor: 1    # Downsample factor for masks
   subsample_factor: 1          # Keep every Nth frame
   faces_per_pixel: 2
