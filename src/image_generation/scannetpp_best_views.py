@@ -36,7 +36,7 @@ Author: Roham Zendehdel Nobari (rzendehdel@ethz.ch)
 """
 from __future__ import annotations
 
-from multiprocessing import Pool, cpu_count
+import multiprocessing as mp
 import json
 import shutil
 from collections import defaultdict
@@ -386,11 +386,16 @@ def filter_sharp_images(color_dir: Path, threshold: float, workers: int | None =
         return []
 
     if workers is None:
-        print(f"[WARN] workers not set; using max(1, cpu_count()-1) which is {max(1, cpu_count()-1)}")
-        workers = max(1, cpu_count() - 1)
+        default_workers = max(1, mp.cpu_count() - 1)
+        print(f"[WARN] workers not set; using max(1, cpu_count()-1) which is {default_workers}")
+        workers = default_workers
 
     sharp_set = {}
-    with Pool(processes=workers, initializer=_init_brisque_worker) as pool:
+    try:
+        ctx = mp.get_context("spawn")
+    except ValueError:
+        ctx = mp.get_context()
+    with ctx.Pool(processes=workers, initializer=_init_brisque_worker) as pool:
         for stem, score in tqdm(
             pool.imap_unordered(_score_one, image_files, chunksize=8),
             total=len(image_files),
@@ -469,6 +474,12 @@ def compute_visible_objects(
     pose: np.ndarray,
     R_cv: np.ndarray,
     t_cv: np.ndarray,
+    fx: float,
+    fy: float,
+    cx: float,
+    cy: float,
+    image_width: int,
+    image_height: int,
     fov_depth_clip=(0.2, 10.0)
 ) -> Dict[int, Dict[str, object]]:
     """
@@ -500,6 +511,10 @@ def compute_visible_objects(
         pose (np.ndarray):      (4,4) camera-to-world SE(3) matrix for this frame.
         R_cv (np.ndarray):      (3,3) world→camera rotation matrix (OpenCV convention).
         t_cv (np.ndarray):      (3,) world→camera translation vector (OpenCV convention).
+        fx, fy (float):         Focal lengths of the rasterization camera (pixels).
+        cx, cy (float):         Principal point of the rasterization camera (pixels).
+        image_width (int):      Rasterized image width (pixels).
+        image_height (int):     Rasterized image height (pixels).
         fov_depth_clip (tuple): Min/max depth (m) for an object centroid to be considered visible.
 
     Returns:
@@ -519,9 +534,15 @@ def compute_visible_objects(
     # Determine which faces were visible in the image
     p2f_np = pix_to_face.cpu().numpy()
     visible_face_ids = np.unique(p2f_np[p2f_np >= 0])
+    total_px = sum(obj_px.values())
+    if total_px <= 0:
+        return visible_objects
 
     for oid, px_count in obj_px.items():
         if px_count < 50:
+            continue
+        coverage = px_count / total_px
+        if coverage < 0.02:
             continue
 
         # Faces belonging to this object that are actually visible
@@ -540,12 +561,20 @@ def compute_visible_objects(
 
         centroid_world = verts_obj.mean(axis=0)
         centroid_cam = R_cv @ centroid_world + t_cv
+        if centroid_cam[2] <= 0:
+            continue
 
         # Filter: in front of camera & within depth range
         if centroid_cam[2] < fov_depth_clip[0] or centroid_cam[2] > fov_depth_clip[1]:
             continue
-        # Filter: near side FOV
-        if abs(centroid_cam[0] / centroid_cam[2]) > 0.9 or abs(centroid_cam[1] / centroid_cam[2]) > 0.9:
+        # Filter: centroid should project inside the image bounds (with small slack)
+        z = centroid_cam[2]
+        inv_z = 1.0 / z
+        u = fx * (centroid_cam[0] * inv_z) + cx
+        v = fy * (centroid_cam[1] * inv_z) + cy
+        pad_w = 0.02 * image_width
+        pad_h = 0.02 * image_height
+        if (u < -pad_w) or (u > image_width + pad_w) or (v < -pad_h) or (v > image_height + pad_h):
             continue
 
         dist_from_cam = float(np.linalg.norm(centroid_world - cam_pos))
@@ -553,6 +582,8 @@ def compute_visible_objects(
 
         visible_objects[int(oid)] = {
             "label": obj_to_label.get(int(oid), ""),
+            "pixel_count": int(px_count),
+            "pixel_percent": float(round(coverage * 100.0, 3)),
             "centroid_world": centroid_world.tolist(),
             "bbox_world": [bbox_min.tolist(), bbox_max.tolist()],
             "centroid_cam": centroid_cam.tolist(),
@@ -590,21 +621,15 @@ def compute_spatial_relations(
                      directional relation meaningful. Default = 0.1 m (10 cm).
 
     Returns:
-        List[Dict[str, object]]: A list of pairwise relations:
+        List[Dict[str, object]]: A list of pairwise relations, each entry
+            contains the human-readable labels (lowercase, may be empty):
             [
-              {"subject": 12, "object": 27, "relation": "right_of"},
-              {"subject": 27, "object": 12, "relation": "left_of"},
-              {"subject": 45, "object": 12, "relation": "in_front_of"}
+              {"subject": "chair", "object": "table", "relation": "right_of"},
+              {"subject": "chair", "object": "lamp", "relation": "in_front_of"}
             ]
     """
     spatial_relations = []
     visible_ids = list(visible_objects.keys())
-
-    inverse_map = {
-        "left_of": "right_of", "right_of": "left_of",
-        "above": "below", "below": "above",
-        "in_front_of": "behind", "behind": "in_front_of",
-    }
 
     for i in range(len(visible_ids)):
         for j in range(i + 1, len(visible_ids)):
@@ -632,15 +657,12 @@ def compute_spatial_relations(
                     relation = "in_front_of"
 
             if relation:
+                label_a = visible_objects[id_a].get("label") or f"id_{id_a}"
+                label_b = visible_objects[id_b].get("label") or f"id_{id_b}"
                 spatial_relations.append({
-                    "subject": int(id_a),
-                    "object": int(id_b),
+                    "subject": label_a,
+                    "object": label_b,
                     "relation": relation,
-                })
-                spatial_relations.append({
-                    "subject": int(id_b),
-                    "object": int(id_a),
-                    "relation": inverse_map[relation],
                 })
 
     return spatial_relations
@@ -1048,9 +1070,11 @@ def main(scene_id: str, config_path: str, device_str: str | None = None,
             obj_px, total_px = compute_image_visibility(pix_to_face, face_obj_ids)
 
             visible_objects = compute_visible_objects(
-                V, F, vert_seg, seg_to_obj, obj_to_label, 
-                obj_px, face_obj_ids, pix_to_face, 
-                pose, R_cv, t_cv
+                V, F, vert_seg, seg_to_obj, obj_to_label,
+                obj_px, face_obj_ids, pix_to_face,
+                pose, R_cv, t_cv,
+                fx_vis, fy_vis, cx_vis, cy_vis,
+                W_vis, H_vis,
             )
             spatial_relations = compute_spatial_relations(visible_objects)
 

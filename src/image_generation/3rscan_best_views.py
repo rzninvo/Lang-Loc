@@ -20,6 +20,8 @@ import torch
 from PIL import Image
 from tqdm import tqdm
 from sklearn.cluster import KMeans
+import plyfile
+from sklearn.neighbors import NearestNeighbors
 
 from pytorch3d.structures import Meshes
 from pytorch3d.renderer.mesh import TexturesUV
@@ -43,11 +45,27 @@ VOID_ID = 0
 # ----------------------------- Loaders ---------------------------------
 
 def load_mesh_with_textures(scene_path, device):
-    import open3d as o3d
-    import numpy as np, torch
-    from PIL import Image
-    from pytorch3d.renderer import TexturesUV
-    from pytorch3d.structures import Meshes
+    """
+    Load the refined 3RScan mesh together with its texture map and return a
+    PyTorch3D `Meshes` instance ready for rendering.
+
+    The OBJ uses shared vertices for UV seams; to keep texture coordinates
+    consistent with PyTorch3D we duplicate vertices per triangle and return the
+    index mapping so auxiliary per-vertex data (e.g., segmentation) can be
+    expanded in the same way.
+
+    Args:
+        scene_path (Path | str): Directory containing the 3RScan assets.
+        device (torch.device): Device on which the mesh tensors should live.
+
+    Returns:
+        tuple[Meshes, np.ndarray, np.ndarray]:
+            - meshes:  Single-item `Meshes` with duplicated vertices and UVs.
+            - orig_vertex_idx: 1D array mapping each expanded vertex back to the
+              original OBJ vertex index (length = 3 * num_faces).
+            - verts: Original vertex positions from the OBJ (N, 3), kept so the
+              caller can build per-vertex annotations without duplication.
+    """
 
     obj_path = scene_path / "mesh.refined.v2.obj"
     tex_path = scene_path / "mesh.refined_0.png"
@@ -64,7 +82,8 @@ def load_mesh_with_textures(scene_path, device):
     tex_img = tex_img ** 2.2
 
     # Expand verts to match UVs (the key step)
-    expanded_verts = verts[faces.reshape(-1)]
+    orig_vertex_idx = faces.reshape(-1)
+    expanded_verts = verts[orig_vertex_idx]
     expanded_faces = np.arange(len(expanded_verts)).reshape(-1, 3)
 
     meshes = Meshes(
@@ -76,27 +95,64 @@ def load_mesh_with_textures(scene_path, device):
             verts_uvs=[torch.tensor(verts_uvs, dtype=torch.float32, device=device)],
         ),
     )
-    return meshes
+    return meshes, orig_vertex_idx, verts
 
 
-def load_segments_and_instances(scene_path: Path):
-    segs_json = scene_path / "mesh.refined.0.010000.segs.v2.json"
+def load_segments_and_instances(scene_path: Path, base_vertices: np.ndarray):
+    """
+    Transfer per-vertex instance IDs and semantic labels onto the mesh.
+
+    The official `mesh.refined.0.010000.segs.v2.json` is aligned with a decimated
+    mesh, so we instead use the annotated point cloud
+    `labels.instances.annotated.v2.ply` and find the nearest annotated point for
+    every vertex of the textured mesh.
+
+    Args:
+        scene_path (Path): 3RScan scene directory.
+        base_vertices (np.ndarray): (N, 3) array of the original (non-duplicated)
+            OBJ vertices.
+
+    Returns:
+        tuple[np.ndarray, dict[int, int], dict[int, str]]:
+            - vert_obj: per-vertex instance IDs aligned with `base_vertices`.
+            - seg_to_obj: identity mapping retained for API compatibility
+              (`segment` -> `objectId`).
+            - obj_to_label: objectId -> semantic label (lowercased).
+    """
     semseg_json = scene_path / "semseg.v2.json"
-    if not segs_json.exists() or not semseg_json.exists():
-        raise FileNotFoundError("Missing segs or semseg JSON")
-    segs = json.loads(segs_json.read_text())
+    ply_path = scene_path / "labels.instances.annotated.v2.ply"
+    if not semseg_json.exists() or not ply_path.exists():
+        raise FileNotFoundError("Missing semantic annotations or annotated point cloud.")
+
     groups = json.loads(semseg_json.read_text())["segGroups"]
-    vert_seg = np.array(segs["segIndices"], dtype=np.int32)
-    seg_to_obj, obj_to_label = {}, {}
-    for g in groups:
-        oid = int(g["objectId"])
-        obj_to_label[oid] = g.get("label", "").strip().lower()
-        for s in g["segments"]:
-            seg_to_obj[int(s)] = oid
-    return vert_seg, seg_to_obj, obj_to_label
+    obj_to_label = {int(g["objectId"]): g.get("label", "").strip().lower() for g in groups}
+
+    ply = plyfile.PlyData.read(ply_path)
+    pts = np.vstack([ply["vertex"][axis] for axis in ("x", "y", "z")]).T.astype(np.float32)
+    obj_ids = np.asarray(ply["vertex"]["objectId"], dtype=np.int32)
+
+    nn = NearestNeighbors(n_neighbors=1, algorithm="kd_tree")
+    nn.fit(pts)
+    _, idx = nn.kneighbors(base_vertices.astype(np.float32), return_distance=True)
+    vert_obj = obj_ids[idx[:, 0]]
+
+    seg_to_obj = {int(oid): int(oid) for oid in np.unique(vert_obj) if oid >= 0}
+    return vert_obj.astype(np.int32), seg_to_obj, obj_to_label
 
 
 def load_intrinsics_info(info_path: Path):
+    """
+    Parse the 3RScan `_info.txt` file to obtain pinhole intrinsics.
+
+    Args:
+        info_path (Path): Path to the `_info.txt` file distributed with the scan.
+
+    Returns:
+        tuple[float, float, float, float]: (fx, fy, cx, cy) in pixel units.
+
+    Raises:
+        RuntimeError: If the calibration matrix cannot be located in the file.
+    """
     lines = info_path.read_text().splitlines()
     K = None
     for L in lines:
@@ -109,11 +165,33 @@ def load_intrinsics_info(info_path: Path):
 
 
 def load_cam2world(pose_path: Path):
+    """
+    Load a 4x4 camera-to-world matrix from the 3RScan frame metadata.
+
+    Args:
+        pose_path (Path): Path to the `frame-XXXX.pose.txt` file.
+
+    Returns:
+        np.ndarray: (4, 4) pose matrix in row-major order.
+    """
     return np.loadtxt(pose_path, dtype=np.float64).reshape(4, 4)
 
 
 @torch.no_grad()
 def _build_camera(R_cv, t_cv, fx, fy, cx, cy, H, W, device):
+    """
+    Create a PyTorch3D `PerspectiveCameras` instance from OpenCV intrinsics.
+
+    Args:
+        R_cv (np.ndarray): (3, 3) rotation from world to camera (OpenCV).
+        t_cv (np.ndarray): (3,) translation from world to camera (OpenCV).
+        fx, fy, cx, cy (float): Intrinsic parameters in pixels.
+        H, W (int): Image height and width.
+        device (torch.device): Target device for the camera tensors.
+
+    Returns:
+        PerspectiveCameras: Single-camera batch configured to match the RGBs.
+    """
     return cameras_from_opencv_projection(
         R=torch.from_numpy(R_cv)[None].float().to(device),
         tvec=torch.from_numpy(t_cv)[None].float().to(device),
@@ -124,8 +202,19 @@ def _build_camera(R_cv, t_cv, fx, fy, cx, cy, H, W, device):
 @torch.no_grad()
 def _render_textured_rgb(meshes, cameras, H, W, device):
     """
-    Render a textured 3RScan mesh using PyTorch3D (ambient-only lighting, no shading).
-    Used for debug visualization.
+    Render a textured 3RScan mesh using PyTorch3D at full resolution.
+
+    Lighting is kept ambient-only to match the baked texture as closely as
+    possible. The function is primarily used for debug side-by-side comparisons.
+
+    Args:
+        meshes (Meshes): PyTorch3D mesh batch (single mesh expected).
+        cameras (PerspectiveCameras): Camera aligned with the RGB frame.
+        H, W (int): Output resolution.
+        device (torch.device): Device to run the renderer on.
+
+    Returns:
+        np.ndarray: (H, W, 3) float image in [0, 1].
     """
     from pytorch3d.renderer import (
         MeshRenderer, MeshRasterizer, HardPhongShader,
@@ -155,6 +244,16 @@ def _render_textured_rgb(meshes, cameras, H, W, device):
     return img
 
 def _save_side_by_side(rgb_path: Path, rendered_rgb: np.ndarray, title_left: str, title_right: str, out_path: Path):
+    """
+    Save a diagnostic figure comparing dataset RGB and PyTorch3D render.
+
+    Args:
+        rgb_path (Path): Path to the original RGB frame.
+        rendered_rgb (np.ndarray): Rendered view in [0, 1].
+        title_left (str): Title for the dataset image.
+        title_right (str): Title for the rendered image.
+        out_path (Path): Destination PNG path.
+    """
     rgb = np.array(Image.open(rgb_path))
     out_path.parent.mkdir(parents=True, exist_ok=True)
     plt.figure(figsize=(10, 5))
@@ -163,6 +262,14 @@ def _save_side_by_side(rgb_path: Path, rendered_rgb: np.ndarray, title_left: str
     plt.tight_layout(); plt.savefig(out_path, dpi=100); plt.close()
 
 def _save_overlay(rgb_path: Path, pix_to_face: torch.Tensor, out_path: Path):
+    """
+    Overlay the rasterized silhouette on top of the RGB frame for alignment checks.
+
+    Args:
+        rgb_path (Path): Path to the RGB frame to use as the background.
+        pix_to_face (torch.Tensor): Rasterizer output with face indices.
+        out_path (Path): Destination PNG path for the overlay.
+    """
     rgb = np.array(Image.open(rgb_path))
     vis = pix_to_face.detach().cpu().numpy()
 
@@ -175,12 +282,11 @@ def _save_overlay(rgb_path: Path, pix_to_face: torch.Tensor, out_path: Path):
         vis = vis.reshape(rgb.shape[0], rgb.shape[1])
     elif vis.ndim == 1:
         vis = vis.reshape(rgb.shape[0], rgb.shape[1])
-    # --- no more raise! ---
 
     # ---- orientation correction ----
     if vis.shape != rgb.shape[:2]:
         if vis.shape[::-1] == rgb.shape[:2]:
-            vis = vis.T                      # ← your case (540,960) → (960,540)
+            vis = vis.T
         else:
             from cv2 import resize, INTER_NEAREST
             vis = resize(vis, (rgb.shape[1], rgb.shape[0]), interpolation=INTER_NEAREST)
@@ -197,6 +303,27 @@ def _save_overlay(rgb_path: Path, pix_to_face: torch.Tensor, out_path: Path):
 def main(scene_id: str, config_path: str, device_str=None,
          debug=False, auto_clean=False,
          save_semantic_masks=False, save_instance_masks=False):
+    """
+    Entry point for selecting representative 3RScan frames and exporting assets.
+
+    Steps performed:
+        1. Load mesh, annotations, and camera intrinsics/poses.
+        2. Filter frames by BRISQUE quality and optional subsampling.
+        3. Rasterize downsampled visibility to compute per-object coverage.
+        4. Run greedy next-best-view selection and K-means clustering.
+        5. Copy RGB/Depth/Pose files for the selected frames.
+        6. Optionally export semantic/instance masks and render debug visualizations.
+
+    Args:
+        scene_id (str): UUID of the 3RScan scene.
+        config_path (str): Path to the YAML config with dataset settings.
+        device_str (str | None): Optional override for the compute device
+            (e.g., "cuda:0" or "cpu"). Defaults to CUDA if available.
+        debug (bool): If True, generate PyTorch3D vs RGB comparisons.
+        auto_clean (bool): If True, removes raw frames once outputs are saved.
+        save_semantic_masks (bool): Export semantic 16-bit PNG masks if True.
+        save_instance_masks (bool): Export instance 16-bit PNG masks if True.
+    """
 
     cfg = load_config(config_path)
     dataset_path = Path(cfg["paths"]["3rscan_dataset_path"])
@@ -226,28 +353,25 @@ def main(scene_id: str, config_path: str, device_str=None,
     print(f"[INFO] Using device: {device}")
 
     # ---------------------- Load Mesh + Labels --------------------------
-    meshes = load_mesh_with_textures(scan_path, device)
+    meshes, orig_vertex_idx, original_verts = load_mesh_with_textures(scan_path, device)
 
     faces = meshes.faces_packed().cpu().numpy()
     verts = meshes.verts_packed().cpu().numpy()
 
-    vert_seg, seg_to_obj, obj_to_label = load_segments_and_instances(scan_path)
+    vert_seg_raw, seg_to_obj, obj_to_label = load_segments_and_instances(scan_path, original_verts)
+    max_required_idx = int(orig_vertex_idx.max())
+    if max_required_idx >= len(vert_seg_raw):
+        pad = max_required_idx + 1 - len(vert_seg_raw)
+        print(f"[WARN] Padding vert_seg with {pad} void entries to cover expanded vertices.")
+        vert_seg_raw = np.pad(vert_seg_raw, (0, pad), constant_values=-1)
+    vert_seg = vert_seg_raw[orig_vertex_idx]
 
     faces_np = meshes.faces_packed().cpu().numpy()
     verts_np = meshes.verts_packed().cpu().numpy()
 
     max_idx = vert_seg.shape[0]
-    valid_mask = (faces_np < max_idx).all(axis=1)
-    if not valid_mask.all():
-        print(f"[WARN] Removing {np.count_nonzero(~valid_mask)} invalid faces.")
-    faces_np = faces_np[valid_mask]
-
-    # rebuild filtered mesh
-    meshes = Meshes(
-        verts=[torch.tensor(verts_np, dtype=torch.float32, device=device)],
-        faces=[torch.tensor(faces_np, dtype=torch.int64, device=device)],
-        textures=meshes.textures,
-    )
+    if (faces_np >= max_idx).any():
+        raise ValueError("Vertex segmentation array misaligned with expanded mesh.")
 
     faces = faces_np
     face_obj_ids = per_face_object_ids(faces, vert_seg, seg_to_obj)
@@ -346,9 +470,11 @@ def main(scene_id: str, config_path: str, device_str=None,
             obj_px, total_px = compute_image_visibility(pix_to_face, face_obj_ids)
 
             visible_objects = compute_visible_objects(
-                verts, faces, vert_seg, seg_to_obj, obj_to_label, 
+                verts, faces, vert_seg, seg_to_obj, obj_to_label,
                 obj_px, face_obj_ids, pix_to_face,
-                pose, R_cv, t_cv
+                pose, R_cv, t_cv,
+                fx_vis, fy_vis, cx_vis, cy_vis,
+                W_vis, H_vis,
             )
             spatial_relations = compute_spatial_relations(visible_objects)
 
