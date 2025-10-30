@@ -1,0 +1,1 @@
+./scripts/download_subset.sh scene0000_00
