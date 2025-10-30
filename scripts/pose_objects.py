@@ -1,5 +1,7 @@
 import json
 import numpy as np
+import os
+import glob
 
 def load_instances(json_file):
     """Load objects from instances.json."""
@@ -76,19 +78,50 @@ def visible_objects_from_pose(instances_file, pose_matrix, intrinsics, width, he
 # Main test
 # --------------------------
 if __name__ == "__main__":
-    instances_file = "/Users/abu/Downloads/Master-Project-Dataset-Creation-main 2/data/aggregations/scene0000_00_instances.json"
+    instances_file = "/Users/shirley/Documents/SCHOOL/SPRING25/masterproject/datasets/onescenedownload/Master-Project-Dataset-Creation/data/aggregations/scene0000_00_instances.json"
 
-    pose_matrix = np.array([
-         [-0.199371, -0.433294,  0.878924, 2.499828],
-         [-0.978237,  0.140613, -0.152579, 3.603600],
-         [-0.057476, -0.890216, -0.451898, 1.420342],
-         [ 0.000000,  0.000000,  0.000000, 1.000000]
-    ])
+    #import pose matrix from data/scans/scene0000_00/pose/000001.txt
+    pose_dir = "data/scans/scene0000_00/pose"
+    # get first 5 txt files (sorted by filename)
+    # pose_files = sorted(glob.glob(os.path.join(pose_dir, "*.txt")))[:5] # if u want to use a loop
+    pose_files = [
+    os.path.join(pose_dir, "000372.txt"),
+    os.path.join(pose_dir, "000900.txt"),
+    os.path.join(pose_dir, "000050.txt"),
+    os.path.join(pose_dir, "000200.txt"),
+    os.path.join(pose_dir, "000300.txt"),
+    os.path.join(pose_dir, "000123.txt"),]
+
+
+    pose_matrices = [np.loadtxt(f).reshape(4, 4) for f in pose_files]
+    print("Loaded pose matrices from:", pose_files)
+
+
+
+    # Example pose matrix (4x4)
+    # pose_matrix = np.array([
+    #      [-0.199371, -0.433294,  0.878924, 2.499828],
+    #      [-0.978237,  0.140613, -0.152579, 3.603600],
+    #      [-0.057476, -0.890216, -0.451898, 1.420342],
+    #      [ 0.000000,  0.000000,  0.000000, 1.000000]
+    # ])
 
     # Example ScanNet intrinsics
     intrinsics = (577.870605, 577.870605, 319.5, 239.5)
     width, height = 640, 480
 
+output_file = "data/pose_visible_objects/visible_objects_pose_run1.json"
+
+all_data = []
+if os.path.exists(output_file):
+    with open(output_file, "r") as f:
+        try:
+            all_data = json.load(f)
+        except json.JSONDecodeError:
+            all_data = []
+
+for i, pose_matrix in enumerate(pose_matrices):
+    print(f"\nPose matrix {i}:")
     visible = visible_objects_from_pose(instances_file, pose_matrix, intrinsics, width, height)
 
     print("Visible objects in this pose:")
@@ -96,3 +129,16 @@ if __name__ == "__main__":
         print("⚠️ No objects were visible")
     for obj in visible:
         print(obj)
+
+    # Save result for this pose
+    data_to_save = {
+        "pose_matrix_index": i,
+        "visible_objects": visible
+    }
+    all_data.append(data_to_save)
+
+# Write everything once at the end
+with open(output_file, "w") as f:
+    json.dump(all_data, f, indent=4)
+
+print(f"✅ Saved {len(all_data)} pose results to {output_file}")

@@ -1,0 +1,3777 @@
+[
+  {
+    "scene_index": "fcf66d96-622d-291c-842c-836d61a13779",
+    "image_index": "frame-000099",
+    "num_motifs": 15,
+    "motifs": [
+      {
+        "subject": "wall",
+        "object": "ceiling",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "3",
+        "centroid_subject": [
+          0.7353228330612183,
+          2.0099709033966064,
+          0.35333555936813354
+        ],
+        "centroid_object": [
+          0.7530167102813721,
+          1.2753138542175293,
+          1.5099093914031982
+        ],
+        "distance": 1.37
+      },
+      {
+        "subject": "wall",
+        "object": "shelf",
+        "relation": "behind",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "4",
+        "centroid_subject": [
+          0.7353228330612183,
+          2.0099709033966064,
+          0.35333555936813354
+        ],
+        "centroid_object": [
+          0.3432542085647583,
+          0.8825026154518127,
+          0.5527722835540771
+        ],
+        "distance": 1.21
+      },
+      {
+        "subject": "wall",
+        "object": "dining table",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "5",
+        "centroid_subject": [
+          0.7353228330612183,
+          2.0099709033966064,
+          0.35333555936813354
+        ],
+        "centroid_object": [
+          0.22842717170715332,
+          1.4974243640899658,
+          -0.47667643427848816
+        ],
+        "distance": 1.099
+      },
+      {
+        "subject": "wall",
+        "object": "kitchen cabinet",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "13",
+        "centroid_subject": [
+          0.7353228330612183,
+          2.0099709033966064,
+          0.35333555936813354
+        ],
+        "centroid_object": [
+          1.4898357391357422,
+          1.8482588529586792,
+          0.4976230263710022
+        ],
+        "distance": 0.785
+      },
+      {
+        "subject": "wall",
+        "object": "wall",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "2",
+        "centroid_subject": [
+          0.7353228330612183,
+          2.0099709033966064,
+          0.35333555936813354
+        ],
+        "centroid_object": [
+          0.7353228330612183,
+          2.0099709033966064,
+          0.35333555936813354
+        ],
+        "distance": 0.0
+      },
+      {
+        "subject": "ceiling",
+        "object": "shelf",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "3",
+        "object_id": "4",
+        "centroid_subject": [
+          0.7530167102813721,
+          1.2753138542175293,
+          1.5099093914031982
+        ],
+        "centroid_object": [
+          0.3432542085647583,
+          0.8825026154518127,
+          0.5527722835540771
+        ],
+        "distance": 1.113
+      },
+      {
+        "subject": "ceiling",
+        "object": "dining table",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "3",
+        "object_id": "5",
+        "centroid_subject": [
+          0.7530167102813721,
+          1.2753138542175293,
+          1.5099093914031982
+        ],
+        "centroid_object": [
+          0.22842717170715332,
+          1.4974243640899658,
+          -0.47667643427848816
+        ],
+        "distance": 2.067
+      },
+      {
+        "subject": "ceiling",
+        "object": "kitchen cabinet",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "3",
+        "object_id": "13",
+        "centroid_subject": [
+          0.7530167102813721,
+          1.2753138542175293,
+          1.5099093914031982
+        ],
+        "centroid_object": [
+          1.4898357391357422,
+          1.8482588529586792,
+          0.4976230263710022
+        ],
+        "distance": 1.377
+      },
+      {
+        "subject": "ceiling",
+        "object": "wall",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "3",
+        "object_id": "2",
+        "centroid_subject": [
+          0.7530167102813721,
+          1.2753138542175293,
+          1.5099093914031982
+        ],
+        "centroid_object": [
+          0.7353228330612183,
+          2.0099709033966064,
+          0.35333555936813354
+        ],
+        "distance": 1.37
+      },
+      {
+        "subject": "shelf",
+        "object": "dining table",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "4",
+        "object_id": "5",
+        "centroid_subject": [
+          0.3432542085647583,
+          0.8825026154518127,
+          0.5527722835540771
+        ],
+        "centroid_object": [
+          0.22842717170715332,
+          1.4974243640899658,
+          -0.47667643427848816
+        ],
+        "distance": 1.205
+      },
+      {
+        "subject": "shelf",
+        "object": "kitchen cabinet",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "4",
+        "object_id": "13",
+        "centroid_subject": [
+          0.3432542085647583,
+          0.8825026154518127,
+          0.5527722835540771
+        ],
+        "centroid_object": [
+          1.4898357391357422,
+          1.8482588529586792,
+          0.4976230263710022
+        ],
+        "distance": 1.5
+      },
+      {
+        "subject": "shelf",
+        "object": "wall",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "4",
+        "object_id": "2",
+        "centroid_subject": [
+          0.3432542085647583,
+          0.8825026154518127,
+          0.5527722835540771
+        ],
+        "centroid_object": [
+          0.7353228330612183,
+          2.0099709033966064,
+          0.35333555936813354
+        ],
+        "distance": 1.21
+      },
+      {
+        "subject": "dining table",
+        "object": "kitchen cabinet",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "5",
+        "object_id": "13",
+        "centroid_subject": [
+          0.22842717170715332,
+          1.4974243640899658,
+          -0.47667643427848816
+        ],
+        "centroid_object": [
+          1.4898357391357422,
+          1.8482588529586792,
+          0.4976230263710022
+        ],
+        "distance": 1.632
+      },
+      {
+        "subject": "dining table",
+        "object": "wall",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "5",
+        "object_id": "2",
+        "centroid_subject": [
+          0.22842717170715332,
+          1.4974243640899658,
+          -0.47667643427848816
+        ],
+        "centroid_object": [
+          0.7353228330612183,
+          2.0099709033966064,
+          0.35333555936813354
+        ],
+        "distance": 1.099
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "wall",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "13",
+        "object_id": "2",
+        "centroid_subject": [
+          1.4898357391357422,
+          1.8482588529586792,
+          0.4976230263710022
+        ],
+        "centroid_object": [
+          0.7353228330612183,
+          2.0099709033966064,
+          0.35333555936813354
+        ],
+        "distance": 0.785
+      }
+    ]
+  },
+  {
+    "scene_index": "fcf66d96-622d-291c-842c-836d61a13779",
+    "image_index": "frame-000093",
+    "num_motifs": 28,
+    "motifs": [
+      {
+        "subject": "floor",
+        "object": "wall",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "2",
+        "centroid_subject": [
+          1.1164284944534302,
+          1.1621453762054443,
+          -1.4027236700057983
+        ],
+        "centroid_object": [
+          1.1118569374084473,
+          2.111783027648926,
+          -0.5149767994880676
+        ],
+        "distance": 1.3
+      },
+      {
+        "subject": "floor",
+        "object": "kitchen cabinet",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "10",
+        "centroid_subject": [
+          1.1164284944534302,
+          1.1621453762054443,
+          -1.4027236700057983
+        ],
+        "centroid_object": [
+          1.3835479021072388,
+          1.4015390872955322,
+          -1.0071378946304321
+        ],
+        "distance": 0.534
+      },
+      {
+        "subject": "floor",
+        "object": "wall",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "2",
+        "centroid_subject": [
+          1.1164284944534302,
+          1.1621453762054443,
+          -1.4027236700057983
+        ],
+        "centroid_object": [
+          1.1118569374084473,
+          2.111783027648926,
+          -0.5149767994880676
+        ],
+        "distance": 1.3
+      },
+      {
+        "subject": "floor",
+        "object": "kitchen cabinet",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "10",
+        "centroid_subject": [
+          1.1164284944534302,
+          1.1621453762054443,
+          -1.4027236700057983
+        ],
+        "centroid_object": [
+          1.3835479021072388,
+          1.4015390872955322,
+          -1.0071378946304321
+        ],
+        "distance": 0.534
+      },
+      {
+        "subject": "floor",
+        "object": "oven",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "19",
+        "centroid_subject": [
+          1.1164284944534302,
+          1.1621453762054443,
+          -1.4027236700057983
+        ],
+        "centroid_object": [
+          1.6914620399475098,
+          0.9205031394958496,
+          -1.0781515836715698
+        ],
+        "distance": 0.703
+      },
+      {
+        "subject": "floor",
+        "object": "sink",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "20",
+        "centroid_subject": [
+          1.1164284944534302,
+          1.1621453762054443,
+          -1.4027236700057983
+        ],
+        "centroid_object": [
+          1.7725976705551147,
+          1.4390679597854614,
+          -0.5509418845176697
+        ],
+        "distance": 1.11
+      },
+      {
+        "subject": "floor",
+        "object": "stove",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "21",
+        "centroid_subject": [
+          1.1164284944534302,
+          1.1621453762054443,
+          -1.4027236700057983
+        ],
+        "centroid_object": [
+          1.482731580734253,
+          1.862129807472229,
+          -0.5660982131958008
+        ],
+        "distance": 1.151
+      },
+      {
+        "subject": "wall",
+        "object": "kitchen cabinet",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "10",
+        "centroid_subject": [
+          1.1118569374084473,
+          2.111783027648926,
+          -0.5149767994880676
+        ],
+        "centroid_object": [
+          1.3835479021072388,
+          1.4015390872955322,
+          -1.0071378946304321
+        ],
+        "distance": 0.906
+      },
+      {
+        "subject": "wall",
+        "object": "wall",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "2",
+        "centroid_subject": [
+          1.1118569374084473,
+          2.111783027648926,
+          -0.5149767994880676
+        ],
+        "centroid_object": [
+          1.1118569374084473,
+          2.111783027648926,
+          -0.5149767994880676
+        ],
+        "distance": 0.0
+      },
+      {
+        "subject": "wall",
+        "object": "kitchen cabinet",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "10",
+        "centroid_subject": [
+          1.1118569374084473,
+          2.111783027648926,
+          -0.5149767994880676
+        ],
+        "centroid_object": [
+          1.3835479021072388,
+          1.4015390872955322,
+          -1.0071378946304321
+        ],
+        "distance": 0.906
+      },
+      {
+        "subject": "wall",
+        "object": "oven",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "19",
+        "centroid_subject": [
+          1.1118569374084473,
+          2.111783027648926,
+          -0.5149767994880676
+        ],
+        "centroid_object": [
+          1.6914620399475098,
+          0.9205031394958496,
+          -1.0781515836715698
+        ],
+        "distance": 1.44
+      },
+      {
+        "subject": "wall",
+        "object": "sink",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "20",
+        "centroid_subject": [
+          1.1118569374084473,
+          2.111783027648926,
+          -0.5149767994880676
+        ],
+        "centroid_object": [
+          1.7725976705551147,
+          1.4390679597854614,
+          -0.5509418845176697
+        ],
+        "distance": 0.944
+      },
+      {
+        "subject": "wall",
+        "object": "stove",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "21",
+        "centroid_subject": [
+          1.1118569374084473,
+          2.111783027648926,
+          -0.5149767994880676
+        ],
+        "centroid_object": [
+          1.482731580734253,
+          1.862129807472229,
+          -0.5660982131958008
+        ],
+        "distance": 0.45
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "wall",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "2",
+        "centroid_subject": [
+          1.3835479021072388,
+          1.4015390872955322,
+          -1.0071378946304321
+        ],
+        "centroid_object": [
+          1.1118569374084473,
+          2.111783027648926,
+          -0.5149767994880676
+        ],
+        "distance": 0.906
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "kitchen cabinet",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "10",
+        "centroid_subject": [
+          1.3835479021072388,
+          1.4015390872955322,
+          -1.0071378946304321
+        ],
+        "centroid_object": [
+          1.3835479021072388,
+          1.4015390872955322,
+          -1.0071378946304321
+        ],
+        "distance": 0.0
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "oven",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "19",
+        "centroid_subject": [
+          1.3835479021072388,
+          1.4015390872955322,
+          -1.0071378946304321
+        ],
+        "centroid_object": [
+          1.6914620399475098,
+          0.9205031394958496,
+          -1.0781515836715698
+        ],
+        "distance": 0.576
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "sink",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "20",
+        "centroid_subject": [
+          1.3835479021072388,
+          1.4015390872955322,
+          -1.0071378946304321
+        ],
+        "centroid_object": [
+          1.7725976705551147,
+          1.4390679597854614,
+          -0.5509418845176697
+        ],
+        "distance": 0.601
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "stove",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "21",
+        "centroid_subject": [
+          1.3835479021072388,
+          1.4015390872955322,
+          -1.0071378946304321
+        ],
+        "centroid_object": [
+          1.482731580734253,
+          1.862129807472229,
+          -0.5660982131958008
+        ],
+        "distance": 0.645
+      },
+      {
+        "subject": "wall",
+        "object": "kitchen cabinet",
+        "relation": "above",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "10",
+        "centroid_subject": [
+          1.1118569374084473,
+          2.111783027648926,
+          -0.5149767994880676
+        ],
+        "centroid_object": [
+          1.3835479021072388,
+          1.4015390872955322,
+          -1.0071378946304321
+        ],
+        "distance": 0.906
+      },
+      {
+        "subject": "wall",
+        "object": "oven",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "19",
+        "centroid_subject": [
+          1.1118569374084473,
+          2.111783027648926,
+          -0.5149767994880676
+        ],
+        "centroid_object": [
+          1.6914620399475098,
+          0.9205031394958496,
+          -1.0781515836715698
+        ],
+        "distance": 1.44
+      },
+      {
+        "subject": "wall",
+        "object": "sink",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "20",
+        "centroid_subject": [
+          1.1118569374084473,
+          2.111783027648926,
+          -0.5149767994880676
+        ],
+        "centroid_object": [
+          1.7725976705551147,
+          1.4390679597854614,
+          -0.5509418845176697
+        ],
+        "distance": 0.944
+      },
+      {
+        "subject": "wall",
+        "object": "stove",
+        "relation": "above",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "21",
+        "centroid_subject": [
+          1.1118569374084473,
+          2.111783027648926,
+          -0.5149767994880676
+        ],
+        "centroid_object": [
+          1.482731580734253,
+          1.862129807472229,
+          -0.5660982131958008
+        ],
+        "distance": 0.45
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "oven",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "19",
+        "centroid_subject": [
+          1.3835479021072388,
+          1.4015390872955322,
+          -1.0071378946304321
+        ],
+        "centroid_object": [
+          1.6914620399475098,
+          0.9205031394958496,
+          -1.0781515836715698
+        ],
+        "distance": 0.576
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "sink",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "20",
+        "centroid_subject": [
+          1.3835479021072388,
+          1.4015390872955322,
+          -1.0071378946304321
+        ],
+        "centroid_object": [
+          1.7725976705551147,
+          1.4390679597854614,
+          -0.5509418845176697
+        ],
+        "distance": 0.601
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "stove",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "21",
+        "centroid_subject": [
+          1.3835479021072388,
+          1.4015390872955322,
+          -1.0071378946304321
+        ],
+        "centroid_object": [
+          1.482731580734253,
+          1.862129807472229,
+          -0.5660982131958008
+        ],
+        "distance": 0.645
+      },
+      {
+        "subject": "oven",
+        "object": "sink",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "19",
+        "object_id": "20",
+        "centroid_subject": [
+          1.6914620399475098,
+          0.9205031394958496,
+          -1.0781515836715698
+        ],
+        "centroid_object": [
+          1.7725976705551147,
+          1.4390679597854614,
+          -0.5509418845176697
+        ],
+        "distance": 0.744
+      },
+      {
+        "subject": "oven",
+        "object": "stove",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "19",
+        "object_id": "21",
+        "centroid_subject": [
+          1.6914620399475098,
+          0.9205031394958496,
+          -1.0781515836715698
+        ],
+        "centroid_object": [
+          1.482731580734253,
+          1.862129807472229,
+          -0.5660982131958008
+        ],
+        "distance": 1.092
+      },
+      {
+        "subject": "sink",
+        "object": "stove",
+        "relation": "above",
+        "cluster_id": "A_0",
+        "subject_id": "20",
+        "object_id": "21",
+        "centroid_subject": [
+          1.7725976705551147,
+          1.4390679597854614,
+          -0.5509418845176697
+        ],
+        "centroid_object": [
+          1.482731580734253,
+          1.862129807472229,
+          -0.5660982131958008
+        ],
+        "distance": 0.513
+      }
+    ]
+  },
+  {
+    "scene_index": "fcf66d96-622d-291c-842c-836d61a13779",
+    "image_index": "frame-000098",
+    "num_motifs": 21,
+    "motifs": [
+      {
+        "subject": "wall",
+        "object": "ceiling",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "3",
+        "centroid_subject": [
+          0.8749939203262329,
+          2.048285484313965,
+          0.4488060772418976
+        ],
+        "centroid_object": [
+          0.9192744493484497,
+          1.328633189201355,
+          1.62586510181427
+        ],
+        "distance": 1.38
+      },
+      {
+        "subject": "wall",
+        "object": "wall",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "2",
+        "centroid_subject": [
+          0.8749939203262329,
+          2.048285484313965,
+          0.4488060772418976
+        ],
+        "centroid_object": [
+          0.8749939203262329,
+          2.048285484313965,
+          0.4488060772418976
+        ],
+        "distance": 0.0
+      },
+      {
+        "subject": "wall",
+        "object": "kitchen cabinet",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "13",
+        "centroid_subject": [
+          0.8749939203262329,
+          2.048285484313965,
+          0.4488060772418976
+        ],
+        "centroid_object": [
+          1.5285799503326416,
+          1.6486830711364746,
+          0.46409955620765686
+        ],
+        "distance": 0.766
+      },
+      {
+        "subject": "wall",
+        "object": "ceiling",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "3",
+        "centroid_subject": [
+          0.8749939203262329,
+          2.048285484313965,
+          0.4488060772418976
+        ],
+        "centroid_object": [
+          0.9192744493484497,
+          1.328633189201355,
+          1.62586510181427
+        ],
+        "distance": 1.38
+      },
+      {
+        "subject": "wall",
+        "object": "wall",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "2",
+        "centroid_subject": [
+          0.8749939203262329,
+          2.048285484313965,
+          0.4488060772418976
+        ],
+        "centroid_object": [
+          0.8749939203262329,
+          2.048285484313965,
+          0.4488060772418976
+        ],
+        "distance": 0.0
+      },
+      {
+        "subject": "wall",
+        "object": "stove",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "21",
+        "centroid_subject": [
+          0.8749939203262329,
+          2.048285484313965,
+          0.4488060772418976
+        ],
+        "centroid_object": [
+          1.4860937595367432,
+          1.8764029741287231,
+          -0.5696077346801758
+        ],
+        "distance": 1.2
+      },
+      {
+        "subject": "ceiling",
+        "object": "wall",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "3",
+        "object_id": "2",
+        "centroid_subject": [
+          0.9192744493484497,
+          1.328633189201355,
+          1.62586510181427
+        ],
+        "centroid_object": [
+          0.8749939203262329,
+          2.048285484313965,
+          0.4488060772418976
+        ],
+        "distance": 1.38
+      },
+      {
+        "subject": "ceiling",
+        "object": "kitchen cabinet",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "3",
+        "object_id": "13",
+        "centroid_subject": [
+          0.9192744493484497,
+          1.328633189201355,
+          1.62586510181427
+        ],
+        "centroid_object": [
+          1.5285799503326416,
+          1.6486830711364746,
+          0.46409955620765686
+        ],
+        "distance": 1.35
+      },
+      {
+        "subject": "ceiling",
+        "object": "ceiling",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "3",
+        "object_id": "3",
+        "centroid_subject": [
+          0.9192744493484497,
+          1.328633189201355,
+          1.62586510181427
+        ],
+        "centroid_object": [
+          0.9192744493484497,
+          1.328633189201355,
+          1.62586510181427
+        ],
+        "distance": 0.0
+      },
+      {
+        "subject": "ceiling",
+        "object": "wall",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "3",
+        "object_id": "2",
+        "centroid_subject": [
+          0.9192744493484497,
+          1.328633189201355,
+          1.62586510181427
+        ],
+        "centroid_object": [
+          0.8749939203262329,
+          2.048285484313965,
+          0.4488060772418976
+        ],
+        "distance": 1.38
+      },
+      {
+        "subject": "ceiling",
+        "object": "stove",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "3",
+        "object_id": "21",
+        "centroid_subject": [
+          0.9192744493484497,
+          1.328633189201355,
+          1.62586510181427
+        ],
+        "centroid_object": [
+          1.4860937595367432,
+          1.8764029741287231,
+          -0.5696077346801758
+        ],
+        "distance": 2.333
+      },
+      {
+        "subject": "wall",
+        "object": "kitchen cabinet",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "13",
+        "centroid_subject": [
+          0.8749939203262329,
+          2.048285484313965,
+          0.4488060772418976
+        ],
+        "centroid_object": [
+          1.5285799503326416,
+          1.6486830711364746,
+          0.46409955620765686
+        ],
+        "distance": 0.766
+      },
+      {
+        "subject": "wall",
+        "object": "ceiling",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "3",
+        "centroid_subject": [
+          0.8749939203262329,
+          2.048285484313965,
+          0.4488060772418976
+        ],
+        "centroid_object": [
+          0.9192744493484497,
+          1.328633189201355,
+          1.62586510181427
+        ],
+        "distance": 1.38
+      },
+      {
+        "subject": "wall",
+        "object": "wall",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "2",
+        "centroid_subject": [
+          0.8749939203262329,
+          2.048285484313965,
+          0.4488060772418976
+        ],
+        "centroid_object": [
+          0.8749939203262329,
+          2.048285484313965,
+          0.4488060772418976
+        ],
+        "distance": 0.0
+      },
+      {
+        "subject": "wall",
+        "object": "stove",
+        "relation": "above",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "21",
+        "centroid_subject": [
+          0.8749939203262329,
+          2.048285484313965,
+          0.4488060772418976
+        ],
+        "centroid_object": [
+          1.4860937595367432,
+          1.8764029741287231,
+          -0.5696077346801758
+        ],
+        "distance": 1.2
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "ceiling",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "13",
+        "object_id": "3",
+        "centroid_subject": [
+          1.5285799503326416,
+          1.6486830711364746,
+          0.46409955620765686
+        ],
+        "centroid_object": [
+          0.9192744493484497,
+          1.328633189201355,
+          1.62586510181427
+        ],
+        "distance": 1.35
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "wall",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "13",
+        "object_id": "2",
+        "centroid_subject": [
+          1.5285799503326416,
+          1.6486830711364746,
+          0.46409955620765686
+        ],
+        "centroid_object": [
+          0.8749939203262329,
+          2.048285484313965,
+          0.4488060772418976
+        ],
+        "distance": 0.766
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "stove",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "13",
+        "object_id": "21",
+        "centroid_subject": [
+          1.5285799503326416,
+          1.6486830711364746,
+          0.46409955620765686
+        ],
+        "centroid_object": [
+          1.4860937595367432,
+          1.8764029741287231,
+          -0.5696077346801758
+        ],
+        "distance": 1.059
+      },
+      {
+        "subject": "ceiling",
+        "object": "wall",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "3",
+        "object_id": "2",
+        "centroid_subject": [
+          0.9192744493484497,
+          1.328633189201355,
+          1.62586510181427
+        ],
+        "centroid_object": [
+          0.8749939203262329,
+          2.048285484313965,
+          0.4488060772418976
+        ],
+        "distance": 1.38
+      },
+      {
+        "subject": "ceiling",
+        "object": "stove",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "3",
+        "object_id": "21",
+        "centroid_subject": [
+          0.9192744493484497,
+          1.328633189201355,
+          1.62586510181427
+        ],
+        "centroid_object": [
+          1.4860937595367432,
+          1.8764029741287231,
+          -0.5696077346801758
+        ],
+        "distance": 2.333
+      },
+      {
+        "subject": "wall",
+        "object": "stove",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "21",
+        "centroid_subject": [
+          0.8749939203262329,
+          2.048285484313965,
+          0.4488060772418976
+        ],
+        "centroid_object": [
+          1.4860937595367432,
+          1.8764029741287231,
+          -0.5696077346801758
+        ],
+        "distance": 1.2
+      }
+    ]
+  },
+  {
+    "scene_index": "fcf66d96-622d-291c-842c-836d61a13779",
+    "image_index": "frame-000096",
+    "num_motifs": 36,
+    "motifs": [
+      {
+        "subject": "floor",
+        "object": "wall",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "2",
+        "centroid_subject": [
+          1.5557976961135864,
+          1.047831654548645,
+          -1.3935424089431763
+        ],
+        "centroid_object": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "distance": 1.623
+      },
+      {
+        "subject": "floor",
+        "object": "kitchen cabinet",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "10",
+        "centroid_subject": [
+          1.5557976961135864,
+          1.047831654548645,
+          -1.3935424089431763
+        ],
+        "centroid_object": [
+          1.411076545715332,
+          1.286601185798645,
+          -1.0282293558120728
+        ],
+        "distance": 0.46
+      },
+      {
+        "subject": "floor",
+        "object": "wall",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "2",
+        "centroid_subject": [
+          1.5557976961135864,
+          1.047831654548645,
+          -1.3935424089431763
+        ],
+        "centroid_object": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "distance": 1.623
+      },
+      {
+        "subject": "floor",
+        "object": "kitchen cabinet",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "10",
+        "centroid_subject": [
+          1.5557976961135864,
+          1.047831654548645,
+          -1.3935424089431763
+        ],
+        "centroid_object": [
+          1.411076545715332,
+          1.286601185798645,
+          -1.0282293558120728
+        ],
+        "distance": 0.46
+      },
+      {
+        "subject": "floor",
+        "object": "wall",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "2",
+        "centroid_subject": [
+          1.5557976961135864,
+          1.047831654548645,
+          -1.3935424089431763
+        ],
+        "centroid_object": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "distance": 1.623
+      },
+      {
+        "subject": "floor",
+        "object": "wall",
+        "relation": "behind",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "2",
+        "centroid_subject": [
+          1.5557976961135864,
+          1.047831654548645,
+          -1.3935424089431763
+        ],
+        "centroid_object": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "distance": 1.623
+      },
+      {
+        "subject": "floor",
+        "object": "oven",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "19",
+        "centroid_subject": [
+          1.5557976961135864,
+          1.047831654548645,
+          -1.3935424089431763
+        ],
+        "centroid_object": [
+          1.67109215259552,
+          0.9210132360458374,
+          -1.0733963251113892
+        ],
+        "distance": 0.363
+      },
+      {
+        "subject": "floor",
+        "object": "sink",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "20",
+        "centroid_subject": [
+          1.5557976961135864,
+          1.047831654548645,
+          -1.3935424089431763
+        ],
+        "centroid_object": [
+          1.7668548822402954,
+          1.4353539943695068,
+          -0.5539668202400208
+        ],
+        "distance": 0.948
+      },
+      {
+        "subject": "wall",
+        "object": "kitchen cabinet",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "10",
+        "centroid_subject": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "centroid_object": [
+          1.411076545715332,
+          1.286601185798645,
+          -1.0282293558120728
+        ],
+        "distance": 1.211
+      },
+      {
+        "subject": "wall",
+        "object": "wall",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "2",
+        "centroid_subject": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "centroid_object": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "distance": 0.0
+      },
+      {
+        "subject": "wall",
+        "object": "kitchen cabinet",
+        "relation": "behind",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "10",
+        "centroid_subject": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "centroid_object": [
+          1.411076545715332,
+          1.286601185798645,
+          -1.0282293558120728
+        ],
+        "distance": 1.211
+      },
+      {
+        "subject": "wall",
+        "object": "wall",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "2",
+        "centroid_subject": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "centroid_object": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "distance": 0.0
+      },
+      {
+        "subject": "wall",
+        "object": "wall",
+        "relation": "behind",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "2",
+        "centroid_subject": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "centroid_object": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "distance": 0.0
+      },
+      {
+        "subject": "wall",
+        "object": "oven",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "19",
+        "centroid_subject": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "centroid_object": [
+          1.67109215259552,
+          0.9210132360458374,
+          -1.0733963251113892
+        ],
+        "distance": 1.528
+      },
+      {
+        "subject": "wall",
+        "object": "sink",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "20",
+        "centroid_subject": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "centroid_object": [
+          1.7668548822402954,
+          1.4353539943695068,
+          -0.5539668202400208
+        ],
+        "distance": 0.853
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "wall",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "2",
+        "centroid_subject": [
+          1.411076545715332,
+          1.286601185798645,
+          -1.0282293558120728
+        ],
+        "centroid_object": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "distance": 1.211
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "kitchen cabinet",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "10",
+        "centroid_subject": [
+          1.411076545715332,
+          1.286601185798645,
+          -1.0282293558120728
+        ],
+        "centroid_object": [
+          1.411076545715332,
+          1.286601185798645,
+          -1.0282293558120728
+        ],
+        "distance": 0.0
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "wall",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "2",
+        "centroid_subject": [
+          1.411076545715332,
+          1.286601185798645,
+          -1.0282293558120728
+        ],
+        "centroid_object": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "distance": 1.211
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "wall",
+        "relation": "behind",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "2",
+        "centroid_subject": [
+          1.411076545715332,
+          1.286601185798645,
+          -1.0282293558120728
+        ],
+        "centroid_object": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "distance": 1.211
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "oven",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "19",
+        "centroid_subject": [
+          1.411076545715332,
+          1.286601185798645,
+          -1.0282293558120728
+        ],
+        "centroid_object": [
+          1.67109215259552,
+          0.9210132360458374,
+          -1.0733963251113892
+        ],
+        "distance": 0.451
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "sink",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "20",
+        "centroid_subject": [
+          1.411076545715332,
+          1.286601185798645,
+          -1.0282293558120728
+        ],
+        "centroid_object": [
+          1.7668548822402954,
+          1.4353539943695068,
+          -0.5539668202400208
+        ],
+        "distance": 0.611
+      },
+      {
+        "subject": "wall",
+        "object": "kitchen cabinet",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "10",
+        "centroid_subject": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "centroid_object": [
+          1.411076545715332,
+          1.286601185798645,
+          -1.0282293558120728
+        ],
+        "distance": 1.211
+      },
+      {
+        "subject": "wall",
+        "object": "wall",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "2",
+        "centroid_subject": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "centroid_object": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "distance": 0.0
+      },
+      {
+        "subject": "wall",
+        "object": "wall",
+        "relation": "behind",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "2",
+        "centroid_subject": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "centroid_object": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "distance": 0.0
+      },
+      {
+        "subject": "wall",
+        "object": "oven",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "19",
+        "centroid_subject": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "centroid_object": [
+          1.67109215259552,
+          0.9210132360458374,
+          -1.0733963251113892
+        ],
+        "distance": 1.528
+      },
+      {
+        "subject": "wall",
+        "object": "sink",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "20",
+        "centroid_subject": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "centroid_object": [
+          1.7668548822402954,
+          1.4353539943695068,
+          -0.5539668202400208
+        ],
+        "distance": 0.853
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "wall",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "2",
+        "centroid_subject": [
+          1.411076545715332,
+          1.286601185798645,
+          -1.0282293558120728
+        ],
+        "centroid_object": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "distance": 1.211
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "wall",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "2",
+        "centroid_subject": [
+          1.411076545715332,
+          1.286601185798645,
+          -1.0282293558120728
+        ],
+        "centroid_object": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "distance": 1.211
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "oven",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "19",
+        "centroid_subject": [
+          1.411076545715332,
+          1.286601185798645,
+          -1.0282293558120728
+        ],
+        "centroid_object": [
+          1.67109215259552,
+          0.9210132360458374,
+          -1.0733963251113892
+        ],
+        "distance": 0.451
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "sink",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "20",
+        "centroid_subject": [
+          1.411076545715332,
+          1.286601185798645,
+          -1.0282293558120728
+        ],
+        "centroid_object": [
+          1.7668548822402954,
+          1.4353539943695068,
+          -0.5539668202400208
+        ],
+        "distance": 0.611
+      },
+      {
+        "subject": "wall",
+        "object": "wall",
+        "relation": "above",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "2",
+        "centroid_subject": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "centroid_object": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "distance": 0.0
+      },
+      {
+        "subject": "wall",
+        "object": "oven",
+        "relation": "above",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "19",
+        "centroid_subject": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "centroid_object": [
+          1.67109215259552,
+          0.9210132360458374,
+          -1.0733963251113892
+        ],
+        "distance": 1.528
+      },
+      {
+        "subject": "wall",
+        "object": "sink",
+        "relation": "above",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "20",
+        "centroid_subject": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "centroid_object": [
+          1.7668548822402954,
+          1.4353539943695068,
+          -0.5539668202400208
+        ],
+        "distance": 0.853
+      },
+      {
+        "subject": "wall",
+        "object": "oven",
+        "relation": "in_front_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "19",
+        "centroid_subject": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "centroid_object": [
+          1.67109215259552,
+          0.9210132360458374,
+          -1.0733963251113892
+        ],
+        "distance": 1.528
+      },
+      {
+        "subject": "wall",
+        "object": "sink",
+        "relation": "in_front_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "20",
+        "centroid_subject": [
+          1.5696215629577637,
+          2.212907552719116,
+          -0.2642681896686554
+        ],
+        "centroid_object": [
+          1.7668548822402954,
+          1.4353539943695068,
+          -0.5539668202400208
+        ],
+        "distance": 0.853
+      },
+      {
+        "subject": "oven",
+        "object": "sink",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "19",
+        "object_id": "20",
+        "centroid_subject": [
+          1.67109215259552,
+          0.9210132360458374,
+          -1.0733963251113892
+        ],
+        "centroid_object": [
+          1.7668548822402954,
+          1.4353539943695068,
+          -0.5539668202400208
+        ],
+        "distance": 0.737
+      }
+    ]
+  },
+  {
+    "scene_index": "fcf66d96-622d-291c-842c-836d61a13779",
+    "image_index": "frame-000100",
+    "num_motifs": 15,
+    "motifs": [
+      {
+        "subject": "wall",
+        "object": "ceiling",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "3",
+        "centroid_subject": [
+          0.564923882484436,
+          1.9668076038360596,
+          0.21236476302146912
+        ],
+        "centroid_object": [
+          0.48741355538368225,
+          1.3900824785232544,
+          1.3666845560073853
+        ],
+        "distance": 1.293
+      },
+      {
+        "subject": "wall",
+        "object": "shelf",
+        "relation": "behind",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "4",
+        "centroid_subject": [
+          0.564923882484436,
+          1.9668076038360596,
+          0.21236476302146912
+        ],
+        "centroid_object": [
+          0.34185779094696045,
+          0.882124125957489,
+          0.5502879023551941
+        ],
+        "distance": 1.158
+      },
+      {
+        "subject": "wall",
+        "object": "dining table",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "5",
+        "centroid_subject": [
+          0.564923882484436,
+          1.9668076038360596,
+          0.21236476302146912
+        ],
+        "centroid_object": [
+          0.23333247005939484,
+          1.4266146421432495,
+          -0.4726487994194031
+        ],
+        "distance": 0.933
+      },
+      {
+        "subject": "wall",
+        "object": "kitchen cabinet",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "10",
+        "centroid_subject": [
+          0.564923882484436,
+          1.9668076038360596,
+          0.21236476302146912
+        ],
+        "centroid_object": [
+          1.2643061876296997,
+          1.954028606414795,
+          -0.8608985543251038
+        ],
+        "distance": 1.281
+      },
+      {
+        "subject": "wall",
+        "object": "wall",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "2",
+        "centroid_subject": [
+          0.564923882484436,
+          1.9668076038360596,
+          0.21236476302146912
+        ],
+        "centroid_object": [
+          0.564923882484436,
+          1.9668076038360596,
+          0.21236476302146912
+        ],
+        "distance": 0.0
+      },
+      {
+        "subject": "ceiling",
+        "object": "shelf",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "3",
+        "object_id": "4",
+        "centroid_subject": [
+          0.48741355538368225,
+          1.3900824785232544,
+          1.3666845560073853
+        ],
+        "centroid_object": [
+          0.34185779094696045,
+          0.882124125957489,
+          0.5502879023551941
+        ],
+        "distance": 0.972
+      },
+      {
+        "subject": "ceiling",
+        "object": "dining table",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "3",
+        "object_id": "5",
+        "centroid_subject": [
+          0.48741355538368225,
+          1.3900824785232544,
+          1.3666845560073853
+        ],
+        "centroid_object": [
+          0.23333247005939484,
+          1.4266146421432495,
+          -0.4726487994194031
+        ],
+        "distance": 1.857
+      },
+      {
+        "subject": "ceiling",
+        "object": "kitchen cabinet",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "3",
+        "object_id": "10",
+        "centroid_subject": [
+          0.48741355538368225,
+          1.3900824785232544,
+          1.3666845560073853
+        ],
+        "centroid_object": [
+          1.2643061876296997,
+          1.954028606414795,
+          -0.8608985543251038
+        ],
+        "distance": 2.426
+      },
+      {
+        "subject": "ceiling",
+        "object": "wall",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "3",
+        "object_id": "2",
+        "centroid_subject": [
+          0.48741355538368225,
+          1.3900824785232544,
+          1.3666845560073853
+        ],
+        "centroid_object": [
+          0.564923882484436,
+          1.9668076038360596,
+          0.21236476302146912
+        ],
+        "distance": 1.293
+      },
+      {
+        "subject": "shelf",
+        "object": "dining table",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "4",
+        "object_id": "5",
+        "centroid_subject": [
+          0.34185779094696045,
+          0.882124125957489,
+          0.5502879023551941
+        ],
+        "centroid_object": [
+          0.23333247005939484,
+          1.4266146421432495,
+          -0.4726487994194031
+        ],
+        "distance": 1.164
+      },
+      {
+        "subject": "shelf",
+        "object": "kitchen cabinet",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "4",
+        "object_id": "10",
+        "centroid_subject": [
+          0.34185779094696045,
+          0.882124125957489,
+          0.5502879023551941
+        ],
+        "centroid_object": [
+          1.2643061876296997,
+          1.954028606414795,
+          -0.8608985543251038
+        ],
+        "distance": 1.998
+      },
+      {
+        "subject": "shelf",
+        "object": "wall",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "4",
+        "object_id": "2",
+        "centroid_subject": [
+          0.34185779094696045,
+          0.882124125957489,
+          0.5502879023551941
+        ],
+        "centroid_object": [
+          0.564923882484436,
+          1.9668076038360596,
+          0.21236476302146912
+        ],
+        "distance": 1.158
+      },
+      {
+        "subject": "dining table",
+        "object": "kitchen cabinet",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "5",
+        "object_id": "10",
+        "centroid_subject": [
+          0.23333247005939484,
+          1.4266146421432495,
+          -0.4726487994194031
+        ],
+        "centroid_object": [
+          1.2643061876296997,
+          1.954028606414795,
+          -0.8608985543251038
+        ],
+        "distance": 1.221
+      },
+      {
+        "subject": "dining table",
+        "object": "wall",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "5",
+        "object_id": "2",
+        "centroid_subject": [
+          0.23333247005939484,
+          1.4266146421432495,
+          -0.4726487994194031
+        ],
+        "centroid_object": [
+          0.564923882484436,
+          1.9668076038360596,
+          0.21236476302146912
+        ],
+        "distance": 0.933
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "wall",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "2",
+        "centroid_subject": [
+          1.2643061876296997,
+          1.954028606414795,
+          -0.8608985543251038
+        ],
+        "centroid_object": [
+          0.564923882484436,
+          1.9668076038360596,
+          0.21236476302146912
+        ],
+        "distance": 1.281
+      }
+    ]
+  },
+  {
+    "scene_index": "fcf66d96-622d-291c-842c-836d61a13779",
+    "image_index": "frame-000028",
+    "num_motifs": 10,
+    "motifs": [
+      {
+        "subject": "floor",
+        "object": "wall",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "2",
+        "centroid_subject": [
+          0.16499947011470795,
+          1.5967520475387573,
+          -1.4112645387649536
+        ],
+        "centroid_object": [
+          0.30464184284210205,
+          1.8845129013061523,
+          -0.16604046523571014
+        ],
+        "distance": 1.286
+      },
+      {
+        "subject": "floor",
+        "object": "dining table",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "5",
+        "centroid_subject": [
+          0.16499947011470795,
+          1.5967520475387573,
+          -1.4112645387649536
+        ],
+        "centroid_object": [
+          0.23750510811805725,
+          1.4253336191177368,
+          -0.47500094771385193
+        ],
+        "distance": 0.955
+      },
+      {
+        "subject": "floor",
+        "object": "shelf",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "26",
+        "centroid_subject": [
+          0.16499947011470795,
+          1.5967520475387573,
+          -1.4112645387649536
+        ],
+        "centroid_object": [
+          0.6623160243034363,
+          1.9385823011398315,
+          0.5418581962585449
+        ],
+        "distance": 2.044
+      },
+      {
+        "subject": "floor",
+        "object": "chair",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "33",
+        "centroid_subject": [
+          0.16499947011470795,
+          1.5967520475387573,
+          -1.4112645387649536
+        ],
+        "centroid_object": [
+          -0.31490129232406616,
+          1.6384857892990112,
+          -0.6741403937339783
+        ],
+        "distance": 0.881
+      },
+      {
+        "subject": "wall",
+        "object": "dining table",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "5",
+        "centroid_subject": [
+          0.30464184284210205,
+          1.8845129013061523,
+          -0.16604046523571014
+        ],
+        "centroid_object": [
+          0.23750510811805725,
+          1.4253336191177368,
+          -0.47500094771385193
+        ],
+        "distance": 0.558
+      },
+      {
+        "subject": "wall",
+        "object": "shelf",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "26",
+        "centroid_subject": [
+          0.30464184284210205,
+          1.8845129013061523,
+          -0.16604046523571014
+        ],
+        "centroid_object": [
+          0.6623160243034363,
+          1.9385823011398315,
+          0.5418581962585449
+        ],
+        "distance": 0.795
+      },
+      {
+        "subject": "wall",
+        "object": "chair",
+        "relation": "above",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "33",
+        "centroid_subject": [
+          0.30464184284210205,
+          1.8845129013061523,
+          -0.16604046523571014
+        ],
+        "centroid_object": [
+          -0.31490129232406616,
+          1.6384857892990112,
+          -0.6741403937339783
+        ],
+        "distance": 0.838
+      },
+      {
+        "subject": "dining table",
+        "object": "shelf",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "5",
+        "object_id": "26",
+        "centroid_subject": [
+          0.23750510811805725,
+          1.4253336191177368,
+          -0.47500094771385193
+        ],
+        "centroid_object": [
+          0.6623160243034363,
+          1.9385823011398315,
+          0.5418581962585449
+        ],
+        "distance": 1.216
+      },
+      {
+        "subject": "dining table",
+        "object": "chair",
+        "relation": "above",
+        "cluster_id": "A_0",
+        "subject_id": "5",
+        "object_id": "33",
+        "centroid_subject": [
+          0.23750510811805725,
+          1.4253336191177368,
+          -0.47500094771385193
+        ],
+        "centroid_object": [
+          -0.31490129232406616,
+          1.6384857892990112,
+          -0.6741403937339783
+        ],
+        "distance": 0.625
+      },
+      {
+        "subject": "shelf",
+        "object": "chair",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "26",
+        "object_id": "33",
+        "centroid_subject": [
+          0.6623160243034363,
+          1.9385823011398315,
+          0.5418581962585449
+        ],
+        "centroid_object": [
+          -0.31490129232406616,
+          1.6384857892990112,
+          -0.6741403937339783
+        ],
+        "distance": 1.589
+      }
+    ]
+  },
+  {
+    "scene_index": "fcf66d96-622d-291c-842c-836d61a13779",
+    "image_index": "frame-000009",
+    "num_motifs": 3,
+    "motifs": [
+      {
+        "subject": "floor",
+        "object": "wall",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "2",
+        "centroid_subject": [
+          0.059299636632204056,
+          1.4194014072418213,
+          -1.4084324836730957
+        ],
+        "centroid_object": [
+          0.27253881096839905,
+          1.8843456506729126,
+          -0.7383748888969421
+        ],
+        "distance": 0.843
+      },
+      {
+        "subject": "floor",
+        "object": "dining table",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "5",
+        "centroid_subject": [
+          0.059299636632204056,
+          1.4194014072418213,
+          -1.4084324836730957
+        ],
+        "centroid_object": [
+          0.16413792967796326,
+          1.5031861066818237,
+          -0.480428010225296
+        ],
+        "distance": 0.938
+      },
+      {
+        "subject": "wall",
+        "object": "dining table",
+        "relation": "behind",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "5",
+        "centroid_subject": [
+          0.27253881096839905,
+          1.8843456506729126,
+          -0.7383748888969421
+        ],
+        "centroid_object": [
+          0.16413792967796326,
+          1.5031861066818237,
+          -0.480428010225296
+        ],
+        "distance": 0.473
+      }
+    ]
+  },
+  {
+    "scene_index": "fcf66d96-622d-291c-842c-836d61a13779",
+    "image_index": "frame-000094",
+    "num_motifs": 55,
+    "motifs": [
+      {
+        "subject": "floor",
+        "object": "wall",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "2",
+        "centroid_subject": [
+          1.2096879482269287,
+          1.1690168380737305,
+          -1.4025404453277588
+        ],
+        "centroid_object": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "distance": 1.358
+      },
+      {
+        "subject": "floor",
+        "object": "kitchen cabinet",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "10",
+        "centroid_subject": [
+          1.2096879482269287,
+          1.1690168380737305,
+          -1.4025404453277588
+        ],
+        "centroid_object": [
+          1.38345205783844,
+          1.3992441892623901,
+          -1.0081344842910767
+        ],
+        "distance": 0.489
+      },
+      {
+        "subject": "floor",
+        "object": "kitchen counter",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "11",
+        "centroid_subject": [
+          1.2096879482269287,
+          1.1690168380737305,
+          -1.4025404453277588
+        ],
+        "centroid_object": [
+          1.7416465282440186,
+          0.990920901298523,
+          -0.5578051805496216
+        ],
+        "distance": 1.014
+      },
+      {
+        "subject": "floor",
+        "object": "wall",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "2",
+        "centroid_subject": [
+          1.2096879482269287,
+          1.1690168380737305,
+          -1.4025404453277588
+        ],
+        "centroid_object": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "distance": 1.358
+      },
+      {
+        "subject": "floor",
+        "object": "kitchen cabinet",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "10",
+        "centroid_subject": [
+          1.2096879482269287,
+          1.1690168380737305,
+          -1.4025404453277588
+        ],
+        "centroid_object": [
+          1.38345205783844,
+          1.3992441892623901,
+          -1.0081344842910767
+        ],
+        "distance": 0.489
+      },
+      {
+        "subject": "floor",
+        "object": "wall",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "2",
+        "centroid_subject": [
+          1.2096879482269287,
+          1.1690168380737305,
+          -1.4025404453277588
+        ],
+        "centroid_object": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "distance": 1.358
+      },
+      {
+        "subject": "floor",
+        "object": "wall",
+        "relation": "behind",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "2",
+        "centroid_subject": [
+          1.2096879482269287,
+          1.1690168380737305,
+          -1.4025404453277588
+        ],
+        "centroid_object": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "distance": 1.358
+      },
+      {
+        "subject": "floor",
+        "object": "oven",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "19",
+        "centroid_subject": [
+          1.2096879482269287,
+          1.1690168380737305,
+          -1.4025404453277588
+        ],
+        "centroid_object": [
+          1.6920770406723022,
+          0.916969895362854,
+          -1.0740940570831299
+        ],
+        "distance": 0.636
+      },
+      {
+        "subject": "floor",
+        "object": "sink",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "20",
+        "centroid_subject": [
+          1.2096879482269287,
+          1.1690168380737305,
+          -1.4025404453277588
+        ],
+        "centroid_object": [
+          1.7705494165420532,
+          1.4373608827590942,
+          -0.5524159073829651
+        ],
+        "distance": 1.053
+      },
+      {
+        "subject": "floor",
+        "object": "stove",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "21",
+        "centroid_subject": [
+          1.2096879482269287,
+          1.1690168380737305,
+          -1.4025404453277588
+        ],
+        "centroid_object": [
+          1.483752965927124,
+          1.8620332479476929,
+          -0.5654390454292297
+        ],
+        "distance": 1.121
+      },
+      {
+        "subject": "wall",
+        "object": "kitchen cabinet",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "10",
+        "centroid_subject": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "centroid_object": [
+          1.38345205783844,
+          1.3992441892623901,
+          -1.0081344842910767
+        ],
+        "distance": 0.933
+      },
+      {
+        "subject": "wall",
+        "object": "kitchen counter",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "11",
+        "centroid_subject": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "centroid_object": [
+          1.7416465282440186,
+          0.990920901298523,
+          -0.5578051805496216
+        ],
+        "distance": 1.255
+      },
+      {
+        "subject": "wall",
+        "object": "wall",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "2",
+        "centroid_subject": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "centroid_object": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "distance": 0.0
+      },
+      {
+        "subject": "wall",
+        "object": "kitchen cabinet",
+        "relation": "behind",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "10",
+        "centroid_subject": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "centroid_object": [
+          1.38345205783844,
+          1.3992441892623901,
+          -1.0081344842910767
+        ],
+        "distance": 0.933
+      },
+      {
+        "subject": "wall",
+        "object": "wall",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "2",
+        "centroid_subject": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "centroid_object": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "distance": 0.0
+      },
+      {
+        "subject": "wall",
+        "object": "wall",
+        "relation": "behind",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "2",
+        "centroid_subject": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "centroid_object": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "distance": 0.0
+      },
+      {
+        "subject": "wall",
+        "object": "oven",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "19",
+        "centroid_subject": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "centroid_object": [
+          1.6920770406723022,
+          0.916969895362854,
+          -1.0740940570831299
+        ],
+        "distance": 1.438
+      },
+      {
+        "subject": "wall",
+        "object": "sink",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "20",
+        "centroid_subject": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "centroid_object": [
+          1.7705494165420532,
+          1.4373608827590942,
+          -0.5524159073829651
+        ],
+        "distance": 0.874
+      },
+      {
+        "subject": "wall",
+        "object": "stove",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "21",
+        "centroid_subject": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "centroid_object": [
+          1.483752965927124,
+          1.8620332479476929,
+          -0.5654390454292297
+        ],
+        "distance": 0.371
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "kitchen counter",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "11",
+        "centroid_subject": [
+          1.38345205783844,
+          1.3992441892623901,
+          -1.0081344842910767
+        ],
+        "centroid_object": [
+          1.7416465282440186,
+          0.990920901298523,
+          -0.5578051805496216
+        ],
+        "distance": 0.706
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "wall",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "2",
+        "centroid_subject": [
+          1.38345205783844,
+          1.3992441892623901,
+          -1.0081344842910767
+        ],
+        "centroid_object": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "distance": 0.933
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "kitchen cabinet",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "10",
+        "centroid_subject": [
+          1.38345205783844,
+          1.3992441892623901,
+          -1.0081344842910767
+        ],
+        "centroid_object": [
+          1.38345205783844,
+          1.3992441892623901,
+          -1.0081344842910767
+        ],
+        "distance": 0.0
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "wall",
+        "relation": "behind",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "2",
+        "centroid_subject": [
+          1.38345205783844,
+          1.3992441892623901,
+          -1.0081344842910767
+        ],
+        "centroid_object": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "distance": 0.933
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "wall",
+        "relation": "behind",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "2",
+        "centroid_subject": [
+          1.38345205783844,
+          1.3992441892623901,
+          -1.0081344842910767
+        ],
+        "centroid_object": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "distance": 0.933
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "oven",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "19",
+        "centroid_subject": [
+          1.38345205783844,
+          1.3992441892623901,
+          -1.0081344842910767
+        ],
+        "centroid_object": [
+          1.6920770406723022,
+          0.916969895362854,
+          -1.0740940570831299
+        ],
+        "distance": 0.576
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "sink",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "20",
+        "centroid_subject": [
+          1.38345205783844,
+          1.3992441892623901,
+          -1.0081344842910767
+        ],
+        "centroid_object": [
+          1.7705494165420532,
+          1.4373608827590942,
+          -0.5524159073829651
+        ],
+        "distance": 0.599
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "stove",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "21",
+        "centroid_subject": [
+          1.38345205783844,
+          1.3992441892623901,
+          -1.0081344842910767
+        ],
+        "centroid_object": [
+          1.483752965927124,
+          1.8620332479476929,
+          -0.5654390454292297
+        ],
+        "distance": 0.648
+      },
+      {
+        "subject": "kitchen counter",
+        "object": "wall",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "11",
+        "object_id": "2",
+        "centroid_subject": [
+          1.7416465282440186,
+          0.990920901298523,
+          -0.5578051805496216
+        ],
+        "centroid_object": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "distance": 1.255
+      },
+      {
+        "subject": "kitchen counter",
+        "object": "kitchen cabinet",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "11",
+        "object_id": "10",
+        "centroid_subject": [
+          1.7416465282440186,
+          0.990920901298523,
+          -0.5578051805496216
+        ],
+        "centroid_object": [
+          1.38345205783844,
+          1.3992441892623901,
+          -1.0081344842910767
+        ],
+        "distance": 0.706
+      },
+      {
+        "subject": "kitchen counter",
+        "object": "wall",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "11",
+        "object_id": "2",
+        "centroid_subject": [
+          1.7416465282440186,
+          0.990920901298523,
+          -0.5578051805496216
+        ],
+        "centroid_object": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "distance": 1.255
+      },
+      {
+        "subject": "kitchen counter",
+        "object": "wall",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "11",
+        "object_id": "2",
+        "centroid_subject": [
+          1.7416465282440186,
+          0.990920901298523,
+          -0.5578051805496216
+        ],
+        "centroid_object": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "distance": 1.255
+      },
+      {
+        "subject": "kitchen counter",
+        "object": "oven",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "11",
+        "object_id": "19",
+        "centroid_subject": [
+          1.7416465282440186,
+          0.990920901298523,
+          -0.5578051805496216
+        ],
+        "centroid_object": [
+          1.6920770406723022,
+          0.916969895362854,
+          -1.0740940570831299
+        ],
+        "distance": 0.524
+      },
+      {
+        "subject": "kitchen counter",
+        "object": "sink",
+        "relation": "in_front_of",
+        "cluster_id": "A_0",
+        "subject_id": "11",
+        "object_id": "20",
+        "centroid_subject": [
+          1.7416465282440186,
+          0.990920901298523,
+          -0.5578051805496216
+        ],
+        "centroid_object": [
+          1.7705494165420532,
+          1.4373608827590942,
+          -0.5524159073829651
+        ],
+        "distance": 0.447
+      },
+      {
+        "subject": "kitchen counter",
+        "object": "stove",
+        "relation": "in_front_of",
+        "cluster_id": "A_0",
+        "subject_id": "11",
+        "object_id": "21",
+        "centroid_subject": [
+          1.7416465282440186,
+          0.990920901298523,
+          -0.5578051805496216
+        ],
+        "centroid_object": [
+          1.483752965927124,
+          1.8620332479476929,
+          -0.5654390454292297
+        ],
+        "distance": 0.909
+      },
+      {
+        "subject": "wall",
+        "object": "kitchen cabinet",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "10",
+        "centroid_subject": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "centroid_object": [
+          1.38345205783844,
+          1.3992441892623901,
+          -1.0081344842910767
+        ],
+        "distance": 0.933
+      },
+      {
+        "subject": "wall",
+        "object": "wall",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "2",
+        "centroid_subject": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "centroid_object": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "distance": 0.0
+      },
+      {
+        "subject": "wall",
+        "object": "wall",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "2",
+        "centroid_subject": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "centroid_object": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "distance": 0.0
+      },
+      {
+        "subject": "wall",
+        "object": "oven",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "19",
+        "centroid_subject": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "centroid_object": [
+          1.6920770406723022,
+          0.916969895362854,
+          -1.0740940570831299
+        ],
+        "distance": 1.438
+      },
+      {
+        "subject": "wall",
+        "object": "sink",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "20",
+        "centroid_subject": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "centroid_object": [
+          1.7705494165420532,
+          1.4373608827590942,
+          -0.5524159073829651
+        ],
+        "distance": 0.874
+      },
+      {
+        "subject": "wall",
+        "object": "stove",
+        "relation": "above",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "21",
+        "centroid_subject": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "centroid_object": [
+          1.483752965927124,
+          1.8620332479476929,
+          -0.5654390454292297
+        ],
+        "distance": 0.371
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "wall",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "2",
+        "centroid_subject": [
+          1.38345205783844,
+          1.3992441892623901,
+          -1.0081344842910767
+        ],
+        "centroid_object": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "distance": 0.933
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "wall",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "2",
+        "centroid_subject": [
+          1.38345205783844,
+          1.3992441892623901,
+          -1.0081344842910767
+        ],
+        "centroid_object": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "distance": 0.933
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "oven",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "19",
+        "centroid_subject": [
+          1.38345205783844,
+          1.3992441892623901,
+          -1.0081344842910767
+        ],
+        "centroid_object": [
+          1.6920770406723022,
+          0.916969895362854,
+          -1.0740940570831299
+        ],
+        "distance": 0.576
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "sink",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "20",
+        "centroid_subject": [
+          1.38345205783844,
+          1.3992441892623901,
+          -1.0081344842910767
+        ],
+        "centroid_object": [
+          1.7705494165420532,
+          1.4373608827590942,
+          -0.5524159073829651
+        ],
+        "distance": 0.599
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "stove",
+        "relation": "left_of",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "21",
+        "centroid_subject": [
+          1.38345205783844,
+          1.3992441892623901,
+          -1.0081344842910767
+        ],
+        "centroid_object": [
+          1.483752965927124,
+          1.8620332479476929,
+          -0.5654390454292297
+        ],
+        "distance": 0.648
+      },
+      {
+        "subject": "wall",
+        "object": "wall",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "2",
+        "centroid_subject": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "centroid_object": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "distance": 0.0
+      },
+      {
+        "subject": "wall",
+        "object": "oven",
+        "relation": "in_front_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "19",
+        "centroid_subject": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "centroid_object": [
+          1.6920770406723022,
+          0.916969895362854,
+          -1.0740940570831299
+        ],
+        "distance": 1.438
+      },
+      {
+        "subject": "wall",
+        "object": "sink",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "20",
+        "centroid_subject": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "centroid_object": [
+          1.7705494165420532,
+          1.4373608827590942,
+          -0.5524159073829651
+        ],
+        "distance": 0.874
+      },
+      {
+        "subject": "wall",
+        "object": "stove",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "21",
+        "centroid_subject": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "centroid_object": [
+          1.483752965927124,
+          1.8620332479476929,
+          -0.5654390454292297
+        ],
+        "distance": 0.371
+      },
+      {
+        "subject": "wall",
+        "object": "oven",
+        "relation": "in_front_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "19",
+        "centroid_subject": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "centroid_object": [
+          1.6920770406723022,
+          0.916969895362854,
+          -1.0740940570831299
+        ],
+        "distance": 1.438
+      },
+      {
+        "subject": "wall",
+        "object": "sink",
+        "relation": "in_front_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "20",
+        "centroid_subject": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "centroid_object": [
+          1.7705494165420532,
+          1.4373608827590942,
+          -0.5524159073829651
+        ],
+        "distance": 0.874
+      },
+      {
+        "subject": "wall",
+        "object": "stove",
+        "relation": "in_front_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "21",
+        "centroid_subject": [
+          1.2751479148864746,
+          2.1529061794281006,
+          -0.46913111209869385
+        ],
+        "centroid_object": [
+          1.483752965927124,
+          1.8620332479476929,
+          -0.5654390454292297
+        ],
+        "distance": 0.371
+      },
+      {
+        "subject": "oven",
+        "object": "sink",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "19",
+        "object_id": "20",
+        "centroid_subject": [
+          1.6920770406723022,
+          0.916969895362854,
+          -1.0740940570831299
+        ],
+        "centroid_object": [
+          1.7705494165420532,
+          1.4373608827590942,
+          -0.5524159073829651
+        ],
+        "distance": 0.741
+      },
+      {
+        "subject": "oven",
+        "object": "stove",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "19",
+        "object_id": "21",
+        "centroid_subject": [
+          1.6920770406723022,
+          0.916969895362854,
+          -1.0740940570831299
+        ],
+        "centroid_object": [
+          1.483752965927124,
+          1.8620332479476929,
+          -0.5654390454292297
+        ],
+        "distance": 1.093
+      },
+      {
+        "subject": "sink",
+        "object": "stove",
+        "relation": "above",
+        "cluster_id": "A_0",
+        "subject_id": "20",
+        "object_id": "21",
+        "centroid_subject": [
+          1.7705494165420532,
+          1.4373608827590942,
+          -0.5524159073829651
+        ],
+        "centroid_object": [
+          1.483752965927124,
+          1.8620332479476929,
+          -0.5654390454292297
+        ],
+        "distance": 0.513
+      }
+    ]
+  },
+  {
+    "scene_index": "fcf66d96-622d-291c-842c-836d61a13779",
+    "image_index": "frame-000039",
+    "num_motifs": 2,
+    "motifs": [
+      {
+        "subject": "wall",
+        "object": "ceiling",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "3",
+        "centroid_subject": [
+          0.6214303374290466,
+          1.9770587682724,
+          0.7337111234664917
+        ],
+        "centroid_object": [
+          0.6463809013366699,
+          1.7066843509674072,
+          1.5373061895370483
+        ],
+        "distance": 0.848
+      },
+      {
+        "subject": "shelf",
+        "object": "shelf",
+        "relation": "in_front_of",
+        "cluster_id": "A_2",
+        "subject_id": "4",
+        "object_id": "4",
+        "centroid_subject": [
+          0.36956077814102173,
+          1.105299711227417,
+          0.5657799243927002
+        ],
+        "centroid_object": [
+          0.36956077814102173,
+          1.105299711227417,
+          0.5657799243927002
+        ],
+        "distance": 0.0
+      }
+    ]
+  },
+  {
+    "scene_index": "fcf66d96-622d-291c-842c-836d61a13779",
+    "image_index": "frame-000091",
+    "num_motifs": 10,
+    "motifs": [
+      {
+        "subject": "floor",
+        "object": "wall",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "2",
+        "centroid_subject": [
+          0.7703981995582581,
+          1.5017588138580322,
+          -1.417968988418579
+        ],
+        "centroid_object": [
+          0.7850257754325867,
+          2.025493621826172,
+          -0.5238765478134155
+        ],
+        "distance": 1.036
+      },
+      {
+        "subject": "floor",
+        "object": "dining table",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "5",
+        "centroid_subject": [
+          0.7703981995582581,
+          1.5017588138580322,
+          -1.417968988418579
+        ],
+        "centroid_object": [
+          0.35089048743247986,
+          1.470522165298462,
+          -0.4755340814590454
+        ],
+        "distance": 1.032
+      },
+      {
+        "subject": "floor",
+        "object": "kitchen cabinet",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "10",
+        "centroid_subject": [
+          0.7703981995582581,
+          1.5017588138580322,
+          -1.417968988418579
+        ],
+        "centroid_object": [
+          1.30535089969635,
+          1.7525993585586548,
+          -0.9674926996231079
+        ],
+        "distance": 0.743
+      },
+      {
+        "subject": "floor",
+        "object": "stove",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "1",
+        "object_id": "21",
+        "centroid_subject": [
+          0.7703981995582581,
+          1.5017588138580322,
+          -1.417968988418579
+        ],
+        "centroid_object": [
+          1.3963565826416016,
+          1.957327127456665,
+          -0.6128050088882446
+        ],
+        "distance": 1.117
+      },
+      {
+        "subject": "wall",
+        "object": "dining table",
+        "relation": "behind",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "5",
+        "centroid_subject": [
+          0.7850257754325867,
+          2.025493621826172,
+          -0.5238765478134155
+        ],
+        "centroid_object": [
+          0.35089048743247986,
+          1.470522165298462,
+          -0.4755340814590454
+        ],
+        "distance": 0.706
+      },
+      {
+        "subject": "wall",
+        "object": "kitchen cabinet",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "10",
+        "centroid_subject": [
+          0.7850257754325867,
+          2.025493621826172,
+          -0.5238765478134155
+        ],
+        "centroid_object": [
+          1.30535089969635,
+          1.7525993585586548,
+          -0.9674926996231079
+        ],
+        "distance": 0.736
+      },
+      {
+        "subject": "wall",
+        "object": "stove",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "2",
+        "object_id": "21",
+        "centroid_subject": [
+          0.7850257754325867,
+          2.025493621826172,
+          -0.5238765478134155
+        ],
+        "centroid_object": [
+          1.3963565826416016,
+          1.957327127456665,
+          -0.6128050088882446
+        ],
+        "distance": 0.622
+      },
+      {
+        "subject": "dining table",
+        "object": "kitchen cabinet",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "5",
+        "object_id": "10",
+        "centroid_subject": [
+          0.35089048743247986,
+          1.470522165298462,
+          -0.4755340814590454
+        ],
+        "centroid_object": [
+          1.30535089969635,
+          1.7525993585586548,
+          -0.9674926996231079
+        ],
+        "distance": 1.11
+      },
+      {
+        "subject": "dining table",
+        "object": "stove",
+        "relation": "below",
+        "cluster_id": "A_0",
+        "subject_id": "5",
+        "object_id": "21",
+        "centroid_subject": [
+          0.35089048743247986,
+          1.470522165298462,
+          -0.4755340814590454
+        ],
+        "centroid_object": [
+          1.3963565826416016,
+          1.957327127456665,
+          -0.6128050088882446
+        ],
+        "distance": 1.161
+      },
+      {
+        "subject": "kitchen cabinet",
+        "object": "stove",
+        "relation": "right_of",
+        "cluster_id": "A_0",
+        "subject_id": "10",
+        "object_id": "21",
+        "centroid_subject": [
+          1.30535089969635,
+          1.7525993585586548,
+          -0.9674926996231079
+        ],
+        "centroid_object": [
+          1.3963565826416016,
+          1.957327127456665,
+          -0.6128050088882446
+        ],
+        "distance": 0.42
+      }
+    ]
+  }
+]

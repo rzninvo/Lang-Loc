@@ -1,3 +1,5 @@
+import sys
+print("Using Python:", sys.executable)
 import os
 import struct
 import numpy as np
@@ -7,6 +9,7 @@ import cv2
 from io import BytesIO
 from pathlib import Path
 from PIL import Image
+
 
 COMPRESSION_TYPE_COLOR = {-1: 'unknown', 0: 'raw', 1: 'png', 2: 'jpeg'}
 COMPRESSION_TYPE_DEPTH = {-1: 'unknown', 0: 'raw_ushort', 1: 'zlib_ushort', 2: 'occi_ushort'}

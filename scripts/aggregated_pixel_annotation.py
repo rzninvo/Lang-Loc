@@ -95,7 +95,7 @@ def aggregate_instances(scene_path, output_json):
 
 if __name__ == "__main__":
     # Set your paths
-    scene_path = "/Users/abu/Downloads/Master-Project-Dataset-Creation-main 2/data/scans/scene0000_00"
-    output_json = "/Users/abu/Downloads/Master-Project-Dataset-Creation-main 2/data/aggregations/scene0000_00_instances.json"
+    scene_path = "/Users/shirley/Documents/SCHOOL/SPRING25/masterproject/datasets/onescenedownload/Master-Project-Dataset-Creation/data/scans/scene0000_00"
+    output_json = "/Users/shirley/Documents/SCHOOL/SPRING25/masterproject/datasets/onescenedownload/Master-Project-Dataset-Creation/data/aggregations/scene0000_00_instances.json"
 
     aggregate_instances(scene_path, output_json)
