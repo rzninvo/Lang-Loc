@@ -108,12 +108,14 @@ def call_gpt(prompt: str, model: str = "gpt-4o-mini") -> str:
                 {
                     "role": "system",
                     "content": (
-                        "You are a concise scene captioning assistant. "
-                        "Describe what the camera sees in clear, factual sentences. "
-                        "Do NOT use adjectives like 'beautiful' or 'cozy'. "
-                        "Avoid storytelling or emotional tone. "
-                        "Be direct, technical, and to the point — as if writing a note "
-                        "for a robotics dataset. The response must be under 100 words."
+                        "You describe indoor camera views in clear, fluent, human-style language. "
+                        "Your descriptions should read naturally and coherently, not as lists. "
+                        "Use simple adjectives only when they help clarity (e.g., small, large, tall). "
+                        "Focus on the major objects, their layout, and the structure of the space. "
+                        "Infer the likely room type when possible. "
+                        "Avoid storytelling or emotion. "
+                        "Stay grounded in the provided objects and relations. "
+                        "Keep it under 120 words."
                     ),
                 },
                 {"role": "user", "content": prompt},
@@ -163,11 +165,14 @@ def build_prompt(fid: str, visible_objects: dict, spatial_relations: list) -> st
     )
 
     prompt = (
-        f"Describe the indoor scene visible in camera frame {fid}.\n"
-        f"Visible objects: {', '.join(obj_list)}.\n"
-        f"Spatial relationships: {relations_text if relations_text else 'no clear relations detected'}.\n"
-        "Write a natural English description mentioning object layout, relative positions (left/right/front), "
-        "and likely context (e.g., part of a kitchen or living room). Keep it concise and factual, no adjectives or fluff."
+        f"You are given structured metadata about an indoor camera frame.\n\n"
+        f"Frame ID: {fid}\n"
+        f"Visible objects: {', '.join(obj_list)}\n"
+        f"Spatial hints: {relations_text if relations_text else 'none'}\n\n"
+        "Write a natural 2-4 sentence description that explains the layout, the positions "
+        "of the main objects, and the likely room type if appropriate. "
+        "Do not list the relations verbatim; integrate them into natural phrasing. "
+        "Avoid robotic language. Avoid speculation beyond what the metadata permits."
     )
     return prompt
 

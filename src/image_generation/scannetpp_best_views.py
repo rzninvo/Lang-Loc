@@ -480,7 +480,8 @@ def compute_visible_objects(
     cy: float,
     image_width: int,
     image_height: int,
-    fov_depth_clip=(0.2, 10.0)
+    fov_depth_clip=(0.2, 10.0),
+    coverage_threshold: float = 0.05,
 ) -> Dict[int, Dict[str, object]]:
     """
     Compute per-object 3D and camera-space metadata for *actually visible surfaces*.
@@ -516,16 +517,21 @@ def compute_visible_objects(
         image_width (int):      Rasterized image width (pixels).
         image_height (int):     Rasterized image height (pixels).
         fov_depth_clip (tuple): Min/max depth (m) for an object centroid to be considered visible.
+        coverage_threshold (float): Minimum percent of image pixels for an object to be considered visible.
 
     Returns:
         Dict[int, Dict[str, object]]:  
         Mapping from object ID to a metadata dictionary with fields:
             {
-              "label": str,                     # object name (e.g., "chair")
-              "centroid_world": [x, y, z],      # world-space centroid (meters)
-              "bbox_world": [[minx, miny, minz], [maxx, maxy, maxz]],
-              "centroid_cam": [x, y, z],        # camera-space centroid
-              "distance_from_camera": float     # Euclidean distance (m) from camera to centroid
+                "label": str,                     # object name (e.g., "chair")
+                "pixel_percent": float,           # percent of image pixels
+                "centroid_world": [x, y, z],      # world-space centroid (meters)
+                "centroid_ndc": [ndc_x, ndc_y],   # NDC coords of centroid in image frame
+                "bbox_world": [[minx, miny, minz], [maxx, maxy, maxz]],
+                "centroid_cam": [x, y, z],        # camera-space centroid
+                "distance_from_camera": float     # Euclidean distance (m) from camera to centroid
+                "visible_faces": int,             # number of visible faces for this object
+                "visible_pixels": int,            # number of visible pixels for this object
             }
     """
     cam_pos = pose[:3, 3]
@@ -539,10 +545,13 @@ def compute_visible_objects(
         return visible_objects
 
     for oid, px_count in obj_px.items():
+
         if px_count < 50:
             continue
         coverage = px_count / total_px
-        if coverage < 0.02:
+
+        # Filter out low-coverage objects
+        if coverage < coverage_threshold:
             continue
 
         # Faces belonging to this object that are actually visible
@@ -577,14 +586,18 @@ def compute_visible_objects(
         if (u < -pad_w) or (u > image_width + pad_w) or (v < -pad_h) or (v > image_height + pad_h):
             continue
 
+        # Calculating the NDC coordinates of the centroid (in the Image Frame)
+        ndc_x = (u / image_width) * 2 - 1
+        ndc_y = 1 - (v / image_height) * 2
+
         dist_from_cam = float(np.linalg.norm(centroid_world - cam_pos))
         bbox_min, bbox_max = verts_obj.min(axis=0), verts_obj.max(axis=0)
 
         visible_objects[int(oid)] = {
             "label": obj_to_label.get(int(oid), ""),
-            "pixel_count": int(px_count),
             "pixel_percent": float(round(coverage * 100.0, 3)),
             "centroid_world": centroid_world.tolist(),
+            "centroid_ndc": [ndc_x, ndc_y],
             "bbox_world": [bbox_min.tolist(), bbox_max.tolist()],
             "centroid_cam": centroid_cam.tolist(),
             "distance_from_camera": dist_from_cam,
@@ -596,6 +609,8 @@ def compute_visible_objects(
 
 def compute_spatial_relations(
     visible_objects: Dict[int, Dict[str, object]],
+    max_distance : float = 2.0, 
+    size_ratio_threshold: float = 5.0,
     eps: float = 0.1
 ) -> List[Dict[str, object]]:
     """
@@ -617,6 +632,10 @@ def compute_spatial_relations(
     Args:
         visible_objects (dict): Mapping from object ID → metadata dictionary.
                                 Must include "centroid_cam" for each object.
+        max_distance (float): Maximum distance (meters) between centroids to
+                                consider a relation. Default = 2.0 m.
+        size_ratio_threshold (float): Maximum size ratio between objects to
+                                consider a relation. Default = 5.0.
         eps (float): Minimum displacement (meters) required to consider a
                      directional relation meaningful. Default = 0.1 m (10 cm).
 
@@ -624,48 +643,102 @@ def compute_spatial_relations(
         List[Dict[str, object]]: A list of pairwise relations, each entry
             contains the human-readable labels (lowercase, may be empty):
             [
-              {"subject": "chair", "object": "table", "relation": "right_of"},
-              {"subject": "chair", "object": "lamp", "relation": "in_front_of"}
+              {"subject": "chair", "object": "table", "relation": "right_of", "distance": 0.5},
+              {"subject": "chair", "object": "lamp", "relation": "in_front_of", "distance": 1.2},
+                ...
             ]
     """
+
+    # 1. Define Semantic Constraints
+    # The list contains the allowed relations WHERE THE KEY IS THE SUBJECT.
+    # e.g. "floor" can only be the SUBJECT of a "below" relation ("floor is below chair")
+    SEMANTIC_RULES = {
+        "ceiling": ["above"], 
+        "floor": ["below"], 
+        "wall": ["behind", "in_front_of"], # Walls shouldn't be "left of" furniture
+        "carpet": ["below", "under"],
+        "rug": ["below", "under"]
+    }
+
     spatial_relations = []
     visible_ids = list(visible_objects.keys())
+    
+    # Pre-calculate sizes (volume of bbox) for ratio checks
+    # If bbox isn't perfect, we estimate size via diagonal length of bbox
+    sizes = {}
+    for oid in visible_ids:
+        bbox = visible_objects[oid]["bbox_world"]
+        # bbox is [[minx, miny, minz], [maxx, maxy, maxz]]
+        diag = np.linalg.norm(np.array(bbox[1]) - np.array(bbox[0]))
+        sizes[oid] = diag
 
     for i in range(len(visible_ids)):
         for j in range(i + 1, len(visible_ids)):
             id_a, id_b = visible_ids[i], visible_ids[j]
-            ca = np.array(visible_objects[id_a]["centroid_cam"])
-            cb = np.array(visible_objects[id_b]["centroid_cam"])
-            delta = ca - cb
+            obj_a = visible_objects[id_a]
+            obj_b = visible_objects[id_b]
+            
+            # --- FILTER 1: Proximity (World Distance) ---
+            # We use world coordinates for distance because camera depth can be misleading
+            # (perspective distortion).
+            center_a_world = np.array(obj_a["centroid_world"])
+            center_b_world = np.array(obj_b["centroid_world"])
+            dist_world = np.linalg.norm(center_a_world - center_b_world)
+            
+            if dist_world > max_distance:
+                continue
+
+            # --- FILTER 2: Size Ratio ---
+            # Avoid relating tiny objects to massive structure unless necessary
+            size_a = sizes[id_a]
+            size_b = sizes[id_b]
+
+            if size_a > 0 and size_b > 0:
+                ratio = max(size_a, size_b) / min(size_a, size_b)
+                if ratio > size_ratio_threshold:
+                    continue
+
+            # --- Geometric Calculation (Camera Coordinates) ---
+            # We use Camera coords for Left/Right/Up/Down interpretation
+            ca = np.array(obj_a["centroid_cam"])
+            cb = np.array(obj_b["centroid_cam"])
+            delta = ca - cb # Vector from B to A
 
             axis = np.argmax(np.abs(delta))
             relation = None
-            if axis == 0:  # X-axis (left-right)
-                if delta[0] > eps:
-                    relation = "right_of"
-                elif delta[0] < -eps:
-                    relation = "left_of"
-            elif axis == 1:  # Y-axis (up-down)
-                if delta[1] > eps:
-                    relation = "below"
-                elif delta[1] < -eps:
-                    relation = "above"
-            elif axis == 2:  # Z-axis (front-back)
-                if delta[2] > eps:
-                    relation = "behind"
-                elif delta[2] < -eps:
-                    relation = "in_front_of"
+            
+            # OpenCV Coords: X (Right), Y (Down), Z (Forward)
+            if axis == 0:  # X-axis
+                if delta[0] > eps: relation = "right_of" # A is right of B
+                elif delta[0] < -eps: relation = "left_of" # A is left of B
+            elif axis == 1:  # Y-axis
+                if delta[1] > eps: relation = "below"    # A is below B (Y increases downwards)
+                elif delta[1] < -eps: relation = "above" # A is above B
+            elif axis == 2:  # Z-axis
+                if delta[2] > eps: relation = "behind" # A is further (higher Z)
+                elif delta[2] < -eps: relation = "in_front_of" # A is closer (lower Z)
 
-            if relation:
-                label_a = visible_objects[id_a].get("label") or f"id_{id_a}"
-                label_b = visible_objects[id_b].get("label") or f"id_{id_b}"
-                spatial_relations.append({
-                    "subject": label_a,
-                    "object": label_b,
-                    "relation": relation,
-                })
+            if not relation:
+                continue
+
+            # --- FILTER 3: Semantic Validity ---
+            label_a = obj_a.get("label", "").lower()
+            label_b = obj_b.get("label", "").lower()
+
+            # Check if Subject (A) allows this relation. If not in rules, all relations allowed.
+            if label_a in SEMANTIC_RULES:
+                if relation not in SEMANTIC_RULES[label_a]:
+                    continue
+
+            spatial_relations.append({
+                "subject": label_a or f"id_{id_a}",
+                "object": label_b or f"id_{id_b}",
+                "relation": relation,
+                "distance": float(dist_world) # Helpful for debugging
+            })
 
     return spatial_relations
+
 
 def greedy_next_best_views(
     image_stats: List[Dict],
