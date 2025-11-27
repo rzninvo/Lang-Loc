@@ -112,8 +112,9 @@ def call_gpt(prompt: str, model: str = "gpt-4o-mini") -> str:
                         "Your descriptions should read naturally and coherently, not as lists. "
                         "Use simple adjectives only when they help clarity (e.g., small, large, tall). "
                         "Focus on the major objects, their layout, and the structure of the space. "
-                        "Infer the likely room type when possible. "
                         "Avoid storytelling or emotion. "
+                        "Avoid speculative statements beyond the visible data. "
+                        "Avoid speculation about the room type"
                         "Stay grounded in the provided objects and relations. "
                         "Keep it under 120 words."
                     ),
@@ -169,10 +170,12 @@ def build_prompt(fid: str, visible_objects: dict, spatial_relations: list) -> st
         f"Frame ID: {fid}\n"
         f"Visible objects: {', '.join(obj_list)}\n"
         f"Spatial hints: {relations_text if relations_text else 'none'}\n\n"
-        "Write a natural 2-4 sentence description that explains the layout, the positions "
-        "of the main objects, and the likely room type if appropriate. "
+        "Write a natural 2-4 sentence description that explains the scene, the positions "
+        "of the main objects and their relations to each other (if they have any). "
+        "Avoid using complex adjectives unless necessary for clarity. "
         "Do not list the relations verbatim; integrate them into natural phrasing. "
         "Avoid robotic language. Avoid speculation beyond what the metadata permits."
+        "Avoid sugar coating or storytelling."
     )
     return prompt
 
