@@ -13,3 +13,8 @@ scipy>=1.10
 scikit-image>=0.21
 brisque>=0.0.16
 plyfile>=0.7.5
+networkx>=3.0
+python-dotenv>=1.0.0
+openai>=1.30.0
+torch
+pytorch3d
