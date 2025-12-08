@@ -75,6 +75,19 @@ if [ "$DATASET" == "scannet" ]; then
     done
 
 elif [ "$DATASET" == "3RScan" ]; then
+    # Pre-download 3RScan metadata needed for scene setup
+    mkdir -p data/3RScan
+
+    if [[ ! -f "data/3RScan/3RScan.json" ]]; then
+        wget "http://campar.in.tum.de/public_datasets/3RScan/3RScan.json" -P data/3RScan
+    fi
+    if [[ ! -f "data/3RScan/objects.json" ]]; then
+        wget "http://campar.in.tum.de/public_datasets/3DSSG/3DSSG/objects.json" -P data/3RScan
+    fi
+    if [[ ! -f "data/3RScan/relationships.json" ]]; then
+        wget "http://campar.in.tum.de/public_datasets/3DSSG/3DSSG/relationships.json" -P data/3RScan
+    fi
+
     if [ ! -f "$RSCAN_FILE" ]; then
         echo "[ERROR] 3RScan release scans file not found: $RSCAN_FILE"
         exit 1
