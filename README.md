@@ -54,7 +54,17 @@ This repo provides a **complete pipeline** for working with ScanNet and 3RScan d
 
 ### Installation
 
-Create and activate a conda environment:
+#### Step 1: Check Your CUDA Version
+
+Before installing, check your CUDA toolkit version:
+
+```bash
+nvcc --version
+```
+
+This will show you the CUDA version (e.g., 12.6, 11.8, etc.). You'll need to install PyTorch with matching CUDA support.
+
+#### Step 2: Create Conda Environment
 
 ```bash
 # Create a new conda environment
@@ -62,9 +72,39 @@ conda create -n scene-annotation python=3.10 -y
 
 # Activate the environment
 conda activate scene-annotation
+```
 
-# Install dependencies
+#### Step 3: Install Dependencies
+
+```bash
+# Install basic dependencies
 pip install -r requirements.txt
+
+# Install PyTorch with CUDA support (adjust cuda version based on Step 1)
+# For CUDA 12.6:
+pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu126
+
+# For CUDA 12.1:
+# pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu121
+
+# For CUDA 11.8:
+# pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu118
+```
+
+#### Step 4: Install PyTorch3D from Source
+
+PyTorch3D needs to be built from source to ensure compatibility:
+
+```bash
+# Clone PyTorch3D repository
+git clone https://github.com/facebookresearch/pytorch3d.git
+cd pytorch3d
+
+# Install from source
+pip install -e . --no-build-isolation
+
+# Return to project directory
+cd ..
 ```
 
 **Note:** Make sure to activate the `scene-annotation` environment before running any scripts or the annotation tool.
