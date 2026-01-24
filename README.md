@@ -1,3 +1,19 @@
+<div align="center">
+<table>
+  <tr>
+    <td align="center" valign="middle">
+      <img src="media/figures/logos/cvg_logo_colour-white.png" height="40"/>
+    </td>
+    <td align="center" valign="middle">
+      <img src="media/figures/logos/eth_logo_kurz_neg.png" height="80"/>
+    </td>
+    <td align="center" valign="middle">
+      <img src="media/figures/logos/uzh-logo-white.png" height="70"/>
+    </td>
+  </tr>
+</table>
+</div>
+
 # Scene Preparation & Annotation Tool (ScanNet + 3RScan)
 
 This repo provides a **complete pipeline** for working with ScanNet and 3RScan datasets:
@@ -36,11 +52,22 @@ This repo provides a **complete pipeline** for working with ScanNet and 3RScan d
   * [ScanNet](http://www.scan-net.org/)
   * [3RScan](http://campar.in.tum.de/public_datasets/3RScan/)
 
-Install dependencies:
+### Installation
+
+Create and activate a conda environment:
 
 ```bash
+# Create a new conda environment
+conda create -n scene-annotation python=3.10 -y
+
+# Activate the environment
+conda activate scene-annotation
+
+# Install dependencies
 pip install -r requirements.txt
 ```
+
+**Note:** Make sure to activate the `scene-annotation` environment before running any scripts or the annotation tool.
 
 ---
 
