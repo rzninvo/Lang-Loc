@@ -3,36 +3,10 @@
 # ============================================================
 
 # ------------------------------------------------------------
-# Rendering parameters (for image_generator.py)
-# ------------------------------------------------------------
-render:
-  resolution:
-    width: 1920          # Render width
-    height: 1080         # Render height
-  fov: 75                # Field of view in degrees
-  fov_type: vertical     # "vertical" or "horizontal"
-  radius: 1.5            # Distance of virtual camera from scene center
-  height: 1.0            # Camera height above ground
-  num_views: 38          # Number of candidate views to sample
-  up_vector: [0, 0, 1]   # World up direction
-  output_folder: output  # Subfolder where outputs are written
-
-# ------------------------------------------------------------
-# Keyframe selection (for keyframe.py)
-# ------------------------------------------------------------
-keyframe:
-  num_frames: 6          # Number of keyframes to select per scene
-  blur_threshold: 150.0  # Threshold for rejecting blurry frames
-  voxel_size: 0.02       # Downsampling voxel size for geometry
-  kmeans_n_init: 10      # KMeans init count
-  kmeans_max_iter: 300   # Max iterations for KMeans
-  kmeans_tol: 0.0001     # Convergence tolerance
-  max_retries: 3         # Retry attempts if selection fails
-
-# ------------------------------------------------------------
 # ScanNet++ NBV configuration (for scannetpp_best_views.py)
 # ------------------------------------------------------------
 scannetpp:
+  # Rasterization settings
   image_downsample_factor: 2   # Downsample factor for NBV rasterization
   mask_downsample_factor: 1    # Downsample factor for masks
   semantic_id_key: "nyu40id"   # Semantic label key ("nyu40id" or "id")
@@ -42,22 +16,45 @@ scannetpp:
   bin_size: null
   max_faces_per_bin: null
   blur_radius: 0.0
+
+  # Image quality and selection
   imq_threshold: 30.0          # BRISQUE image quality threshold
   kmeans_n_clusters: 10        # Number of pose clusters for diversity
-  cache_dir: cache   # Where to store intermediate caches
-  raster_out_dir: cache
   limit_images: null           # Optional cap on candidate images
   max_best: 120                # Max frames kept in pre-selection
   min_gain_pixels: 500         # Min new pixels gained per view
+
+  # Object visibility thresholds
+  coverage_threshold: 0.05     # Min % of labeled pixels for object (0.05 = 5%)
+  min_pixel_count: 50          # Min absolute pixel count for object visibility
+  min_obj_pixels_for_presence: 100  # Min pixels to count object as present (diversity)
+
+  # FOV and depth settings
+  fov_depth_clip_min: 0.2      # Min depth (meters) for object visibility
+  fov_depth_clip_max: 10.0     # Max depth (meters) for object visibility
+
+  # NBV algorithm parameters
+  nbv_alpha: 0.5               # Balance between coverage (1.0) and diversity (0.0)
+
+  # Spatial relations parameters
+  spatial_max_distance: 2.0    # Max distance (m) between objects for relations
+  spatial_size_ratio_threshold: 5.0  # Max size ratio for object relations
+  spatial_eps: 0.1             # Min displacement (m) for directional relations
+
+  # Output and cache directories
+  cache_dir: cache             # Where to store intermediate caches
+  raster_out_dir: cache
   output_folder: output
+
+  # Description generation (used by generate_descriptions.py)
   generate_descriptions: true
   description_model: "gpt-4o-mini"
-  pixel_threshold: 500
 
 # ------------------------------------------------------------
 # 3RScan NBV configuration (for 3rscan_best_views.py)
 # ------------------------------------------------------------
 3rscan:
+  # Rasterization settings
   image_downsample_factor: 1   # Downsample factor for NBV rasterization
   mask_downsample_factor: 1    # Downsample factor for masks
   subsample_factor: 1          # Keep every Nth frame
@@ -65,13 +62,34 @@ scannetpp:
   bin_size: null
   max_faces_per_bin: null
   blur_radius: 0.0
+
+  # Image quality and selection
   imq_threshold: 30.0          # BRISQUE image quality threshold
   kmeans_n_clusters: 10        # Number of pose clusters for diversity
-  cache_dir: cache_rscan       # Where to store intermediate caches
-  raster_out_dir: cache_rscan
   limit_images: null           # Optional cap on candidate images
   max_best: 120                # Max frames kept in pre-selection
   min_gain_pixels: 500         # Min new pixels gained per view
+
+  # Object visibility thresholds
+  coverage_threshold: 0.05     # Min % of labeled pixels for object (0.05 = 5%)
+  min_pixel_count: 50          # Min absolute pixel count for object visibility
+  min_obj_pixels_for_presence: 100  # Min pixels to count object as present (diversity)
+
+  # FOV and depth settings
+  fov_depth_clip_min: 0.2      # Min depth (meters) for object visibility
+  fov_depth_clip_max: 10.0     # Max depth (meters) for object visibility
+
+  # NBV algorithm parameters
+  nbv_alpha: 0.5               # Balance between coverage (1.0) and diversity (0.0)
+
+  # Spatial relations parameters
+  spatial_max_distance: 2.0    # Max distance (m) between objects for relations
+  spatial_size_ratio_threshold: 5.0  # Max size ratio for object relations
+  spatial_eps: 0.1             # Min displacement (m) for directional relations
+
+  # Output and cache directories
+  cache_dir: cache_rscan       # Where to store intermediate caches
+  raster_out_dir: cache_rscan
   output_folder: output
 
 # ------------------------------------------------------------
@@ -90,7 +108,7 @@ paths:
   3rscan_release_scans_file: config/3RScan_release_scans.txt
 
 # ------------------------------------------------------------
-# Download settings
+# Scannet download settings
 # ------------------------------------------------------------
 download:
   label_map_filename: scannetv2-labels.combined.tsv

@@ -343,6 +343,23 @@ def main(scene_id: str, config_path: str, device_str=None,
     imq_threshold = float(rpp.get("imq_threshold", 40.0))
     mask_ds = int(rpp.get("mask_downsample_factor", 1))
 
+    # Object visibility thresholds
+    coverage_threshold = float(rpp.get("coverage_threshold", 0.05))
+    min_pixel_count = int(rpp.get("min_pixel_count", 50))
+    min_obj_pixels_for_presence = int(rpp.get("min_obj_pixels_for_presence", 100))
+
+    # FOV and depth settings
+    fov_depth_clip_min = float(rpp.get("fov_depth_clip_min", 0.2))
+    fov_depth_clip_max = float(rpp.get("fov_depth_clip_max", 10.0))
+
+    # NBV algorithm parameters
+    nbv_alpha = float(rpp.get("nbv_alpha", 0.5))
+
+    # Spatial relations parameters
+    spatial_max_distance = float(rpp.get("spatial_max_distance", 2.0))
+    spatial_size_ratio_threshold = float(rpp.get("spatial_size_ratio_threshold", 5.0))
+    spatial_eps = float(rpp.get("spatial_eps", 0.1))
+
     output_dir = scan_path / rpp.get("output_folder", "output")
     cache_dir = output_dir / "cache"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -475,8 +492,16 @@ def main(scene_id: str, config_path: str, device_str=None,
                 pose, R_cv, t_cv,
                 fx_vis, fy_vis, cx_vis, cy_vis,
                 W_vis, H_vis,
+                fov_depth_clip=(fov_depth_clip_min, fov_depth_clip_max),
+                coverage_threshold=coverage_threshold,
+                min_pixel_count=min_pixel_count,
             )
-            spatial_relations = compute_spatial_relations(visible_objects)
+            spatial_relations = compute_spatial_relations(
+                visible_objects,
+                max_distance=spatial_max_distance,
+                size_ratio_threshold=spatial_size_ratio_threshold,
+                eps=spatial_eps,
+            )
 
             image_entry = {
                 "fid": fid,
@@ -499,7 +524,11 @@ def main(scene_id: str, config_path: str, device_str=None,
     else:
         print("[INFO] Computing greedy next-best views...")
         best_views = greedy_next_best_views(
-            image_stats, max_images=max_best, min_gain_pixels=min_gain_pixels
+            image_stats,
+            max_images=max_best,
+            min_gain_pixels=min_gain_pixels,
+            alpha=nbv_alpha,
+            min_obj_pixels_for_presence=min_obj_pixels_for_presence,
         )
         torch.save(best_views, order_cache)
         print(f"[INFO] Saved NBV order: {order_cache}")
