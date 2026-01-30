@@ -25,8 +25,8 @@ scannetpp:
   min_gain_pixels: 500         # Min new pixels gained per view
 
   # Object visibility thresholds
-  coverage_threshold: 0.05     # Min % of labeled pixels for object (0.05 = 5%)
-  min_pixel_count: 50          # Min absolute pixel count for object visibility
+  coverage_threshold: 0.05     # Min % of TOTAL IMAGE pixels for object (0.05 = 5% of image area)
+  min_pixel_count: 100          # Min absolute pixel count for object visibility
   min_obj_pixels_for_presence: 100  # Min pixels to count object as present (diversity)
 
   # FOV and depth settings
@@ -35,6 +35,9 @@ scannetpp:
 
   # NBV algorithm parameters
   nbv_alpha: 0.5               # Balance between coverage (1.0) and diversity (0.0)
+  nbv_min_position_distance: 0.2  # Min distance (m) between selected camera positions
+  nbv_min_angle_distance: 10.0    # Min viewing angle difference (degrees) between selected views
+  nbv_enable_pose_filtering: true # Enable spatial diversity filtering in NBV
 
   # Spatial relations parameters
   spatial_max_distance: 2.0    # Max distance (m) between objects for relations
@@ -71,7 +74,7 @@ scannetpp:
   min_gain_pixels: 500         # Min new pixels gained per view
 
   # Object visibility thresholds
-  coverage_threshold: 0.05     # Min % of labeled pixels for object (0.05 = 5%)
+  coverage_threshold: 0.05     # Min % of TOTAL IMAGE pixels for object (0.05 = 5% of image area)
   min_pixel_count: 50          # Min absolute pixel count for object visibility
   min_obj_pixels_for_presence: 100  # Min pixels to count object as present (diversity)
 
@@ -81,6 +84,9 @@ scannetpp:
 
   # NBV algorithm parameters
   nbv_alpha: 0.5               # Balance between coverage (1.0) and diversity (0.0)
+  nbv_min_position_distance: 0.2  # Min distance (m) between selected camera positions
+  nbv_min_angle_distance: 10.0    # Min viewing angle difference (degrees) between selected views
+  nbv_enable_pose_filtering: true # Enable spatial diversity filtering in NBV
 
   # Spatial relations parameters
   spatial_max_distance: 2.0    # Max distance (m) between objects for relations

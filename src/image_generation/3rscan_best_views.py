@@ -354,6 +354,9 @@ def main(scene_id: str, config_path: str, device_str=None,
 
     # NBV algorithm parameters
     nbv_alpha = float(rpp.get("nbv_alpha", 0.5))
+    nbv_min_position_distance = float(rpp.get("nbv_min_position_distance", 0.0))
+    nbv_min_angle_distance = float(rpp.get("nbv_min_angle_distance", 0.0))
+    nbv_enable_pose_filtering = bool(rpp.get("nbv_enable_pose_filtering", False))
 
     # Spatial relations parameters
     spatial_max_distance = float(rpp.get("spatial_max_distance", 2.0))
@@ -517,6 +520,18 @@ def main(scene_id: str, config_path: str, device_str=None,
         print(f"[INFO] Saved visibility cache: {cache_json}")
 
     # ---------------------- Greedy NBV (Cached) --------------------------
+    # Load camera poses for spatial filtering (if enabled)
+    camera_poses_dict = None
+    if nbv_enable_pose_filtering:
+        print("[INFO] Loading camera poses for spatial diversity filtering...")
+        camera_poses_dict = {}
+        for stat in image_stats:
+            fid = stat["fid"]
+            pose_path = scan_path / f"{fid}.pose.txt"
+            if pose_path.exists():
+                camera_poses_dict[fid] = load_cam2world(pose_path)
+        print(f"[INFO] Loaded {len(camera_poses_dict)} camera poses.")
+
     order_cache = cache_dir / f"{scene_id}.pth"
     if order_cache.exists():
         print(f"[INFO] Loading cached NBV order: {order_cache}")
@@ -529,6 +544,10 @@ def main(scene_id: str, config_path: str, device_str=None,
             min_gain_pixels=min_gain_pixels,
             alpha=nbv_alpha,
             min_obj_pixels_for_presence=min_obj_pixels_for_presence,
+            camera_poses=camera_poses_dict,
+            min_position_distance=nbv_min_position_distance,
+            min_angle_distance=nbv_min_angle_distance,
+            enable_pose_filtering=nbv_enable_pose_filtering,
         )
         torch.save(best_views, order_cache)
         print(f"[INFO] Saved NBV order: {order_cache}")
