@@ -30,13 +30,30 @@ fi
 
 DATASET=$2
 CONFIG_PATH=$3
-NUM_SCENES=${4:-all}  # Default to "all" scenes if not provided
-SOURCE="default"      # Default source
+NUM_SCENES="all"  # Default to "all" scenes
+SOURCE="default"  # Default source
 
-# Parse optional --source flag
-if [ "$#" -ge 5 ] && [ "$5" == "--source" ]; then
-    SOURCE=${6:-default}
-fi
+# Parse remaining arguments (can be in any order)
+shift 3  # Remove first 3 arguments (--dataset, DATASET, CONFIG_PATH)
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --source)
+            SOURCE=${2:-default}
+            shift 2
+            ;;
+        *)
+            # If it's not a flag, assume it's num_scenes
+            if [[ "$1" =~ ^[0-9]+$ ]] || [ "$1" == "all" ]; then
+                NUM_SCENES=$1
+                shift
+            else
+                echo "[WARN] Unknown argument: $1"
+                shift
+            fi
+            ;;
+    esac
+done
 
 # -------- LOAD CONFIG VALUES --------
 BASE_DIR=$(python3 - <<PY "$CONFIG_PATH"
