@@ -482,6 +482,7 @@ def compute_visible_objects(
     image_height: int,
     fov_depth_clip=(0.2, 10.0),
     coverage_threshold: float = 0.05,
+    min_pixel_count: int = 50,
 ) -> Dict[int, Dict[str, object]]:
     """
     Compute per-object 3D and camera-space metadata for *actually visible surfaces*.
@@ -517,7 +518,8 @@ def compute_visible_objects(
         image_width (int):      Rasterized image width (pixels).
         image_height (int):     Rasterized image height (pixels).
         fov_depth_clip (tuple): Min/max depth (m) for an object centroid to be considered visible.
-        coverage_threshold (float): Minimum percent of image pixels for an object to be considered visible.
+        coverage_threshold (float): Minimum percent of labeled pixels for an object to be considered visible.
+        min_pixel_count (int):  Minimum absolute pixel count for an object to be considered visible.
 
     Returns:
         Dict[int, Dict[str, object]]:  
@@ -546,7 +548,7 @@ def compute_visible_objects(
 
     for oid, px_count in obj_px.items():
 
-        if px_count < 50:
+        if px_count < min_pixel_count:
             continue
         coverage = px_count / total_px
 
@@ -1032,7 +1034,24 @@ def main(scene_id: str, config_path: str, device_str: str | None = None,
     max_best = spp.get("max_best", None)
     min_gain_pixels = int(spp.get("min_gain_pixels", 0))
     kmeans_n_clusters = int(spp.get("kmeans_n_clusters", 10))
-    imq_threshold = float(spp.get("imq_threshold", 40.0))  # BRISQUE quality threshold
+    imq_threshold = float(spp.get("imq_threshold", 40.0))
+
+    # Object visibility thresholds
+    coverage_threshold = float(spp.get("coverage_threshold", 0.05))
+    min_pixel_count = int(spp.get("min_pixel_count", 50))
+    min_obj_pixels_for_presence = int(spp.get("min_obj_pixels_for_presence", 100))
+
+    # FOV and depth settings
+    fov_depth_clip_min = float(spp.get("fov_depth_clip_min", 0.2))
+    fov_depth_clip_max = float(spp.get("fov_depth_clip_max", 10.0))
+
+    # NBV algorithm parameters
+    nbv_alpha = float(spp.get("nbv_alpha", 0.5))
+
+    # Spatial relations parameters
+    spatial_max_distance = float(spp.get("spatial_max_distance", 2.0))
+    spatial_size_ratio_threshold = float(spp.get("spatial_size_ratio_threshold", 5.0))
+    spatial_eps = float(spp.get("spatial_eps", 0.1))
 
     # Mask export knobs
     mask_ds = int(spp.get("mask_downsample_factor", 1))
@@ -1148,8 +1167,16 @@ def main(scene_id: str, config_path: str, device_str: str | None = None,
                 pose, R_cv, t_cv,
                 fx_vis, fy_vis, cx_vis, cy_vis,
                 W_vis, H_vis,
+                fov_depth_clip=(fov_depth_clip_min, fov_depth_clip_max),
+                coverage_threshold=coverage_threshold,
+                min_pixel_count=min_pixel_count,
             )
-            spatial_relations = compute_spatial_relations(visible_objects)
+            spatial_relations = compute_spatial_relations(
+                visible_objects,
+                max_distance=spatial_max_distance,
+                size_ratio_threshold=spatial_size_ratio_threshold,
+                eps=spatial_eps,
+            )
 
             image_entry = {
                 "fid": fid,
@@ -1174,7 +1201,11 @@ def main(scene_id: str, config_path: str, device_str: str | None = None,
     else:
         print("[INFO] Computing greedy next-best views...")
         best_views = greedy_next_best_views(
-            image_stats, max_images=max_best, min_gain_pixels=min_gain_pixels
+            image_stats,
+            max_images=max_best,
+            min_gain_pixels=min_gain_pixels,
+            alpha=nbv_alpha,
+            min_obj_pixels_for_presence=min_obj_pixels_for_presence,
         )
         torch.save(best_views, order_cache)
         print(f"[INFO] Saved best-views order: {order_cache}")
