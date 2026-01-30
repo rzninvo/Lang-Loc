@@ -130,6 +130,92 @@ def call_gpt(prompt: str, model: str = "gpt-4o-mini") -> str:
         return "[Error generating description]"
 
 
+def filter_salient_objects_gpt(visible_objects: dict, model: str = "gpt-4o-mini") -> dict:
+    """
+    Use GPT to filter out non-salient objects (walls, floors, structural elements)
+    and keep only objects important for scene description.
+
+    Parameters
+    ----------
+    visible_objects : dict
+        Mapping from object ID → metadata dictionary with 'label' and 'pixel_percent' fields.
+    model : str, optional
+        OpenAI model to use for filtering. Default is "gpt-4o-mini".
+
+    Returns
+    -------
+    dict
+        Filtered dictionary containing only salient objects.
+        Returns original dict if GPT call fails or returns invalid response.
+    """
+    if not visible_objects:
+        return visible_objects
+
+    # Build object list with labels and pixel percentages
+    obj_info_list = []
+    for oid, obj in visible_objects.items():
+        label = obj.get('label', f'object_{oid}')
+        pixel_pct = obj.get('pixel_percent', 0.0)
+        obj_info_list.append(f"{label} ({pixel_pct:.1f}%)")
+
+    obj_info_str = ', '.join(obj_info_list)
+
+    prompt = (
+        f"Given these objects visible in an indoor camera view with their coverage percentages:\n"
+        f"{obj_info_str}\n\n"
+        f"Task: Identify which objects are IMPORTANT for describing the scene.\n"
+        f"Guidelines:\n"
+        f"- Include: furniture, appliances, fixtures, decorative items, electronics\n"
+        f"- Exclude: walls, floors, ceilings, structural elements (beams, columns)\n"
+        f"- Consider: Objects with higher coverage (%) are usually more important\n"
+        f"- Keep objects that help understand the room's purpose and layout\n\n"
+        f"Return ONLY a comma-separated list of the important object names (without percentages). "
+        f"Use the exact names from the input. No explanations."
+    )
+
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a scene analysis assistant that identifies salient objects. "
+                        "Return only a comma-separated list of important object names. "
+                        "Be concise and exact."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.0,  # Deterministic filtering
+            max_tokens=150,
+        )
+
+        response_text = response.choices[0].message.content.strip()
+
+        # Parse GPT response: split by comma and normalize
+        important_labels = {label.strip().lower() for label in response_text.split(',')}
+
+        # Filter visible_objects to keep only those with important labels
+        filtered_objects = {
+            oid: obj for oid, obj in visible_objects.items()
+            if obj.get('label', '').strip().lower() in important_labels
+        }
+
+        if not filtered_objects:
+            # If GPT filtered everything out (error), return original
+            print(f"[WARN] GPT filtered all objects. Keeping original list.")
+            return visible_objects
+
+        print(f"[INFO] GPT filtered: {len(visible_objects)} → {len(filtered_objects)} salient objects")
+        return filtered_objects
+
+    except Exception as e:
+        print(f"[ERROR] GPT object filtering failed: {e}")
+        print(f"[INFO] Using all {len(visible_objects)} objects without filtering.")
+        return visible_objects
+
+
 # ---------------------------------------------------------------------
 # Prompt Builder
 # ---------------------------------------------------------------------
@@ -208,6 +294,11 @@ def main(scene_id: str, dataset: str, config_path: str):
     """
     cfg = load_config(config_path)
 
+    # Load filtering configuration
+    dataset_key = "scannetpp" if dataset.lower() == "scannet" else "3rscan"
+    filter_nonsalient = bool(cfg.get(dataset_key, {}).get("filter_nonsalient_objects", False))
+    description_model = str(cfg.get(dataset_key, {}).get("description_model", "gpt-4o-mini"))
+
     # Resolve dataset and scene path
     if dataset.lower() == "scannet":
         dataset_path = Path(cfg["paths"]["scannet_dataset_path"])
@@ -220,6 +311,11 @@ def main(scene_id: str, dataset: str, config_path: str):
     cache_json = output_dir / "cache" / f"{scene_id}.json"
     desc_dir = output_dir / "descriptions"
     desc_dir.mkdir(exist_ok=True, parents=True)
+
+    if filter_nonsalient:
+        print(f"[INFO] GPT-based object filtering is ENABLED (model: {description_model})")
+    else:
+        print(f"[INFO] GPT-based object filtering is DISABLED")
 
     # --- Verify input files ---
     if not cache_json.exists():
@@ -252,9 +348,21 @@ def main(scene_id: str, dataset: str, config_path: str):
             print(f"[WARN] No visible objects for frame {fid}. Skipping.")
             continue
 
+        # --- Apply GPT-based saliency filtering (optional) ---
+        if filter_nonsalient:
+            visible_objects = filter_salient_objects_gpt(visible_objects, model=description_model)
+
+            # Filter spatial relations to only include salient objects
+            salient_labels = {obj.get('label', '').lower() for obj in visible_objects.values()}
+            spatial_relations = [
+                rel for rel in spatial_relations
+                if rel.get('subject', '').lower() in salient_labels
+                and rel.get('object', '').lower() in salient_labels
+            ]
+
         # Build GPT prompt & generate description
         prompt = build_prompt(fid, visible_objects, spatial_relations)
-        description = call_gpt(prompt)
+        description = call_gpt(prompt, model=description_model)
 
         pose_matrix = pose_dict.get(fid, None)
         annotation = {
