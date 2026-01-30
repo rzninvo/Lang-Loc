@@ -121,8 +121,8 @@ def call_gpt(prompt: str, model: str = "gpt-4o-mini") -> str:
                 },
                 {"role": "user", "content": prompt},
             ],
-            temperature=0.3,
-            max_tokens=120,
+            temperature=0.3, 
+            max_completion_tokens=120,
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
@@ -188,7 +188,7 @@ def filter_salient_objects_gpt(visible_objects: dict, model: str = "gpt-4o-mini"
                 {"role": "user", "content": prompt},
             ],
             temperature=0.0,  # Deterministic filtering
-            max_tokens=150,
+            max_completion_tokens=150,  # Updated parameter name for newer models
         )
 
         response_text = response.choices[0].message.content.strip()
