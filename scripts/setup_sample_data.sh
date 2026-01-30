@@ -81,11 +81,13 @@ if [ "$DATASET" == "3RScan" ]; then
     DATASET_PATH="${DATASET_PATH}/3RScan"
 fi
 
-OUTPUT_FOLDER=$(python3 - <<PY "$CONFIG_PATH"
+OUTPUT_FOLDER=$(python3 - <<PY "$CONFIG_PATH" "$DATASET"
 import sys, yaml
 with open(sys.argv[1]) as f:
     cfg = yaml.safe_load(f)
-print(cfg["render"]["output_folder"])
+dataset = sys.argv[2]
+config_key = "scannetpp" if dataset == "scannet" else "3rscan"
+print(cfg[config_key]["output_folder"])
 PY
 )
 
