@@ -108,21 +108,21 @@ def call_gpt(prompt: str, model: str = "gpt-4o-mini") -> str:
                 {
                     "role": "system",
                     "content": (
-                        "You describe indoor camera views in clear, fluent, human-style language. "
-                        "Your descriptions should read naturally and coherently, not as lists. "
-                        "Use simple adjectives only when they help clarity (e.g., small, large, tall). "
-                        "Focus on the major objects, their layout, and the structure of the space. "
-                        "Avoid storytelling or emotion. "
-                        "Avoid speculative statements beyond the visible data. "
-                        "Avoid speculation about the room type"
-                        "Stay grounded in the provided objects and relations. "
-                        "Keep it under 120 words."
+                        "You describe indoor camera views in natural, conversational language. "
+                        "Write as if you're casually telling someone what you see, not listing facts. "
+                        "Describe the scene holistically - what dominates the view, the overall layout. "
+                        "Weave spatial relationships naturally into the description rather than stating them explicitly. "
+                        "For example, instead of 'A chair is to the left of a table', say 'A chair sits beside a table' or simply 'The view shows a chair and table'. "
+                        "If only one or two objects are visible, just describe what's there - don't mention absence of relations. "
+                        "Keep it very concise: 2-3 sentences maximum. "
+                        "Avoid robotic phrases like 'is positioned', 'is located', 'there is'. "
+                        "No speculation about room type or purpose."
                     ),
                 },
                 {"role": "user", "content": prompt},
             ],
-            temperature=0.3, 
-            max_completion_tokens=120,
+            temperature=0.5,  # Slightly higher for more natural variation
+            max_completion_tokens=80,  # Shorter, punchier descriptions
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
@@ -247,23 +247,45 @@ def build_prompt(fid: str, visible_objects: dict, spatial_relations: list) -> st
 
     """
     obj_list = [f"{v['label'] or f'object {oid}'}" for oid, v in visible_objects.items()]
-    relations_text = ", ".join(
-        [f"{r['subject']} is {r['relation']} {r['object']}" for r in spatial_relations]
+
+    # Build a more natural prompt
+    prompt_parts = [f"Describe what you see in this indoor camera view.\n"]
+    prompt_parts.append(f"Visible objects: {', '.join(obj_list)}\n")
+
+    # Only include spatial hints if there are meaningful relations AND multiple objects
+    if spatial_relations and len(visible_objects) > 1:
+        # Format relations more naturally
+        relations_natural = []
+        for r in spatial_relations[:5]:  # Limit to top 5 most important relations
+            subj = r['subject']
+            obj = r['object']
+            rel = r['relation']
+            # Convert technical relations to natural language hints
+            if rel == "left_of":
+                relations_natural.append(f"{subj} left of {obj}")
+            elif rel == "right_of":
+                relations_natural.append(f"{subj} right of {obj}")
+            elif rel == "in_front_of":
+                relations_natural.append(f"{subj} in front of {obj}")
+            elif rel == "behind":
+                relations_natural.append(f"{subj} behind {obj}")
+            elif rel == "above":
+                relations_natural.append(f"{subj} above {obj}")
+            elif rel == "below":
+                relations_natural.append(f"{subj} below {obj}")
+            else:
+                relations_natural.append(f"{subj} {rel} {obj}")
+
+        if relations_natural:
+            prompt_parts.append(f"Layout hints: {', '.join(relations_natural)}\n")
+
+    prompt_parts.append(
+        "\nDescribe the view in 2-3 short sentences. "
+        "Write naturally and conversationally, as if describing it to a friend. "
+        "Focus on what's most prominent and how the space feels."
     )
 
-    prompt = (
-        f"You are given structured metadata about an indoor camera frame.\n\n"
-        f"Frame ID: {fid}\n"
-        f"Visible objects: {', '.join(obj_list)}\n"
-        f"Spatial hints: {relations_text if relations_text else 'none'}\n\n"
-        "Write a natural 2-4 sentence description that explains the scene, the positions "
-        "of the main objects and their relations to each other (if they have any). "
-        "Avoid using complex adjectives unless necessary for clarity. "
-        "Do not list the relations verbatim; integrate them into natural phrasing. "
-        "Avoid robotic language. Avoid speculation beyond what the metadata permits."
-        "Avoid sugar coating or storytelling."
-    )
-    return prompt
+    return "".join(prompt_parts)
 
 
 # ---------------------------------------------------------------------
