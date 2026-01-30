@@ -6,18 +6,20 @@
 # Downloads, extracts, and generates keyframes for multiple ScanNet or 3RScan scenes.
 #
 # Usage:
-#   ./scripts/setup_multiple_scenes.sh --dataset {scannet|3RScan} <config_path> [num_scenes]
+#   ./scripts/setup_multiple_scenes.sh --dataset {scannet|3RScan} <config_path> [num_scenes] [--source {default|scanscribe}]
 #
 # Examples:
 #   ./scripts/setup_multiple_scenes.sh --dataset scannet config/default.yaml 20
 #   ./scripts/setup_multiple_scenes.sh --dataset 3RScan config/default.yaml 10
+#   ./scripts/setup_multiple_scenes.sh --dataset 3RScan config/default.yaml --source scanscribe  # Downloads all scenes from scanscribe
+#   ./scripts/setup_multiple_scenes.sh --dataset 3RScan config/default.yaml  # Downloads all scenes from default source
 # ---------------------------------------------------------------------------------
 
 set -e  # Exit immediately if a command fails
 
 # -------- ARGUMENT CHECK --------
 if [ "$#" -lt 2 ]; then
-    echo "Usage: $0 --dataset {scannet|3RScan} <config_path> [num_scenes]"
+    echo "Usage: $0 --dataset {scannet|3RScan} <config_path> [num_scenes] [--source {default|scanscribe}]"
     exit 1
 fi
 
@@ -28,7 +30,13 @@ fi
 
 DATASET=$2
 CONFIG_PATH=$3
-NUM_SCENES=${4:-20}  # Default to 20 scenes if not provided
+NUM_SCENES=${4:-all}  # Default to "all" scenes if not provided
+SOURCE="default"      # Default source
+
+# Parse optional --source flag
+if [ "$#" -ge 5 ] && [ "$5" == "--source" ]; then
+    SOURCE=${6:-default}
+fi
 
 # -------- LOAD CONFIG VALUES --------
 BASE_DIR=$(python3 - <<PY "$CONFIG_PATH"
@@ -88,12 +96,48 @@ elif [ "$DATASET" == "3RScan" ]; then
         wget "http://campar.in.tum.de/public_datasets/3DSSG/3DSSG/relationships.json" -P data/3RScan
     fi
 
-    if [ ! -f "$RSCAN_FILE" ]; then
-        echo "[ERROR] 3RScan release scans file not found: $RSCAN_FILE"
-        exit 1
-    fi
+    # Determine source of scene IDs
+    if [ "$SOURCE" == "scanscribe" ]; then
+        SCANSCRIBE_FILE="config/scanscribe_cleaned.json"
+        if [ ! -f "$SCANSCRIBE_FILE" ]; then
+            echo "[ERROR] ScanScribe file not found: $SCANSCRIBE_FILE"
+            exit 1
+        fi
 
-    SCAN_IDS=$(head -n "$NUM_SCENES" "$RSCAN_FILE")
+        echo "[INFO] Using ScanScribe cleaned dataset: $SCANSCRIBE_FILE"
+
+        # Extract scene IDs (JSON keys) from scanscribe_cleaned.json
+        SCAN_IDS=$(python3 - <<PY "$SCANSCRIBE_FILE" "$NUM_SCENES"
+import sys, json
+with open(sys.argv[1]) as f:
+    data = json.load(f)
+num_scenes = sys.argv[2]
+if num_scenes == "all":
+    scene_ids = list(data.keys())
+else:
+    scene_ids = list(data.keys())[:int(num_scenes)]
+for scene_id in scene_ids:
+    print(scene_id)
+PY
+)
+        TOTAL_SCENES=$(echo "$SCAN_IDS" | wc -l)
+        echo "[INFO] Found $TOTAL_SCENES scenes in ScanScribe dataset"
+    else
+        if [ ! -f "$RSCAN_FILE" ]; then
+            echo "[ERROR] 3RScan release scans file not found: $RSCAN_FILE"
+            exit 1
+        fi
+
+        echo "[INFO] Using default 3RScan release scans: $RSCAN_FILE"
+
+        if [ "$NUM_SCENES" == "all" ]; then
+            SCAN_IDS=$(cat "$RSCAN_FILE")
+            TOTAL_SCENES=$(echo "$SCAN_IDS" | wc -l)
+            echo "[INFO] Found $TOTAL_SCENES scenes in release scans file"
+        else
+            SCAN_IDS=$(head -n "$NUM_SCENES" "$RSCAN_FILE")
+        fi
+    fi
 
     for SCAN_ID in $SCAN_IDS; do
         SCENE_PATH="${BASE_DIR}/3RScan/${SCAN_ID}"
