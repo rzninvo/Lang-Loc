@@ -66,7 +66,14 @@ from pytorch3d.renderer import Textures
 from pytorch3d.utils import cameras_from_opencv_projection
 from brisque import BRISQUE
 
-# Project config
+# Project imports
+from src.utils.camera_utils import (
+    load_cam2world,
+    invert_se3_to_opencv,
+    load_intrinsics_txt,
+    compute_pose_distance,
+    is_pose_too_similar,
+)
 from src.utils.config_loader import load_config
 
 
@@ -78,58 +85,8 @@ VOID_ID: int = 0
 
 # ----------------------------- I/O & Utilities --------------------------------
 
-def load_intrinsics_txt(path: Path) -> Tuple[float, float, float, float]:
-    """
-    Load ScanNet intrinsics from 'intrinsic_color.txt'.
-
-    The file is a 4x4 matrix with intrinsics in pixel units.
-    We return the 4 parameters needed for a pinhole camera.
-
-    Args:
-        path: Path to intrinsic_color.txt.
-
-    Returns:
-        (fx, fy, cx, cy) in pixels (float).
-    """
-    K = np.loadtxt(path, dtype=np.float64).reshape(4, 4)
-    return float(K[0, 0]), float(K[1, 1]), float(K[0, 2]), float(K[1, 2])
-
-
-def load_cam2world(pose_path: Path) -> np.ndarray:
-    """
-    Load a single ScanNet pose matrix.
-
-    ScanNet provides 4x4 camera->world matrices in text files.
-    We return it as a (4,4) np.ndarray (float64).
-
-    Args:
-        pose_path: Path to the pose text file.
-
-    Returns:
-        cam2world (4x4) matrix.
-    """
-    return np.loadtxt(pose_path, dtype=np.float64).reshape(4, 4)
-
-
-def invert_se3_to_opencv(cam2world: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Convert ScanNet cam2world (camera->world) to OpenCV world->cam (R_cv, t_cv).
-
-    OpenCV camera coordinates: x right, y down, z forward.
-    PyTorch3D's OpenCV bridge expects exactly this (R, t) pair.
-
-    Args:
-        cam2world: 4x4 camera->world transform.
-
-    Returns:
-        R_cv: (3,3) rotation matrix world->camera (OpenCV).
-        t_cv: (3,) translation vector world->camera (OpenCV).
-    """
-    R_cw = cam2world[:3, :3]
-    t_cw = cam2world[:3, 3]
-    R_cv = R_cw.T
-    t_cv = -R_cv @ t_cw
-    return R_cv, t_cv
+# Note: load_intrinsics_txt, load_cam2world, and invert_se3_to_opencv
+# are now imported from src.utils.camera_utils
 
 
 def load_mesh_with_vertex_colors(scene_path: Path, scene_id: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -745,60 +702,8 @@ def compute_spatial_relations(
     return spatial_relations
 
 
-def compute_pose_distance(pose1: np.ndarray, pose2: np.ndarray) -> Tuple[float, float]:
-    """
-    Compute spatial distance between two camera poses.
-
-    Args:
-        pose1, pose2: (4,4) camera-to-world transformation matrices.
-
-    Returns:
-        position_dist: Euclidean distance (meters) between camera positions.
-        angle_dist: Angular distance (degrees) between camera viewing directions.
-    """
-    # Position distance
-    pos1 = pose1[:3, 3]
-    pos2 = pose2[:3, 3]
-    position_dist = float(np.linalg.norm(pos1 - pos2))
-
-    # Angular distance using viewing directions (forward = -Z axis in camera frame)
-    # Camera-to-world rotation gives us world orientation of camera axes
-    # Forward direction in world coords = 3rd column (Z-axis) of rotation, negated
-    R1 = pose1[:3, :3]
-    R2 = pose2[:3, :3]
-    forward1 = -R1[:, 2]  # -Z axis in world coords
-    forward2 = -R2[:, 2]
-
-    # Compute angle between viewing directions
-    cos_angle = np.clip(np.dot(forward1, forward2), -1.0, 1.0)
-    angle_dist = float(np.degrees(np.arccos(cos_angle)))
-
-    return position_dist, angle_dist
-
-
-def is_pose_too_similar(
-    pose: np.ndarray,
-    selected_poses: List[np.ndarray],
-    min_position_dist: float,
-    min_angle_dist: float,
-) -> bool:
-    """
-    Check if a pose is too similar to any already-selected pose.
-
-    Args:
-        pose: Candidate (4,4) camera-to-world pose.
-        selected_poses: List of already-selected (4,4) poses.
-        min_position_dist: Minimum position distance threshold (meters).
-        min_angle_dist: Minimum angle distance threshold (degrees).
-
-    Returns:
-        True if pose is too close to any selected pose, False otherwise.
-    """
-    for selected_pose in selected_poses:
-        pos_dist, ang_dist = compute_pose_distance(pose, selected_pose)
-        if pos_dist < min_position_dist and ang_dist < min_angle_dist:
-            return True
-    return False
+# Note: compute_pose_distance and is_pose_too_similar
+# are now imported from src.utils.camera_utils
 
 
 def greedy_next_best_views(

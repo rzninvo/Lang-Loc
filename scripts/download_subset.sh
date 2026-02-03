@@ -59,7 +59,7 @@ if [ "$DATASET" == "scannet" ]; then
     SCAN_OUTPUT_DIR="$OUT_DIR/scans/$SCAN_ID"
     if [ -f "$SENS_FILE" ]; then
         echo "[INFO] Extracting RGB, depth, poses, and intrinsics from: $SENS_FILE"
-        python3 src/utils/sens_reader.py \
+        python3 -m src.utils.sensor_reader \
             --filename "$SENS_FILE" \
             --output_path "$SCAN_OUTPUT_DIR" \
             --export_depth_images \
@@ -78,7 +78,7 @@ elif [ "$DATASET" == "3RScan" ]; then
     fi
     OUT_DIR="$OUT_DIR/3RScan"
     echo "[INFO] Downloading 3RScan scan: $SCAN_ID"
-    python3 src/utils/download_3RScan.py --id "$SCAN_ID" -o "$OUT_DIR"
+    python3 -m src.utils.download_3rscan --id "$SCAN_ID" -o "$OUT_DIR"
     echo "[INFO] Download complete for 3RScan scan: $SCAN_ID"
 
     SCAN_DIR="$OUT_DIR/$SCAN_ID"

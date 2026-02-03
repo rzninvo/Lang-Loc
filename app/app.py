@@ -1,6 +1,18 @@
+"""
+Streamlit annotation tool for 3D scene dataset creation.
+
+This application provides a web interface for annotating images from
+ScanNet and 3RScan datasets with natural language descriptions.
+
+Usage:
+    streamlit run app/app.py
+
+Note:
+    Run from the repository root directory to ensure proper imports.
+"""
+import os
+
 import streamlit as st
-import sys, os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.utils.config_loader import load_config
 from src.utils.io_utils import save_json_file, save_annotation, mark_uninterpretable
