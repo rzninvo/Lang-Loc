@@ -10,6 +10,8 @@ Pipeline:
 4) Greedy NBV selection + adaptive K-means clustering for diversity.
 5) Save representative frames + poses + masks (instance/semantic).
 6) (Optional) Auto-clean raw frame files.
+
+Author: Roham Zendehdel Nobari (rzendehdel@ethz.ch)
 """
 
 import argparse
@@ -21,38 +23,43 @@ import open3d as o3d
 import torch
 from PIL import Image
 from tqdm import tqdm
-from sklearn.cluster import KMeans
 import plyfile
 from sklearn.neighbors import NearestNeighbors
 
 from pytorch3d.structures import Meshes
 from pytorch3d.renderer.mesh import TexturesUV
+from pytorch3d.renderer import (
+    MeshRenderer, MeshRasterizer, HardPhongShader,
+    PointLights, RasterizationSettings
+)
 from pytorch3d.utils import cameras_from_opencv_projection
 
+# Project imports - shared NBV pipeline components
+from src.image_generation.nbv_pipeline import (
+    VOID_ID,
+    filter_sharp_images,
+    make_p3d_camera_from_opencv,
+    make_rasterizer,
+    per_face_object_ids,
+    rasterize_visibility,
+    compute_image_visibility,
+    compute_visible_objects,
+    compute_spatial_relations,
+    greedy_next_best_views,
+    pix_to_instance_mask,
+    pix_to_semantic_mask,
+    save_png16,
+    cluster_camera_poses,
+)
 from src.utils.camera_utils import (
     invert_se3_to_opencv,
     load_cam2world,
     load_intrinsics_info,
 )
 from src.utils.config_loader import load_config
-from src.image_generation.scannetpp_best_views import (
-    per_face_object_ids,
-    make_rasterizer,
-    filter_sharp_images,
-    rasterize_visibility,
-    compute_image_visibility,
-    greedy_next_best_views,
-    pix_to_instance_mask,
-    pix_to_semantic_mask,
-    save_png16,
-    compute_visible_objects,
-    compute_spatial_relations,
-)
+from src.utils.nbv_config import NBVConfig, extract_nbv_config
 import matplotlib.pyplot as plt
 
-# -------------------------------- Constants -----------------------------------
-# Semantic void ID (unlabeled pixels)
-VOID_ID = 0
 
 # ----------------------------- Loaders ---------------------------------
 
@@ -152,31 +159,7 @@ def load_segments_and_instances(scene_path: Path, base_vertices: np.ndarray):
     return vert_obj.astype(np.int32), seg_to_obj, obj_to_label
 
 
-# Note: load_intrinsics_info and load_cam2world
-# are now imported from src.utils.camera_utils
-
-
-@torch.no_grad()
-def _build_camera(R_cv, t_cv, fx, fy, cx, cy, H, W, device):
-    """
-    Create a PyTorch3D `PerspectiveCameras` instance from OpenCV intrinsics.
-
-    Args:
-        R_cv (np.ndarray): (3, 3) rotation from world to camera (OpenCV).
-        t_cv (np.ndarray): (3,) translation from world to camera (OpenCV).
-        fx, fy, cx, cy (float): Intrinsic parameters in pixels.
-        H, W (int): Image height and width.
-        device (torch.device): Target device for the camera tensors.
-
-    Returns:
-        PerspectiveCameras: Single-camera batch configured to match the RGBs.
-    """
-    return cameras_from_opencv_projection(
-        R=torch.from_numpy(R_cv)[None].float().to(device),
-        tvec=torch.from_numpy(t_cv)[None].float().to(device),
-        camera_matrix=torch.tensor([[[fx, 0, cx],[0, fy, cy],[0,0,1]]], device=device).float(),
-        image_size=torch.tensor([[H, W]], device=device).float()
-    )
+# -------------------------- Debug Visualization Helpers -----------------------
 
 @torch.no_grad()
 def _render_textured_rgb(meshes, cameras, H, W, device):
@@ -195,11 +178,6 @@ def _render_textured_rgb(meshes, cameras, H, W, device):
     Returns:
         np.ndarray: (H, W, 3) float image in [0, 1].
     """
-    from pytorch3d.renderer import (
-        MeshRenderer, MeshRasterizer, HardPhongShader,
-        PointLights, RasterizationSettings
-    )
-
     raster_settings = RasterizationSettings(
         image_size=(H, W),
         faces_per_pixel=1,
@@ -305,44 +283,12 @@ def main(scene_id: str, config_path: str, device_str=None,
     """
 
     cfg = load_config(config_path)
+    nbv_cfg = extract_nbv_config(cfg, dataset="3rscan")
+
     dataset_path = Path(cfg["paths"]["3rscan_dataset_path"])
     scan_path = dataset_path / scene_id
 
-    rpp = cfg.get("3rscan", {})
-    downsample = int(rpp.get("image_downsample_factor", 2))
-    subsample_factor = int(rpp.get("subsample_factor", 5))
-    faces_per_pixel = int(rpp.get("faces_per_pixel", 1))
-    bin_size = rpp.get("bin_size", None)
-    max_faces_per_bin = rpp.get("max_faces_per_bin", None)
-    blur_radius = float(rpp.get("blur_radius", 0.0))
-    limit_images = rpp.get("limit_images", None)
-    max_best = rpp.get("max_best", None)
-    min_gain_pixels = int(rpp.get("min_gain_pixels", 0))
-    kmeans_n_clusters = int(rpp.get("kmeans_n_clusters", 10))
-    imq_threshold = float(rpp.get("imq_threshold", 40.0))
-    mask_ds = int(rpp.get("mask_downsample_factor", 1))
-
-    # Object visibility thresholds
-    coverage_threshold = float(rpp.get("coverage_threshold", 0.05))
-    min_pixel_count = int(rpp.get("min_pixel_count", 50))
-    min_obj_pixels_for_presence = int(rpp.get("min_obj_pixels_for_presence", 100))
-
-    # FOV and depth settings
-    fov_depth_clip_min = float(rpp.get("fov_depth_clip_min", 0.2))
-    fov_depth_clip_max = float(rpp.get("fov_depth_clip_max", 10.0))
-
-    # NBV algorithm parameters
-    nbv_alpha = float(rpp.get("nbv_alpha", 0.5))
-    nbv_min_position_distance = float(rpp.get("nbv_min_position_distance", 0.0))
-    nbv_min_angle_distance = float(rpp.get("nbv_min_angle_distance", 0.0))
-    nbv_enable_pose_filtering = bool(rpp.get("nbv_enable_pose_filtering", False))
-
-    # Spatial relations parameters
-    spatial_max_distance = float(rpp.get("spatial_max_distance", 2.0))
-    spatial_size_ratio_threshold = float(rpp.get("spatial_size_ratio_threshold", 5.0))
-    spatial_eps = float(rpp.get("spatial_eps", 0.1))
-
-    output_dir = scan_path / rpp.get("output_folder", "output")
+    output_dir = scan_path / nbv_cfg.output_folder
     cache_dir = output_dir / "cache"
     output_dir.mkdir(parents=True, exist_ok=True)
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -386,11 +332,12 @@ def main(scene_id: str, config_path: str, device_str=None,
     sample_img = np.array(Image.open(scan_path / f"{frame_ids[0]}.color.jpg"))
     H0, W0 = map(int, sample_img.shape[:2])
 
-    frame_ids = filter_sharp_images(scan_path, threshold=imq_threshold)
+    # BRISQUE filtering with 3RScan file pattern (*.color.jpg)
+    frame_ids = filter_sharp_images(scan_path, threshold=nbv_cfg.imq_threshold, file_pattern="*.color.jpg")
     if not frame_ids:
-        relax_seq = [imq_threshold + 10, 45, 50, 60]
+        relax_seq = [nbv_cfg.imq_threshold + 10, 45, 50, 60]
         for thr in relax_seq:
-            frame_ids = filter_sharp_images(scan_path, threshold=thr)
+            frame_ids = filter_sharp_images(scan_path, threshold=thr, file_pattern="*.color.jpg")
             if frame_ids:
                 print(f"[WARN] Relaxed BRISQUE threshold to {thr}; kept {len(frame_ids)} frames.")
                 break
@@ -398,10 +345,10 @@ def main(scene_id: str, config_path: str, device_str=None,
         raise RuntimeError(f"No sharp images found even after relaxing threshold.")
 
     frame_ids = [fid.replace(".color", "") for fid in frame_ids]
-    if subsample_factor > 1:
-        frame_ids = frame_ids[::subsample_factor]
-    if limit_images is not None:
-        frame_ids = frame_ids[:int(limit_images)]
+    if nbv_cfg.subsample_factor > 1:
+        frame_ids = frame_ids[::nbv_cfg.subsample_factor]
+    if nbv_cfg.limit_images is not None:
+        frame_ids = frame_ids[:int(nbv_cfg.limit_images)]
 
     print(f"[INFO] Using {len(frame_ids)} candidate frames after filtering and subsampling.")
 
@@ -417,7 +364,7 @@ def main(scene_id: str, config_path: str, device_str=None,
             pose = load_cam2world(scan_path / f"{fid}.pose.txt")
             R_cv, t_cv = invert_se3_to_opencv(pose)
 
-            cams_full = _build_camera(R_cv, t_cv, fx, fy, cx, cy, H0, W0, device)
+            cams_full = make_p3d_camera_from_opencv(R_cv, t_cv, fx, fy, cx, cy, H0, W0, device)
 
             rendered = _render_textured_rgb(meshes, cams_full, H0, W0, device)
 
@@ -434,6 +381,7 @@ def main(scene_id: str, config_path: str, device_str=None,
 
 
     # ---------------------- Visibility Pass (Cached) ---------------------
+    downsample = nbv_cfg.image_downsample_factor
     H_vis = max(1, H0 // max(1, downsample))
     W_vis = max(1, W0 // max(1, downsample))
     fx_vis, fy_vis, cx_vis, cy_vis = fx / downsample, fy / downsample, cx / downsample, cy / downsample
@@ -445,25 +393,18 @@ def main(scene_id: str, config_path: str, device_str=None,
     else:
         print(f"[INFO] Computing visibility for {len(frame_ids)} frames at {H_vis}x{W_vis}...")
         rasterizer_vis = make_rasterizer(H_vis, W_vis,
-                                         faces_per_pixel=faces_per_pixel,
-                                         bin_size=bin_size,
-                                         max_faces_per_bin=max_faces_per_bin,
-                                         blur_radius=blur_radius,
+                                         faces_per_pixel=nbv_cfg.faces_per_pixel,
+                                         bin_size=nbv_cfg.bin_size,
+                                         max_faces_per_bin=nbv_cfg.max_faces_per_bin,
+                                         blur_radius=nbv_cfg.blur_radius,
                                          )
         image_stats = []
         for fid in tqdm(frame_ids, desc="Visibility", dynamic_ncols=True):
             pose = load_cam2world(scan_path / f"{fid}.pose.txt")
             R_cv, t_cv = invert_se3_to_opencv(pose)
 
-            cams = cameras_from_opencv_projection(
-                R=torch.from_numpy(R_cv)[None].float().to(device),
-                tvec=torch.from_numpy(t_cv)[None].float().to(device),
-                camera_matrix=torch.tensor(
-                    [[[fx_vis, 0, cx_vis],
-                    [0, fy_vis, cy_vis],
-                    [0, 0, 1]]], device=device
-                ),
-                image_size=torch.tensor([[H_vis, W_vis]], device=device),
+            cams = make_p3d_camera_from_opencv(
+                R_cv, t_cv, fx_vis, fy_vis, cx_vis, cy_vis, H_vis, W_vis, device
             )
             pix_to_face, _ = rasterize_visibility(meshes, cams, rasterizer_vis)
             obj_px, total_px = compute_image_visibility(pix_to_face, face_obj_ids)
@@ -474,15 +415,15 @@ def main(scene_id: str, config_path: str, device_str=None,
                 pose, R_cv, t_cv,
                 fx_vis, fy_vis, cx_vis, cy_vis,
                 W_vis, H_vis,
-                fov_depth_clip=(fov_depth_clip_min, fov_depth_clip_max),
-                coverage_threshold=coverage_threshold,
-                min_pixel_count=min_pixel_count,
+                fov_depth_clip=nbv_cfg.fov_depth_clip,
+                coverage_threshold=nbv_cfg.coverage_threshold,
+                min_pixel_count=nbv_cfg.min_pixel_count,
             )
             spatial_relations = compute_spatial_relations(
                 visible_objects,
-                max_distance=spatial_max_distance,
-                size_ratio_threshold=spatial_size_ratio_threshold,
-                eps=spatial_eps,
+                max_distance=nbv_cfg.spatial_max_distance,
+                size_ratio_threshold=nbv_cfg.spatial_size_ratio_threshold,
+                eps=nbv_cfg.spatial_eps,
             )
 
             image_entry = {
@@ -501,7 +442,7 @@ def main(scene_id: str, config_path: str, device_str=None,
     # ---------------------- Greedy NBV (Cached) --------------------------
     # Load camera poses for spatial filtering (if enabled)
     camera_poses_dict = None
-    if nbv_enable_pose_filtering:
+    if nbv_cfg.nbv_enable_pose_filtering:
         print("[INFO] Loading camera poses for spatial diversity filtering...")
         camera_poses_dict = {}
         for stat in image_stats:
@@ -519,14 +460,14 @@ def main(scene_id: str, config_path: str, device_str=None,
         print("[INFO] Computing greedy next-best views...")
         best_views = greedy_next_best_views(
             image_stats,
-            max_images=max_best,
-            min_gain_pixels=min_gain_pixels,
-            alpha=nbv_alpha,
-            min_obj_pixels_for_presence=min_obj_pixels_for_presence,
+            max_images=nbv_cfg.max_best,
+            min_gain_pixels=nbv_cfg.min_gain_pixels,
+            alpha=nbv_cfg.nbv_alpha,
+            min_obj_pixels_for_presence=nbv_cfg.min_obj_pixels_for_presence,
             camera_poses=camera_poses_dict,
-            min_position_distance=nbv_min_position_distance,
-            min_angle_distance=nbv_min_angle_distance,
-            enable_pose_filtering=nbv_enable_pose_filtering,
+            min_position_distance=nbv_cfg.nbv_min_position_distance,
+            min_angle_distance=nbv_cfg.nbv_min_angle_distance,
+            enable_pose_filtering=nbv_cfg.nbv_enable_pose_filtering,
         )
         torch.save(best_views, order_cache)
         print(f"[INFO] Saved NBV order: {order_cache}")
@@ -537,32 +478,16 @@ def main(scene_id: str, config_path: str, device_str=None,
     # -------------------- Adaptive K-means Clustering --------------------
     print("[INFO] Applying adaptive K-means clustering to selected camera poses...")
     camera_poses = [load_cam2world(scan_path / f"{fid}.pose.txt") for fid in best_views]
-    positions = np.stack([pose[:3, 3] for pose in camera_poses], axis=0)
     n_candidates = len(best_views)
 
-    if isinstance(kmeans_n_clusters, int) and kmeans_n_clusters > 0:
-        n_clusters = min(n_candidates, kmeans_n_clusters)
+    if isinstance(nbv_cfg.kmeans_n_clusters, int) and nbv_cfg.kmeans_n_clusters > 0:
+        n_clusters = min(n_candidates, nbv_cfg.kmeans_n_clusters)
     else:
         n_clusters = max(6, min(40, int(round(n_candidates / 12)))) if n_candidates >= 6 else n_candidates
 
-    if n_candidates <= 1 or n_clusters <= 1:
-        print("[WARN] Not enough frames for meaningful clustering. Skipping clustering.")
-        cluster_labels = np.zeros(n_candidates, dtype=int)
-    else:
-        kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init="auto")
-        cluster_labels = kmeans.fit_predict(positions)
-        print(f"[INFO] K-means clustering into {n_clusters} clusters done.")
-
-    rank = {fid: i for i, fid in enumerate(best_views)}
-    clusters = {}
-    for lbl, fid in zip(cluster_labels, best_views):
-        clusters.setdefault(int(lbl), []).append(fid)
-
-    cluster_reps = []
-    for lbl, fids in clusters.items():
-        best_fid = min(fids, key=lambda x: rank[x])
-        cluster_reps.append(best_fid)
-    cluster_reps.sort(key=lambda x: rank[x])
+    cluster_reps, cluster_labels = cluster_camera_poses(
+        camera_poses, best_views, n_clusters
+    )
 
     print(f"[INFO] Selected {len(cluster_reps)} cluster representatives.")
 
@@ -591,6 +516,7 @@ def main(scene_id: str, config_path: str, device_str=None,
         if save_instance_masks: inst_dir.mkdir(parents=True, exist_ok=True)
         if save_semantic_masks: sem_dir.mkdir(parents=True, exist_ok=True)
 
+        mask_ds = nbv_cfg.mask_downsample_factor
         Hm = max(1, H0 // max(1, mask_ds))
         Wm = max(1, W0 // max(1, mask_ds))
         fx_m, fy_m, cx_m, cy_m = fx / mask_ds, fy / mask_ds, cx / mask_ds, cy / mask_ds
@@ -600,15 +526,8 @@ def main(scene_id: str, config_path: str, device_str=None,
         for fid in tqdm(cluster_reps, desc="Masks", dynamic_ncols=True):
             pose = load_cam2world(scan_path / f"{fid}.pose.txt")
             R_cv, t_cv = invert_se3_to_opencv(pose)
-            cams = cameras_from_opencv_projection(
-                R=torch.from_numpy(R_cv)[None].float().to(device),
-                tvec=torch.from_numpy(t_cv)[None].float().to(device),
-                camera_matrix=torch.tensor(
-                    [[[fx_m, 0, cx_m],
-                    [0, fy_m, cy_m],
-                    [0, 0, 1]]], device=device
-                ),
-                image_size=torch.tensor([[Hm, Wm]], device=device),
+            cams = make_p3d_camera_from_opencv(
+                R_cv, t_cv, fx_m, fy_m, cx_m, cy_m, Hm, Wm, device
             )
             pix_to_face, _ = rasterize_visibility(meshes, cams, rasterizer_mask)
             p2f_np = pix_to_face.cpu().numpy()

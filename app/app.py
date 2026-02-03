@@ -96,97 +96,112 @@ def handle_mark_uninterpretable(key, uninterpretable_file):
     data["uninterpretable_images"] = mark_uninterpretable(scene, file_id, data["uninterpretable_images"])
     return save_json_file(data["uninterpretable_images"], uninterpretable_file)
 
+
+# ---------------------------------------------------------------------
+# Unified Dataset Tab Renderer
+# ---------------------------------------------------------------------
+def render_dataset_tab(
+    session_key: str,
+    dataset_name: str,
+    dataset_path: str,
+    annotations_file: str,
+    uninterpretable_file: str,
+    sample_scene: str,
+    sample_view: str,
+    sample_description: str,
+):
+    """
+    Render the annotation interface for a dataset tab.
+
+    This function consolidates the common UI pattern used for both ScanNet
+    and 3RScan tabs, reducing code duplication.
+
+    Args:
+        session_key: Session state key (e.g., 'scannet', 'rscan').
+        dataset_name: Display name for error messages (e.g., 'ScanNet', '3RScan').
+        dataset_path: Path to the dataset root directory.
+        annotations_file: Path to save annotations JSON.
+        uninterpretable_file: Path to save uninterpretable images JSON.
+        sample_scene: Sample scene ID for reference.
+        sample_view: Sample view/frame ID for reference.
+        sample_description: Sample description text for reference.
+    """
+    if not dataset_path or not os.path.isdir(dataset_path):
+        st.error(f"No {dataset_name} data found at: {dataset_path or '(unset)'}")
+        return
+
+    # Initialize session state for this dataset
+    initialize_session_state(
+        key=session_key,
+        dataset_path=dataset_path,
+        output_folder=OUTPUT_FOLDER,
+        annotations_file=annotations_file,
+        uninterpretable_file=uninterpretable_file,
+    )
+
+    # Render sidebar with dataset stats
+    render_sidebar(
+        key=session_key,
+        dataset_path=dataset_path,
+        total_scenes=len(st.session_state[session_key]["scene_list"]),
+        total_images=st.session_state[session_key]["total_images"],
+        annotation_count=len(st.session_state[session_key]["annotations"]),
+        uninterpretable_count=len(st.session_state[session_key]["uninterpretable_images"]),
+    )
+
+    # Render sample reference
+    render_sample_reference(
+        dataset_path=dataset_path,
+        output_folder=OUTPUT_FOLDER,
+        sample_scene=sample_scene,
+        sample_view=sample_view,
+        sample_description=sample_description,
+    )
+
+    # Render annotation panel with action handlers
+    render_annotation_panel(
+        dataset_key=session_key,
+        dataset_path=dataset_path,
+        output_folder=OUTPUT_FOLDER,
+        save_annotation_fn=lambda desc: handle_save_annotation(desc, session_key, annotations_file),
+        mark_uninterpretable_fn=lambda: handle_mark_uninterpretable(session_key, uninterpretable_file),
+        next_image_fn=lambda: next_image(session_key),
+        previous_image_fn=lambda: previous_image(session_key),
+    )
+
+    # Render admin tables and instructions
+    render_admin_tables(
+        annotations=st.session_state[session_key]["annotations"],
+        uninterpretable_images=st.session_state[session_key]["uninterpretable_images"],
+    )
+    render_instructions()
+
+
 # ---------------------------------------------------------------------
 # Tabs: ScanNet and 3RScan
 # ---------------------------------------------------------------------
 tab_scannet, tab_rscan = st.tabs(["ScanNet", "3RScan"])
 
 with tab_scannet:
-    if not SCANNET_PATH or not os.path.isdir(SCANNET_PATH):
-        st.error(f"No ScanNet data found at: {SCANNET_PATH or '(unset)'}")
-    else:
-        initialize_session_state(
-            key="scannet",
-            dataset_path=SCANNET_PATH,
-            output_folder=OUTPUT_FOLDER,
-            annotations_file=ANN_SCANNET,
-            uninterpretable_file=UNINT_SCANNET,
-        )
-
-        render_sidebar(
-            key="scannet",
-            dataset_path=SCANNET_PATH,
-            total_scenes=len(st.session_state["scannet"]["scene_list"]),
-            total_images=st.session_state["scannet"]["total_images"],
-            annotation_count=len(st.session_state["scannet"]["annotations"]),
-            uninterpretable_count=len(st.session_state["scannet"]["uninterpretable_images"]),
-        )
-
-        render_sample_reference(
-            dataset_path=SCANNET_PATH,
-            output_folder=OUTPUT_FOLDER,
-            sample_scene=S_SCENE_SCAN,
-            sample_view=S_VIEW_SCAN,
-            sample_description=S_DESC_SCAN,
-        )
-
-        render_annotation_panel(
-            dataset_key="scannet",
-            dataset_path=SCANNET_PATH,
-            output_folder=OUTPUT_FOLDER,
-            save_annotation_fn=lambda desc: handle_save_annotation(desc, "scannet", ANN_SCANNET),
-            mark_uninterpretable_fn=lambda: handle_mark_uninterpretable("scannet", UNINT_SCANNET),
-            next_image_fn=lambda: next_image("scannet"),
-            previous_image_fn=lambda: previous_image("scannet"),
-        )
-
-        render_admin_tables(
-            annotations=st.session_state["scannet"]["annotations"],
-            uninterpretable_images=st.session_state["scannet"]["uninterpretable_images"],
-        )
-        render_instructions()
+    render_dataset_tab(
+        session_key="scannet",
+        dataset_name="ScanNet",
+        dataset_path=SCANNET_PATH,
+        annotations_file=ANN_SCANNET,
+        uninterpretable_file=UNINT_SCANNET,
+        sample_scene=S_SCENE_SCAN,
+        sample_view=S_VIEW_SCAN,
+        sample_description=S_DESC_SCAN,
+    )
 
 with tab_rscan:
-    if not RSCAN_PATH or not os.path.isdir(RSCAN_PATH):
-        st.error(f"No 3RScan data found at: {RSCAN_PATH or '(unset)'}")
-    else:
-        initialize_session_state(
-            key="rscan",
-            dataset_path=RSCAN_PATH,
-            output_folder=OUTPUT_FOLDER,
-            annotations_file=ANN_RSCAN,
-            uninterpretable_file=UNINT_RSCAN,
-        )
-
-        render_sidebar(
-            key="rscan",
-            dataset_path=RSCAN_PATH,
-            total_scenes=len(st.session_state["rscan"]["scene_list"]),
-            total_images=st.session_state["rscan"]["total_images"],
-            annotation_count=len(st.session_state["rscan"]["annotations"]),
-            uninterpretable_count=len(st.session_state["rscan"]["uninterpretable_images"]),
-        )
-
-        render_sample_reference(
-            dataset_path=RSCAN_PATH,
-            output_folder=OUTPUT_FOLDER,
-            sample_scene=S_SCENE_RSCAN,
-            sample_view=S_VIEW_RSCAN,
-            sample_description=S_DESC_RSCAN,
-        )
-
-        render_annotation_panel(
-            dataset_key="rscan",
-            dataset_path=RSCAN_PATH,
-            output_folder=OUTPUT_FOLDER,
-            save_annotation_fn=lambda desc: handle_save_annotation(desc, "rscan", ANN_RSCAN),
-            mark_uninterpretable_fn=lambda: handle_mark_uninterpretable("rscan", UNINT_RSCAN),
-            next_image_fn=lambda: next_image("rscan"),
-            previous_image_fn=lambda: previous_image("rscan"),
-        )
-
-        render_admin_tables(
-            annotations=st.session_state["rscan"]["annotations"],
-            uninterpretable_images=st.session_state["rscan"]["uninterpretable_images"],
-        )
-        render_instructions()
+    render_dataset_tab(
+        session_key="rscan",
+        dataset_name="3RScan",
+        dataset_path=RSCAN_PATH,
+        annotations_file=ANN_RSCAN,
+        uninterpretable_file=UNINT_RSCAN,
+        sample_scene=S_SCENE_RSCAN,
+        sample_view=S_VIEW_RSCAN,
+        sample_description=S_DESC_RSCAN,
+    )

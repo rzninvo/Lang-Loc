@@ -2,6 +2,10 @@ import os
 import json
 import streamlit as st
 from datetime import datetime
+from pathlib import Path
+
+from src.utils.camera_utils import load_camera_poses_json
+
 
 def load_json_file(path):
     if os.path.exists(path):
@@ -12,13 +16,25 @@ def load_json_file(path):
             return []
     return []
 
+
 def load_camera_poses(scene_index, output_folder, base_dir="data/scans", pose_filename="camera_pose.json"):
-    pose_path = os.path.join(base_dir, scene_index, output_folder, pose_filename)
-    if os.path.exists(pose_path):
-        with open(pose_path, "r") as f:
-            return json.load(f)
-    else:
-        return {}
+    """
+    Load camera poses for a scene from the output JSON file.
+
+    This is a wrapper around load_camera_poses_json for backward compatibility
+    with the existing Streamlit UI code.
+
+    Args:
+        scene_index: Scene identifier (e.g., 'scene0000_00').
+        output_folder: Output subdirectory name (e.g., 'output').
+        base_dir: Base directory containing scene folders.
+        pose_filename: Name of the pose JSON file.
+
+    Returns:
+        Dictionary mapping frame IDs to 4x4 pose matrices (as nested lists).
+    """
+    scene_path = Path(base_dir) / scene_index
+    return load_camera_poses_json(scene_path, output_folder, pose_filename)
 
 def save_json_file(data, path):
     try:
