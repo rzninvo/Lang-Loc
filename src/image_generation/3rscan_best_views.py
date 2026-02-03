@@ -12,7 +12,9 @@ Pipeline:
 6) (Optional) Auto-clean raw frame files.
 """
 
-import json, shutil, argparse
+import argparse
+import json
+import shutil
 from pathlib import Path
 import numpy as np
 import open3d as o3d
@@ -27,15 +29,25 @@ from pytorch3d.structures import Meshes
 from pytorch3d.renderer.mesh import TexturesUV
 from pytorch3d.utils import cameras_from_opencv_projection
 
-from src.utils.config_loader import load_config
-from src.image_generation.scannetpp_best_views import (   # reuse ScanNet utilities
-    invert_se3_to_opencv, per_face_object_ids, make_rasterizer,
-    filter_sharp_images, rasterize_visibility, compute_image_visibility,
-    greedy_next_best_views, pix_to_instance_mask, pix_to_semantic_mask, save_png16,
-    compute_visible_objects, compute_spatial_relations,
+from src.utils.camera_utils import (
+    invert_se3_to_opencv,
+    load_cam2world,
+    load_intrinsics_info,
 )
-
-from pytorch3d.utils import cameras_from_opencv_projection
+from src.utils.config_loader import load_config
+from src.image_generation.scannetpp_best_views import (
+    per_face_object_ids,
+    make_rasterizer,
+    filter_sharp_images,
+    rasterize_visibility,
+    compute_image_visibility,
+    greedy_next_best_views,
+    pix_to_instance_mask,
+    pix_to_semantic_mask,
+    save_png16,
+    compute_visible_objects,
+    compute_spatial_relations,
+)
 import matplotlib.pyplot as plt
 
 # -------------------------------- Constants -----------------------------------
@@ -140,41 +152,8 @@ def load_segments_and_instances(scene_path: Path, base_vertices: np.ndarray):
     return vert_obj.astype(np.int32), seg_to_obj, obj_to_label
 
 
-def load_intrinsics_info(info_path: Path):
-    """
-    Parse the 3RScan `_info.txt` file to obtain pinhole intrinsics.
-
-    Args:
-        info_path (Path): Path to the `_info.txt` file distributed with the scan.
-
-    Returns:
-        tuple[float, float, float, float]: (fx, fy, cx, cy) in pixel units.
-
-    Raises:
-        RuntimeError: If the calibration matrix cannot be located in the file.
-    """
-    lines = info_path.read_text().splitlines()
-    K = None
-    for L in lines:
-        if L.startswith("m_calibrationColorIntrinsic"):
-            vals = [float(x) for x in L.split("=")[1].split()]
-            K = np.array(vals).reshape(4, 4)
-    if K is None:
-        raise RuntimeError("Could not parse intrinsics from _info.txt")
-    return float(K[0, 0]), float(K[1, 1]), float(K[0, 2]), float(K[1, 2])
-
-
-def load_cam2world(pose_path: Path):
-    """
-    Load a 4x4 camera-to-world matrix from the 3RScan frame metadata.
-
-    Args:
-        pose_path (Path): Path to the `frame-XXXX.pose.txt` file.
-
-    Returns:
-        np.ndarray: (4, 4) pose matrix in row-major order.
-    """
-    return np.loadtxt(pose_path, dtype=np.float64).reshape(4, 4)
+# Note: load_intrinsics_info and load_cam2world
+# are now imported from src.utils.camera_utils
 
 
 @torch.no_grad()
