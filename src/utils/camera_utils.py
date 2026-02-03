@@ -5,8 +5,11 @@ This module provides common functions for loading camera poses, intrinsics,
 and performing coordinate transformations used by both ScanNet and 3RScan
 processing pipelines.
 """
+from __future__ import annotations
+
+import json
 from pathlib import Path
-from typing import Tuple
+from typing import Dict, List, Tuple, Union
 
 import numpy as np
 
@@ -143,3 +146,76 @@ def is_pose_too_similar(
         if pos_dist < min_position_dist and ang_dist < min_angle_dist:
             return True
     return False
+
+
+# ---------------------------------------------------------------------
+# Camera Pose JSON Loading (for annotation and UI tools)
+# ---------------------------------------------------------------------
+
+
+def load_camera_poses_json(
+    scene_path: Union[str, Path],
+    output_folder: str = "output",
+    pose_filename: str = "camera_pose.json",
+) -> Dict[str, List[List[float]]]:
+    """
+    Load camera poses from a JSON file containing per-frame 4x4 matrices.
+
+    This function is used by annotation tools and the Streamlit UI to load
+    the camera poses exported during NBV keyframe selection.
+
+    Args:
+        scene_path: Path to the scene directory (e.g., 'data/scans/scene0000_00').
+        output_folder: Subdirectory within the scene containing outputs (default: 'output').
+        pose_filename: Name of the JSON file (default: 'camera_pose.json').
+
+    Returns:
+        Dictionary mapping frame ID strings to 4x4 pose matrices (as nested lists).
+        Returns empty dict if the file doesn't exist.
+
+    Example:
+        >>> poses = load_camera_poses_json('/data/scans/scene0000_00')
+        >>> pose_matrix = np.array(poses['000123'])  # Convert to numpy if needed
+    """
+    scene_path = Path(scene_path)
+    pose_file = scene_path / output_folder / pose_filename
+
+    if not pose_file.exists():
+        return {}
+
+    return json.loads(pose_file.read_text())
+
+
+def load_camera_poses_dict(
+    pose_dir: Union[str, Path],
+    frame_ids: List[str],
+    pose_suffix: str = ".txt",
+) -> Dict[str, np.ndarray]:
+    """
+    Load camera poses from individual text files into a dictionary.
+
+    This function is useful when you have a list of frame IDs and need to
+    load their poses from separate .txt files (as used by ScanNet/3RScan).
+
+    Args:
+        pose_dir: Directory containing pose files.
+        frame_ids: List of frame IDs to load.
+        pose_suffix: File extension/suffix for pose files (default: '.txt').
+
+    Returns:
+        Dictionary mapping frame ID strings to (4, 4) numpy pose matrices.
+        Missing poses are silently skipped.
+
+    Example:
+        >>> poses = load_camera_poses_dict('/data/scene/pose', ['000001', '000002'])
+        >>> R, t = invert_se3_to_opencv(poses['000001'])
+    """
+    pose_dir = Path(pose_dir)
+    poses = {}
+
+    for fid in frame_ids:
+        pose_path = pose_dir / f"{fid}{pose_suffix}"
+        if pose_path.exists():
+            poses[fid] = load_cam2world(pose_path)
+
+    return poses

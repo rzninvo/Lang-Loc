@@ -26,6 +26,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from openai import OpenAI
 from src.utils.config_loader import load_config
+from src.utils.camera_utils import load_camera_poses_json
 
 # ---------------------------------------------------------------------
 # Environment setup
@@ -42,36 +43,6 @@ else:
 
 # Initialize the OpenAI client (uses OPENAI_API_KEY from environment)
 client = OpenAI()
-
-# ---------------------------------------------------------------------
-# Utility Functions
-# ---------------------------------------------------------------------
-
-def load_camera_poses(scene_path: Path) -> dict:
-    """
-    Load the per-frame camera pose dictionary for a given scene.
-
-    Each pose is stored as a 4x4 SE(3) matrix in the file:
-    `output/camera_pose.json`, generated during keyframe extraction.
-
-    Parameters
-    ----------
-    scene_path : Path
-        Path to the scene root directory (e.g., `<dataset_root>/3RScan/<scene_id>`).
-
-    Returns
-    -------
-    dict
-        A dictionary mapping `image_index` (frame ID string) → 4x4 list of floats
-        representing the camera-to-world transformation matrix.
-        Returns an empty dictionary if the file is missing.
-
-    """
-    pose_file = scene_path / "output" / "camera_pose.json"
-    if not pose_file.exists():
-        return {}
-    return json.loads(pose_file.read_text())
-
 
 # ---------------------------------------------------------------------
 # GPT Query
@@ -342,7 +313,7 @@ def main(scene_id: str, dataset: str, config_path: str):
     # --- Verify input files ---
     if not cache_json.exists():
         raise FileNotFoundError(f"[ERROR] Cache file not found: {cache_json}")
-    pose_dict = load_camera_poses(scene_path)
+    pose_dict = load_camera_poses_json(scene_path)
     if not pose_dict:
         raise FileNotFoundError(f"[ERROR] camera_pose.json not found for {scene_id}")
 
