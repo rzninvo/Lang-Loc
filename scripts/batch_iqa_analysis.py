@@ -129,6 +129,17 @@ def score_images_in_directory(
         image_files.extend(image_dir.glob(ext))
     image_files = sorted(set(image_files))
 
+    # Filter to only include color images (exclude depth images and mesh textures)
+    filtered_files = []
+    for img_path in image_files:
+        filename = img_path.name
+        # Include only files with ".color." in the name (e.g., frame-000000.color.jpg)
+        # Exclude mesh textures (e.g., mesh.refined_0.png) and depth images
+        if ".color." in filename:
+            filtered_files.append(img_path)
+
+    image_files = filtered_files
+
     if not image_files:
         return []
 

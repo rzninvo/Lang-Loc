@@ -74,8 +74,19 @@ def score_images(
                 print(f"[INFO] Found {len(image_files)} images with pattern {ext}")
                 break
 
+    # Filter to only include color images (exclude depth images and mesh textures)
+    filtered_files = []
+    for img_path in image_files:
+        filename = img_path.name
+        # Include only files with ".color." in the name (e.g., frame-000000.color.jpg)
+        # Exclude mesh textures (e.g., mesh.refined_0.png) and depth images
+        if ".color." in filename:
+            filtered_files.append(img_path)
+
+    image_files = filtered_files
+
     if not image_files:
-        raise ValueError(f"No images found in {image_dir} with pattern {pattern}")
+        raise ValueError(f"No color images found in {image_dir} with pattern {pattern}")
 
     print(f"[INFO] Scoring {len(image_files)} images...")
     results = []
