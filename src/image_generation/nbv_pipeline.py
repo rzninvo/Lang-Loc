@@ -4,7 +4,7 @@ Shared Next-Best-View (NBV) Pipeline Components.
 This module provides the common functionality used by both ScanNet++ and 3RScan
 NBV selection pipelines. It includes:
 
-- BRISQUE-based image quality filtering
+- Image Quality Assessment (IQA) filtering using pyiqa (QualiCLIP, BRISQUE, etc.)
 - PyTorch3D camera and rasterizer utilities
 - Visibility computation and analysis
 - Greedy next-best-view selection algorithm
@@ -13,12 +13,10 @@ NBV selection pipelines. It includes:
 """
 from __future__ import annotations
 
-import multiprocessing as mp
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-import cv2
 import numpy as np
 import torch
 from PIL import Image
@@ -32,7 +30,6 @@ from pytorch3d.renderer import (
 )
 from pytorch3d.structures import Meshes
 from pytorch3d.utils import cameras_from_opencv_projection
-from brisque import BRISQUE
 
 
 # -------------------------------- Constants -----------------------------------
@@ -41,83 +38,102 @@ from brisque import BRISQUE
 VOID_ID: int = 0
 
 
-# ----------------------------- BRISQUE Filtering ------------------------------
-
-_global_brisque = None
+# ----------------------------- IQA Filtering (pyiqa) --------------------------
 
 
-def _init_brisque_worker():
-    """Create one BRISQUE instance per process and limit OpenCV threading."""
-    global _global_brisque
-    cv2.setNumThreads(1)  # avoid CPU oversubscription inside workers
-    _global_brisque = BRISQUE()
-
-
-def _score_one(image_path: Path):
-    """Return (stem, score) for a single image; inf on failure."""
-    global _global_brisque
-    img = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
-    if img is None:
-        return (image_path.stem, float("inf"))
-    try:
-        score = _global_brisque.score(img)  # no resizing, full-res BRISQUE
-    except Exception:
-        score = float("inf")
-    return (image_path.stem, score)
-
-
-def compute_sharpness(image_path: Path) -> float:
-    """Single-image BRISQUE score (kept for compatibility)."""
-    img = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
-    if img is None:
-        raise ValueError(f"Could not read image from {image_path}")
-    scorer = BRISQUE()
-    return scorer.score(img)
-
-
-def filter_sharp_images(
-    color_dir: Path,
-    threshold: float,
-    workers: int | None = None,
-    file_pattern: str = "*.jpg",
-) -> list[str]:
+def load_iqa_model(metric_name: str = "qualiclip", device: str = "cuda"):
     """
-    Parallel BRISQUE filtering without caching or downsampling.
+    Load an IQA model from pyiqa.
 
     Args:
-        color_dir: directory containing image frames.
-        threshold: keep frames with BRISQUE <= threshold (lower is better).
-        workers: number of processes; default = max(1, cpu_count()-1).
-        file_pattern: glob pattern for image files (default: "*.jpg").
+        metric_name: IQA metric to use (e.g., "qualiclip", "brisque", "niqe").
+        device: Device to use ("cuda" or "cpu").
+
+    Returns:
+        (model, device, higher_better) tuple.
+    """
+    try:
+        import pyiqa
+    except ImportError:
+        raise ImportError(
+            "pyiqa is not installed. Install it with:\n"
+            "  pip install pyiqa\n"
+            "or for the latest version:\n"
+            "  pip install git+https://github.com/chaofengc/IQA-PyTorch.git"
+        )
+
+    device = torch.device(device if torch.cuda.is_available() else "cpu")
+    print(f"[INFO] Loading {metric_name} model on {device}...")
+    model = pyiqa.create_metric(metric_name, device=device)
+    higher_better = not model.lower_better
+    print(f"[INFO] {metric_name} loaded. Higher score = better quality: {higher_better}")
+    return model, device, higher_better
+
+
+def filter_quality_images(
+    color_dir: Path,
+    metric_name: str,
+    threshold: float,
+    file_pattern: str = "*.jpg",
+    device: str = "cuda",
+) -> list[str]:
+    """
+    Filter images by quality using pyiqa metrics (GPU-based).
+
+    Args:
+        color_dir: Directory containing image frames.
+        metric_name: IQA metric to use (e.g., "qualiclip", "brisque").
+        threshold: Quality threshold. Interpretation depends on metric:
+                   - QualiCLIP: keep frames with score >= threshold (higher is better)
+                   - BRISQUE: keep frames with score <= threshold (lower is better)
+        file_pattern: Glob pattern for image files (default: "*.jpg").
+        device: Device to use ("cuda" or "cpu").
 
     Returns:
         Ordered list of frame ids (stems) that pass the threshold.
     """
-    image_files = sorted(color_dir.glob(file_pattern))
+    # Find all image files
+    all_image_files = sorted(color_dir.glob(file_pattern))
+
+    # Filter to only include color images (exclude depth and mesh textures)
+    image_files = [f for f in all_image_files if ".color." in f.name]
+
     if not image_files:
+        print(f"[WARN] No color images found in {color_dir} with pattern {file_pattern}")
         return []
 
-    if workers is None:
-        default_workers = max(1, mp.cpu_count() - 1)
-        print(f"[WARN] workers not set; using max(1, cpu_count()-1) which is {default_workers}")
-        workers = default_workers
+    # Load IQA model
+    model, device, higher_better = load_iqa_model(metric_name, device)
 
-    sharp_set = {}
-    try:
-        ctx = mp.get_context("spawn")
-    except ValueError:
-        ctx = mp.get_context()
-    with ctx.Pool(processes=workers, initializer=_init_brisque_worker) as pool:
-        for stem, score in tqdm(
-            pool.imap_unordered(_score_one, image_files, chunksize=8),
-            total=len(image_files),
-            desc="BRISQUE filtering",
-            dynamic_ncols=True,
-        ):
-            sharp_set[stem] = score
+    # Score all images
+    scores = {}
+    for img_path in tqdm(image_files, desc=f"{metric_name.upper()} filtering", dynamic_ncols=True):
+        try:
+            score = model(str(img_path)).item()
+            scores[img_path.stem] = score
+        except Exception as e:
+            print(f"[WARN] Failed to score {img_path.name}: {e}")
+            scores[img_path.stem] = float("nan")
 
-    kept = [p.stem for p in image_files if sharp_set.get(p.stem, float("inf")) <= threshold]
-    print(f"[INFO] {len(kept)}/{len(image_files)} images passed (threshold={threshold})")
+    # Filter based on threshold and metric direction
+    if higher_better:
+        # Higher is better (e.g., QualiCLIP): keep scores >= threshold
+        kept = [
+            p.stem
+            for p in image_files
+            if not np.isnan(scores.get(p.stem, float("nan")))
+            and scores.get(p.stem, 0.0) >= threshold
+        ]
+    else:
+        # Lower is better (e.g., BRISQUE): keep scores <= threshold
+        kept = [
+            p.stem
+            for p in image_files
+            if not np.isnan(scores.get(p.stem, float("nan")))
+            and scores.get(p.stem, float("inf")) <= threshold
+        ]
+
+    print(f"[INFO] {len(kept)}/{len(image_files)} images passed (threshold={threshold}, {metric_name})")
     return kept
 
 

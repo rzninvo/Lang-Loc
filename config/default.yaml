@@ -18,7 +18,9 @@ scannetpp:
   blur_radius: 0.0
 
   # Image quality and selection
-  imq_threshold: 30.0          # BRISQUE image quality threshold
+  iqa_metric: "qualiclip"      # IQA metric: "qualiclip", "qualiclip+", "brisque", "niqe", "musiq"
+  iqa_threshold: 0.4          # Quality threshold (QualiCLIP: >= threshold; BRISQUE: <= threshold)
+  iqa_device: "cuda"           # Device for IQA model: "cuda" or "cpu"
   kmeans_n_clusters: 10        # Number of pose clusters for diversity
   limit_images: null           # Optional cap on candidate images
   max_best: 120                # Max frames kept in pre-selection
@@ -68,7 +70,9 @@ scannetpp:
   blur_radius: 0.0
 
   # Image quality and selection
-  imq_threshold: 30.0          # BRISQUE image quality threshold
+  iqa_metric: "qualiclip"      # IQA metric: "qualiclip", "qualiclip+", "brisque", "niqe", "musiq"
+  iqa_threshold: 0.4          # Quality threshold (QualiCLIP: >= threshold; BRISQUE: <= threshold)
+  iqa_device: "cuda"           # Device for IQA model: "cuda" or "cpu"
   kmeans_n_clusters: 10        # Number of pose clusters for diversity
   limit_images: null           # Optional cap on candidate images
   max_best: 120                # Max frames kept in pre-selection
