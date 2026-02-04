@@ -62,7 +62,7 @@ from pytorch3d.renderer import Textures
 # Project imports - shared NBV pipeline components
 from src.image_generation.nbv_pipeline import (
     VOID_ID,
-    filter_sharp_images,
+    filter_quality_images,
     make_p3d_camera_from_opencv,
     make_rasterizer,
     per_face_object_ids,
@@ -325,23 +325,42 @@ def main(scene_id: str, config_path: str, device_str: str | None = None,
     device = torch.device(device_str) if device_str else torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"[INFO] Using device: {device}")
 
-    # Collect frames
-    frame_ids = filter_sharp_images(color_dir, threshold=nbv_cfg.imq_threshold)
+    # Collect frames using IQA filtering
+    iqa_metric = nbv_cfg.iqa_metric
+    iqa_threshold = nbv_cfg.iqa_threshold
+    iqa_device = nbv_cfg.iqa_device
+
+    frame_ids = filter_quality_images(
+        color_dir,
+        metric_name=iqa_metric,
+        threshold=iqa_threshold,
+        device=iqa_device,
+    )
+
     if nbv_cfg.subsample_factor > 1:
         frame_ids = frame_ids[::nbv_cfg.subsample_factor]
     if nbv_cfg.limit_images is not None:
         frame_ids = frame_ids[:int(nbv_cfg.limit_images)]
+
     if not frame_ids:
-        # progressively relax threshold up to a cap
-        relax_seq = [nbv_cfg.imq_threshold + 10, 45, 50, 60]
+        print(f"[WARN] No frames passed quality threshold {iqa_threshold} for {iqa_metric}")
+        # For QualiCLIP: try relaxing by decreasing threshold (more permissive)
+        # Adjust these values based on your quality requirements
+        relax_seq = [iqa_threshold - 0.05, iqa_threshold - 0.10, iqa_threshold - 0.15, max(0.0, iqa_threshold - 0.20)]
+
         for thr in relax_seq:
-            frame_ids = filter_sharp_images(color_dir, threshold=thr)
+            frame_ids = filter_quality_images(
+                color_dir,
+                metric_name=iqa_metric,
+                threshold=thr,
+                device=iqa_device,
+            )
             if frame_ids:
-                print(f"[WARN] Relaxed BRISQUE threshold to {thr}; kept {len(frame_ids)} frames.")
+                print(f"[WARN] Relaxed {iqa_metric} threshold to {thr:.4f}; kept {len(frame_ids)} frames.")
                 break
 
     if not frame_ids:
-        raise RuntimeError(f"No sharp images found in {color_dir} even after relaxing threshold.")
+        raise RuntimeError(f"No quality images found in {color_dir} even after relaxing threshold.")
     if debug:
         print(f"[DEBUG] Using {len(frame_ids)} sharp frames after subsample/limit.")
 

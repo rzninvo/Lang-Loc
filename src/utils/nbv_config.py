@@ -33,7 +33,9 @@ class NBVConfig:
         max_best: Maximum number of best views to select (None = unlimited).
         min_gain_pixels: Minimum pixel gain to continue NBV selection.
         kmeans_n_clusters: Number of clusters for K-means pose clustering.
-        imq_threshold: BRISQUE image quality threshold (lower = sharper).
+        iqa_metric: IQA metric to use (e.g., "qualiclip", "brisque").
+        iqa_threshold: Quality threshold (interpretation depends on metric).
+        iqa_device: Device for IQA model ("cuda" or "cpu").
 
         # Object visibility thresholds
         coverage_threshold: Minimum coverage (0-1) for object visibility.
@@ -79,7 +81,9 @@ class NBVConfig:
     max_best: Optional[int] = None
     min_gain_pixels: int = 0
     kmeans_n_clusters: int = 10
-    imq_threshold: float = 40.0
+    iqa_metric: str = "qualiclip"
+    iqa_threshold: float = 0.4
+    iqa_device: str = "cuda"
 
     # Object visibility thresholds
     coverage_threshold: float = 0.05
@@ -134,8 +138,8 @@ def extract_nbv_config(cfg: Dict[str, Any], dataset: str = "scannetpp") -> NBVCo
     Example:
         >>> cfg = load_config('config/default.yaml')
         >>> nbv_cfg = extract_nbv_config(cfg, dataset='scannetpp')
-        >>> print(nbv_cfg.imq_threshold)
-        40.0
+        >>> print(nbv_cfg.iqa_metric, nbv_cfg.iqa_threshold)
+        qualiclip 0.35
     """
     section = cfg.get(dataset, {})
 
@@ -153,7 +157,9 @@ def extract_nbv_config(cfg: Dict[str, Any], dataset: str = "scannetpp") -> NBVCo
         max_best=section.get("max_best", None),
         min_gain_pixels=int(section.get("min_gain_pixels", 0)),
         kmeans_n_clusters=int(section.get("kmeans_n_clusters", 10)),
-        imq_threshold=float(section.get("imq_threshold", 40.0)),
+        iqa_metric=str(section.get("iqa_metric", "qualiclip")),
+        iqa_threshold=float(section.get("iqa_threshold", 0.4)),
+        iqa_device=str(section.get("iqa_device", "cuda")),
 
         # Object visibility thresholds
         coverage_threshold=float(section.get("coverage_threshold", 0.05)),

@@ -37,7 +37,7 @@ from pytorch3d.utils import cameras_from_opencv_projection
 # Project imports - shared NBV pipeline components
 from src.image_generation.nbv_pipeline import (
     VOID_ID,
-    filter_sharp_images,
+    filter_quality_images,
     make_p3d_camera_from_opencv,
     make_rasterizer,
     per_face_object_ids,
@@ -332,17 +332,38 @@ def main(scene_id: str, config_path: str, device_str=None,
     sample_img = np.array(Image.open(scan_path / f"{frame_ids[0]}.color.jpg"))
     H0, W0 = map(int, sample_img.shape[:2])
 
-    # BRISQUE filtering with 3RScan file pattern (*.color.jpg)
-    frame_ids = filter_sharp_images(scan_path, threshold=nbv_cfg.imq_threshold, file_pattern="*.color.jpg")
+    # IQA filtering with 3RScan file pattern (*.color.jpg)
+    iqa_metric = nbv_cfg.iqa_metric
+    iqa_threshold = nbv_cfg.iqa_threshold
+    iqa_device = nbv_cfg.iqa_device
+
+    frame_ids = filter_quality_images(
+        scan_path,
+        metric_name=iqa_metric,
+        threshold=iqa_threshold,
+        file_pattern="*.color.jpg",
+        device=iqa_device,
+    )
+
     if not frame_ids:
-        relax_seq = [nbv_cfg.imq_threshold + 10, 45, 50, 60]
+        print(f"[WARN] No frames passed quality threshold {iqa_threshold} for {iqa_metric}")
+        # For QualiCLIP: try relaxing by decreasing threshold (more permissive)
+        relax_seq = [iqa_threshold - 0.05, iqa_threshold - 0.10, iqa_threshold - 0.15, max(0.0, iqa_threshold - 0.20)]
+
         for thr in relax_seq:
-            frame_ids = filter_sharp_images(scan_path, threshold=thr, file_pattern="*.color.jpg")
+            frame_ids = filter_quality_images(
+                scan_path,
+                metric_name=iqa_metric,
+                threshold=thr,
+                file_pattern="*.color.jpg",
+                device=iqa_device,
+            )
             if frame_ids:
-                print(f"[WARN] Relaxed BRISQUE threshold to {thr}; kept {len(frame_ids)} frames.")
+                print(f"[WARN] Relaxed {iqa_metric} threshold to {thr:.4f}; kept {len(frame_ids)} frames.")
                 break
+
     if not frame_ids:
-        raise RuntimeError(f"No sharp images found even after relaxing threshold.")
+        raise RuntimeError(f"No quality images found even after relaxing threshold.")
 
     frame_ids = [fid.replace(".color", "") for fid in frame_ids]
     if nbv_cfg.subsample_factor > 1:
