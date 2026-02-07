@@ -59,23 +59,26 @@ from pytorch3d.structures import Meshes
 from pytorch3d.renderer.mesh import TexturesVertex
 from pytorch3d.renderer import Textures
 
-# Project imports - shared NBV pipeline components
-from src.image_generation.nbv_pipeline import (
+# Project imports - modular frame selection components
+from src.frame_selection.iqa import filter_quality_images
+from src.frame_selection.visibility import (
     VOID_ID,
-    filter_quality_images,
     make_p3d_camera_from_opencv,
     make_rasterizer,
     per_face_object_ids,
+    precompute_object_geometry,
     rasterize_visibility,
     compute_image_visibility,
     compute_visible_objects,
     compute_spatial_relations,
-    greedy_next_best_views,
-    pix_to_instance_mask,
-    pix_to_semantic_mask,
-    save_png16,
-    cluster_camera_poses,
 )
+from src.frame_selection.dpp import (
+    compute_face_normals,
+    compute_clip_embeddings,
+    dpp_select_views,
+)
+from src.frame_selection.legacy import greedy_next_best_views, cluster_camera_poses
+from src.frame_selection.masks import pix_to_instance_mask, pix_to_semantic_mask, save_png16
 from src.utils.camera_utils import (
     load_cam2world,
     invert_se3_to_opencv,
@@ -343,24 +346,7 @@ def main(scene_id: str, config_path: str, device_str: str | None = None,
         frame_ids = frame_ids[:int(nbv_cfg.limit_images)]
 
     if not frame_ids:
-        print(f"[WARN] No frames passed quality threshold {iqa_threshold} for {iqa_metric}")
-        # For QualiCLIP: try relaxing by decreasing threshold (more permissive)
-        # Adjust these values based on your quality requirements
-        relax_seq = [iqa_threshold - 0.05, iqa_threshold - 0.10, iqa_threshold - 0.15, max(0.0, iqa_threshold - 0.20)]
-
-        for thr in relax_seq:
-            frame_ids = filter_quality_images(
-                color_dir,
-                metric_name=iqa_metric,
-                threshold=thr,
-                device=iqa_device,
-            )
-            if frame_ids:
-                print(f"[WARN] Relaxed {iqa_metric} threshold to {thr:.4f}; kept {len(frame_ids)} frames.")
-                break
-
-    if not frame_ids:
-        raise RuntimeError(f"No quality images found in {color_dir} even after relaxing threshold.")
+        raise RuntimeError(f"No quality images found in {color_dir}.")
     if debug:
         print(f"[DEBUG] Using {len(frame_ids)} sharp frames after subsample/limit.")
 
@@ -424,9 +410,29 @@ def main(scene_id: str, config_path: str, device_str: str | None = None,
     if cache_json.exists():
         print(f"[INFO] Loading visibility cache: {cache_json}")
         image_stats = json.loads(cache_json.read_text())
+        # Check for DPP-required fields
+        if nbv_cfg.dpp_enabled and image_stats and "visible_face_ids" not in image_stats[0]:
+            print("[WARN] Cache missing visible_face_ids (needed for DPP). Recomputing...")
+            cache_json.unlink()
+            image_stats = None
+        elif image_stats:
+            sample_obj_meta = None
+            for entry in image_stats[:10]:
+                vo = entry.get("visible_objects", {})
+                if vo:
+                    sample_obj_meta = next(iter(vo.values()))
+                    break
+            if sample_obj_meta is not None and "obb_world" not in sample_obj_meta:
+                print("[WARN] Cache missing obb_world/full-object geometry. Recomputing...")
+                cache_json.unlink()
+                image_stats = None
     else:
+        image_stats = None
+
+    if image_stats is None:
         print(f"[INFO] Computing visibility for {len(frame_ids)} frames at {H_vis}x{W_vis}...")
         image_stats: List[Dict] = []
+        object_geometry_cache = precompute_object_geometry(V, F, face_obj_ids)
 
         for idx, fid in enumerate(tqdm(frame_ids)):
             pose = load_cam2world(pose_dir / f"{fid}.txt")
@@ -447,6 +453,7 @@ def main(scene_id: str, config_path: str, device_str: str | None = None,
                 fov_depth_clip=nbv_cfg.fov_depth_clip,
                 coverage_threshold=nbv_cfg.coverage_threshold,
                 min_pixel_count=nbv_cfg.min_pixel_count,
+                full_object_geometry=object_geometry_cache,
             )
             spatial_relations = compute_spatial_relations(
                 visible_objects,
@@ -455,12 +462,17 @@ def main(scene_id: str, config_path: str, device_str: str | None = None,
                 eps=nbv_cfg.spatial_eps,
             )
 
+            # Extract unique visible face indices for DPP normal/novelty computation
+            p2f_np = pix_to_face.cpu().numpy()
+            visible_face_ids = np.unique(p2f_np[p2f_np >= 0]).tolist()
+
             image_entry = {
                 "fid": fid,
                 "obj_pixels": obj_px,
                 "total_labeled_px": int(total_px),
                 "visible_objects": visible_objects,
                 "spatial_relations": spatial_relations,
+                "visible_face_ids": visible_face_ids,
             }
             image_stats.append(image_entry)
 
@@ -470,12 +482,26 @@ def main(scene_id: str, config_path: str, device_str: str | None = None,
         cache_json.write_text(json.dumps(image_stats, indent=2))
         print(f"[INFO] Saved visibility cache: {cache_json}")
 
-    # ------------------------ GREEDY NEXT-BEST-VIEWS --------------------------
-    # Load camera poses for spatial filtering (if enabled)
-    camera_poses_dict = None
-    if nbv_cfg.nbv_enable_pose_filtering:
-        print("[INFO] Loading camera poses for spatial diversity filtering...")
-        camera_poses_dict = {}
+    # ------------------------ VIEW SELECTION ------------------------------------
+    if nbv_cfg.dpp_enabled:
+        # ======================== DPP VIEW SELECTION ========================
+        print("[INFO] Using 3-stage DPP view selection...")
+
+        # 1. Precompute face normals (once per scene)
+        face_normals = compute_face_normals(V, F)
+
+        # 2. Compute CLIP embeddings for all candidate frames
+        clip_image_paths = [color_dir / f"{stat['fid']}.jpg" for stat in image_stats]
+        print(f"[INFO] Computing CLIP embeddings for {len(clip_image_paths)} frames...")
+        clip_embeddings = compute_clip_embeddings(
+            clip_image_paths,
+            model_name=nbv_cfg.dpp_clip_model,
+            device=nbv_cfg.dpp_clip_device,
+        )
+
+        # 3. Load camera poses for Stage 2/3 spatial constraints
+        print("[INFO] Loading camera poses for spatial DPP stages...")
+        camera_poses_dict: Dict[str, np.ndarray] = {}
         for stat in image_stats:
             fid = stat["fid"]
             pose_path = pose_dir / f"{fid}.txt"
@@ -483,48 +509,77 @@ def main(scene_id: str, config_path: str, device_str: str | None = None,
                 camera_poses_dict[fid] = load_cam2world(pose_path)
         print(f"[INFO] Loaded {len(camera_poses_dict)} camera poses.")
 
-    order_cache = cache_dir / f"{scene_id}.pth"
-    if order_cache.exists():
-        print(f"[INFO] Loading best-views order: {order_cache}")
-        best_views: List[str] = torch.load(order_cache)
-    else:
-        print("[INFO] Computing greedy next-best views...")
-        best_views = greedy_next_best_views(
+        # 4. Run 3-stage DPP selection
+        cluster_representatives = dpp_select_views(
             image_stats,
-            max_images=nbv_cfg.max_best,
-            min_gain_pixels=nbv_cfg.min_gain_pixels,
-            alpha=nbv_cfg.nbv_alpha,
-            min_obj_pixels_for_presence=nbv_cfg.min_obj_pixels_for_presence,
+            V, F, face_normals, face_obj_ids, clip_embeddings,
+            total_views=nbv_cfg.dpp_total_views,
+            seed_size=nbv_cfg.dpp_seed_size,
             camera_poses=camera_poses_dict,
-            min_position_distance=nbv_cfg.nbv_min_position_distance,
-            min_angle_distance=nbv_cfg.nbv_min_angle_distance,
-            enable_pose_filtering=nbv_cfg.nbv_enable_pose_filtering,
+            stage1_total_views=nbv_cfg.dpp_stage1_total_views,
+            stage2_total_views=nbv_cfg.dpp_stage2_total_views,
+            stage2_sigma_position=nbv_cfg.dpp_stage2_sigma_position,
+            stage2_sigma_angle=nbv_cfg.dpp_stage2_sigma_angle,
+            stage2_sigma_overlap=nbv_cfg.dpp_stage2_sigma_overlap,
+            hard_max_overlap=nbv_cfg.dpp_hard_max_overlap,
+            hard_min_position_distance=nbv_cfg.dpp_hard_min_position_distance,
+            hard_min_angle_distance=nbv_cfg.dpp_hard_min_angle_distance,
         )
-        torch.save(best_views, order_cache)
-        print(f"[INFO] Saved best-views order: {order_cache}")
+        print(f"[INFO] DPP selected {len(cluster_representatives)} views.")
 
-   # --------------------------- K-means Clustering -----------------------------
-    print("[INFO] Applying K-means clustering to selected camera poses...")
-
-    # Build pose list for only the NBV-ordered frames
-    camera_poses = []
-    for fid in best_views:
-        pose = load_cam2world(pose_dir / f"{fid}.txt")
-        camera_poses.append(pose)
-
-    # Choose number of clusters robustly
-    n_candidates = len(best_views)
-    if isinstance(nbv_cfg.kmeans_n_clusters, int) and nbv_cfg.kmeans_n_clusters > 0:
-        n_clusters = min(n_candidates, nbv_cfg.kmeans_n_clusters)
     else:
-        # fallback: about one per ~12 views, clamped
-        n_clusters = max(6, min(40, int(round(n_candidates / 12)))) if n_candidates >= 6 else n_candidates
+        # ======================== LEGACY: GREEDY + K-MEANS ========================
+        # Load camera poses for spatial filtering (if enabled)
+        camera_poses_dict = None
+        if nbv_cfg.nbv_enable_pose_filtering:
+            print("[INFO] Loading camera poses for spatial diversity filtering...")
+            camera_poses_dict = {}
+            for stat in image_stats:
+                fid = stat["fid"]
+                pose_path = pose_dir / f"{fid}.txt"
+                if pose_path.exists():
+                    camera_poses_dict[fid] = load_cam2world(pose_path)
+            print(f"[INFO] Loaded {len(camera_poses_dict)} camera poses.")
 
-    cluster_representatives, cluster_labels = cluster_camera_poses(
-        camera_poses, best_views, n_clusters
-    )
+        order_cache = cache_dir / f"{scene_id}.pth"
+        if order_cache.exists():
+            print(f"[INFO] Loading best-views order: {order_cache}")
+            best_views: List[str] = torch.load(order_cache)
+        else:
+            print("[INFO] Computing greedy next-best views...")
+            best_views = greedy_next_best_views(
+                image_stats,
+                max_images=nbv_cfg.max_best,
+                min_gain_pixels=nbv_cfg.min_gain_pixels,
+                alpha=nbv_cfg.nbv_alpha,
+                min_obj_pixels_for_presence=nbv_cfg.min_obj_pixels_for_presence,
+                camera_poses=camera_poses_dict,
+                min_position_distance=nbv_cfg.nbv_min_position_distance,
+                min_angle_distance=nbv_cfg.nbv_min_angle_distance,
+                enable_pose_filtering=nbv_cfg.nbv_enable_pose_filtering,
+            )
+            torch.save(best_views, order_cache)
+            print(f"[INFO] Saved best-views order: {order_cache}")
 
-    print(f"[INFO] Selected {len(cluster_representatives)} cluster representatives.")
+        # K-means Clustering
+        print("[INFO] Applying K-means clustering to selected camera poses...")
+
+        camera_poses = []
+        for fid in best_views:
+            pose = load_cam2world(pose_dir / f"{fid}.txt")
+            camera_poses.append(pose)
+
+        n_candidates = len(best_views)
+        if isinstance(nbv_cfg.kmeans_n_clusters, int) and nbv_cfg.kmeans_n_clusters > 0:
+            n_clusters = min(n_candidates, nbv_cfg.kmeans_n_clusters)
+        else:
+            n_clusters = max(6, min(40, int(round(n_candidates / 12)))) if n_candidates >= 6 else n_candidates
+
+        cluster_representatives, cluster_labels = cluster_camera_poses(
+            camera_poses, best_views, n_clusters
+        )
+
+        print(f"[INFO] Selected {len(cluster_representatives)} cluster representatives.")
 
     # --------------------------- Save selected frames ----------------------------
     color_output_dir = output_dir / "color"
@@ -545,13 +600,13 @@ def main(scene_id: str, config_path: str, device_str: str | None = None,
         lp = label_dir / f"{fid}.png"
         if lp.exists():
             shutil.copy(lp, label_output_dir / f"{fid}.png")
-        print(f"[INFO] Saved cluster-representative frame {fid} to {output_dir}")
+        print(f"[INFO] Saved selected frame {fid} to {output_dir}")
 
     with open(output_dir / "camera_pose.json", "w") as f:
         json.dump(camera_pose_json, f, indent=2)
 
     # --------------------------- (Optional) Debug plot ---------------------------
-    if debug:
+    if debug and not nbv_cfg.dpp_enabled:
         positions = np.stack([pose[:3, 3] for pose in camera_poses], axis=0)
         rank = {fid: i for i, fid in enumerate(best_views)}
 
