@@ -101,7 +101,11 @@ def call_gpt(prompt: str, model: str = "gpt-4o-mini") -> str:
         return "[Error generating description]"
 
 
-def filter_salient_objects_gpt(visible_objects: dict, model: str = "gpt-4o-mini") -> dict:
+def filter_salient_objects_gpt(
+    visible_objects: dict,
+    model: str = "gpt-4o-mini",
+    debug_log: bool = True,
+) -> dict:
     """
     Use GPT to filter out non-salient objects (walls, floors, structural elements)
     and keep only objects important for scene description.
@@ -179,12 +183,269 @@ def filter_salient_objects_gpt(visible_objects: dict, model: str = "gpt-4o-mini"
             return visible_objects
 
         print(f"[INFO] GPT filtered: {len(visible_objects)} → {len(filtered_objects)} salient objects")
+        if debug_log:
+            removed_items = []
+            for oid, obj in visible_objects.items():
+                if oid not in filtered_objects:
+                    removed_items.append(_format_object_for_log(oid, obj))
+            if removed_items:
+                print(f"[DEBUG] GPT non-salient objects: {', '.join(removed_items)}")
         return filtered_objects
 
     except Exception as e:
         print(f"[ERROR] GPT object filtering failed: {e}")
         print(f"[INFO] Using all {len(visible_objects)} objects without filtering.")
         return visible_objects
+
+
+def _format_object_for_log(oid, obj: dict) -> str:
+    """Compact object formatter for debug logs."""
+    label = str(obj.get("label", f"object_{oid}")).strip() or f"object_{oid}"
+    px = obj.get("pixel_percent", 0.0)
+    try:
+        px = float(px)
+    except (TypeError, ValueError):
+        px = 0.0
+    return f"{oid}:{label} ({px:.2f}%)"
+
+
+def filter_salient_objects_rule_based(
+    visible_objects: dict,
+    exclude_labels: list[str] | None = None,
+    min_pixel_percent: float = 0.0,
+    max_objects: int | None = None,
+    debug_log: bool = True,
+) -> dict:
+    """
+    Deterministic saliency filtering:
+    1) Remove known structural labels.
+    2) Remove objects below a pixel-percent threshold.
+    3) Keep top-K by pixel_percent (optional).
+    """
+    if not visible_objects:
+        return visible_objects
+
+    if exclude_labels is None:
+        exclude_labels = ["wall", "floor", "ceiling", "beam", "column"]
+    exclude_set = {str(lbl).strip().lower() for lbl in exclude_labels if str(lbl).strip()}
+
+    candidates = []
+    removed_items = []
+    for oid, obj in visible_objects.items():
+        label = str(obj.get("label", "")).strip().lower()
+        if label in exclude_set:
+            removed_items.append((_format_object_for_log(oid, obj), f"excluded_label:{label}"))
+            continue
+
+        px = obj.get("pixel_percent", 0.0)
+        try:
+            pixel_percent = float(px)
+        except (TypeError, ValueError):
+            pixel_percent = 0.0
+
+        if pixel_percent < float(min_pixel_percent):
+            removed_items.append((_format_object_for_log(oid, obj), f"low_pixel_percent:{pixel_percent:.2f}"))
+            continue
+
+        candidates.append((pixel_percent, str(oid), oid, obj))
+
+    if not candidates:
+        print("[WARN] Rule-based saliency filtered all objects. Keeping original list.")
+        return visible_objects
+
+    candidates.sort(key=lambda x: (-x[0], x[1]))
+    if isinstance(max_objects, int) and max_objects > 0:
+        dropped = candidates[max_objects:]
+        candidates = candidates[:max_objects]
+        for pixel_percent, _, oid, obj in dropped:
+            removed_items.append((_format_object_for_log(oid, obj), f"top_k_prune:{pixel_percent:.2f}"))
+
+    filtered = {oid: obj for _, _, oid, obj in candidates}
+    print(f"[INFO] Rule-based filtered: {len(visible_objects)} → {len(filtered)} salient objects")
+    if debug_log and removed_items:
+        removed_text = ", ".join([f"{entry} [{reason}]" for entry, reason in removed_items])
+        print(f"[DEBUG] Rule-based non-salient objects: {removed_text}")
+    return filtered
+
+
+def load_3rscan_object_attributes(scene_id: str, objects_json_path: Path) -> dict:
+    """
+    Load 3RScan object metadata for a scene from `objects.json`.
+    Returns nested semantic attributes plus selected top-level metadata.
+    """
+    if not objects_json_path.exists():
+        return {}
+
+    try:
+        payload = json.loads(objects_json_path.read_text())
+    except Exception as exc:
+        print(f"[WARN] Failed to parse {objects_json_path}: {exc}")
+        return {}
+
+    scans = payload.get("scans", [])
+    scene_entry = next((scan for scan in scans if scan.get("scan") == scene_id), None)
+    if scene_entry is None:
+        return {}
+
+    attributes_by_oid = {}
+    for obj in scene_entry.get("objects", []):
+        raw_id = obj.get("id")
+        if raw_id is None:
+            continue
+        try:
+            oid = int(raw_id)
+        except (TypeError, ValueError):
+            continue
+        attrs_raw = obj.get("attributes", {})
+        merged = dict(attrs_raw) if isinstance(attrs_raw, dict) else {}
+
+        for key in ("ply_color", "nyu40", "eigen13", "rio27", "global_id", "id", "label"):
+            value = obj.get(key)
+            if value is None:
+                continue
+            if isinstance(value, str):
+                value = value.strip()
+                if not value:
+                    continue
+            merged[key] = value
+
+        affordances = obj.get("affordances")
+        if isinstance(affordances, list):
+            merged["affordances"] = affordances
+
+        attributes_by_oid[oid] = merged
+
+    return attributes_by_oid
+
+
+def attach_object_attributes(visible_objects: dict, attributes_by_oid: dict) -> dict:
+    """
+    Attach `attributes` to each visible object when available.
+    """
+    if not visible_objects or not attributes_by_oid:
+        return visible_objects
+
+    enriched = {}
+    for oid_raw, obj_meta in visible_objects.items():
+        obj_copy = dict(obj_meta) if isinstance(obj_meta, dict) else obj_meta
+        oid = None
+        try:
+            oid = int(oid_raw)
+        except (TypeError, ValueError):
+            pass
+
+        if oid is not None and isinstance(obj_copy, dict):
+            existing_attrs = obj_copy.get("attributes", {})
+            if not isinstance(existing_attrs, dict):
+                existing_attrs = {}
+            source_attrs = attributes_by_oid.get(oid, {})
+            if not isinstance(source_attrs, dict):
+                source_attrs = {}
+            # Start from source metadata and only override with non-empty cached values.
+            merged_attrs = dict(source_attrs)
+            for key, value in existing_attrs.items():
+                if key not in merged_attrs:
+                    merged_attrs[key] = value
+                elif not _is_empty_attr_value(value):
+                    merged_attrs[key] = value
+            obj_copy["attributes"] = merged_attrs
+
+        enriched[oid_raw] = obj_copy
+
+    return enriched
+
+
+def _is_empty_attr_value(value) -> bool:
+    """Treat None/empty strings/empty lists/empty dicts as empty values."""
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return not value.strip()
+    if isinstance(value, (list, tuple, set, dict)):
+        return len(value) == 0
+    return False
+
+
+def _as_string_list(value) -> list[str]:
+    """Normalize scalar/list attribute values into a clean list of strings."""
+    if isinstance(value, str):
+        txt = value.strip()
+        return [txt] if txt else []
+    if isinstance(value, list):
+        out = []
+        for item in value:
+            if item is None:
+                continue
+            txt = str(item).strip()
+            if txt:
+                out.append(txt)
+        return out
+    return []
+
+
+def _hex_to_basic_color_name(hex_color: str) -> str | None:
+    """
+    Convert a hex color string (e.g. '#aec7e8') into a coarse color name.
+    """
+    if not isinstance(hex_color, str):
+        return None
+    hex_color = hex_color.strip()
+    if len(hex_color) != 7 or not hex_color.startswith("#"):
+        return None
+    try:
+        r = int(hex_color[1:3], 16)
+        g = int(hex_color[3:5], 16)
+        b = int(hex_color[5:7], 16)
+    except ValueError:
+        return None
+
+    palette = {
+        "black": (0, 0, 0),
+        "white": (255, 255, 255),
+        "gray": (128, 128, 128),
+        "red": (220, 20, 60),
+        "orange": (255, 140, 0),
+        "yellow": (255, 215, 0),
+        "green": (34, 139, 34),
+        "cyan": (0, 180, 180),
+        "blue": (65, 105, 225),
+        "purple": (138, 43, 226),
+        "pink": (255, 105, 180),
+        "brown": (139, 69, 19),
+    }
+    best_name = None
+    best_dist = None
+    for name, (pr, pg, pb) in palette.items():
+        dist = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2
+        if best_dist is None or dist < best_dist:
+            best_dist = dist
+            best_name = name
+    return best_name
+
+
+def extract_color_hint(obj_meta: dict) -> str | None:
+    """
+    Extract a concise color hint from object metadata.
+    Priority: explicit `attributes.color/colour` > inferred from `attributes.ply_color`.
+    """
+    if not isinstance(obj_meta, dict):
+        return None
+    attrs = obj_meta.get("attributes", {})
+    if not isinstance(attrs, dict):
+        attrs = {}
+
+    for key in ("color", "colour"):
+        values = _as_string_list(attrs.get(key))
+        if values:
+            return values[0].lower()
+
+    ply_color = attrs.get("ply_color")
+    if isinstance(ply_color, str):
+        inferred = _hex_to_basic_color_name(ply_color)
+        if inferred:
+            return inferred
+
+    return None
 
 
 # ---------------------------------------------------------------------
@@ -218,10 +479,18 @@ def build_prompt(fid: str, visible_objects: dict, spatial_relations: list) -> st
 
     """
     obj_list = [f"{v['label'] or f'object {oid}'}" for oid, v in visible_objects.items()]
+    color_hints = []
+    for oid, obj in visible_objects.items():
+        label = (obj.get("label") or f"object {oid}").strip()
+        color = extract_color_hint(obj)
+        if color:
+            color_hints.append(f"{label}: {color}")
 
     # Build a more natural prompt
     prompt_parts = [f"Describe what you see in this indoor camera view.\n"]
     prompt_parts.append(f"Visible objects: {', '.join(obj_list)}\n")
+    if color_hints:
+        prompt_parts.append(f"Color hints: {', '.join(color_hints[:12])}\n")
 
     # Only include spatial hints if there are meaningful relations AND multiple objects
     if spatial_relations and len(visible_objects) > 1:
@@ -253,7 +522,8 @@ def build_prompt(fid: str, visible_objects: dict, spatial_relations: list) -> st
     prompt_parts.append(
         "\nDescribe the view in 2-3 short sentences. "
         "Write naturally and conversationally, as if describing it to a friend. "
-        "Focus on what's most prominent and how the space feels."
+        "Focus on what's most prominent and how the space feels. "
+        "Use color hints only when they sound natural and helpful."
     )
 
     return "".join(prompt_parts)
@@ -289,26 +559,80 @@ def main(scene_id: str, dataset: str, config_path: str):
 
     # Load filtering configuration
     dataset_key = "scannetpp" if dataset.lower() == "scannet" else "3rscan"
-    filter_nonsalient = bool(cfg.get(dataset_key, {}).get("filter_nonsalient_objects", False))
-    description_model = str(cfg.get(dataset_key, {}).get("description_model", "gpt-4o-mini"))
+    dataset_cfg = cfg.get(dataset_key, {})
+    description_model = str(dataset_cfg.get("description_model", "gpt-4o-mini"))
+
+    # New mode selector with backward compatibility to `filter_nonsalient_objects`.
+    # Allowed: "none", "rule_based", "gpt".
+    legacy_filter_nonsalient = bool(dataset_cfg.get("filter_nonsalient_objects", False))
+    saliency_mode_raw = dataset_cfg.get("saliency_filter_mode")
+    if saliency_mode_raw is None:
+        saliency_mode = "gpt" if legacy_filter_nonsalient else "none"
+    else:
+        saliency_mode = str(saliency_mode_raw).strip().lower()
+    if saliency_mode not in {"none", "rule_based", "gpt"}:
+        print(f"[WARN] Unknown saliency_filter_mode='{saliency_mode}'. Falling back to 'none'.")
+        saliency_mode = "none"
+
+    saliency_rule_cfg = dataset_cfg.get("saliency_rule_based", {})
+    if not isinstance(saliency_rule_cfg, dict):
+        saliency_rule_cfg = {}
+
+    exclude_labels = saliency_rule_cfg.get(
+        "exclude_labels",
+        ["wall", "floor", "ceiling", "beam", "column"],
+    )
+    if not isinstance(exclude_labels, list):
+        exclude_labels = ["wall", "floor", "ceiling", "beam", "column"]
+
+    try:
+        rule_min_pixel_percent = float(saliency_rule_cfg.get("min_pixel_percent", 0.0))
+    except (TypeError, ValueError):
+        rule_min_pixel_percent = 0.0
+
+    raw_max_objects = saliency_rule_cfg.get("max_objects", None)
+    if raw_max_objects is None:
+        rule_max_objects = None
+    else:
+        try:
+            parsed_max = int(raw_max_objects)
+            rule_max_objects = parsed_max if parsed_max > 0 else None
+        except (TypeError, ValueError):
+            rule_max_objects = None
+
+    saliency_debug_log = bool(dataset_cfg.get("saliency_debug_log", True))
 
     # Resolve dataset and scene path
+    objects_json_path = None
     if dataset.lower() == "scannet":
         dataset_path = Path(cfg["paths"]["scannet_dataset_path"])
         scene_path = dataset_path / scene_id
     else:
         base_path = Path(cfg["paths"]["base_data_dir"])
         scene_path = base_path / "3RScan" / scene_id
+        objects_json_path = base_path / "3RScan" / "objects.json"
+
+    # Loaded lazily only if cache objects need enrichment.
+    object_attributes_by_oid = {}
 
     output_dir = scene_path / "output"
     cache_json = output_dir / "cache" / f"{scene_id}.json"
     desc_dir = output_dir / "descriptions"
     desc_dir.mkdir(exist_ok=True, parents=True)
 
-    if filter_nonsalient:
-        print(f"[INFO] GPT-based object filtering is ENABLED (model: {description_model})")
+    if saliency_mode == "gpt":
+        print(
+            f"[INFO] Saliency filtering mode: gpt "
+            f"(model: {description_model}, debug_log={saliency_debug_log})"
+        )
+    elif saliency_mode == "rule_based":
+        print(
+            "[INFO] Saliency filtering mode: rule_based "
+            f"(exclude_labels={exclude_labels}, min_pixel_percent={rule_min_pixel_percent}, "
+            f"max_objects={rule_max_objects}, debug_log={saliency_debug_log})"
+        )
     else:
-        print(f"[INFO] GPT-based object filtering is DISABLED")
+        print("[INFO] Saliency filtering mode: none")
 
     # --- Verify input files ---
     if not cache_json.exists():
@@ -326,6 +650,36 @@ def main(scene_id: str, dataset: str, config_path: str):
     print(f"[INFO] Loaded {len(image_stats)} total frames from cache.")
     print(f"[INFO] Found {len(selected_fids)} selected keyframes from camera_pose.json.")
 
+    # For 3RScan, only load objects.json if cache entries are missing attributes.
+    if objects_json_path is not None:
+        need_enrichment = False
+        for fid in selected_fids[:20]:
+            entry = cache_by_fid.get(fid)
+            if not entry:
+                continue
+            visible_objects = entry.get("visible_objects", {})
+            for obj in visible_objects.values():
+                attrs = obj.get("attributes")
+                if not isinstance(attrs, dict):
+                    need_enrichment = True
+                    break
+                # Older caches may only include a subset; enrich if palette color is absent.
+                if "ply_color" not in attrs:
+                    need_enrichment = True
+                    break
+            if need_enrichment:
+                break
+
+        if need_enrichment:
+            object_attributes_by_oid = load_3rscan_object_attributes(scene_id, objects_json_path)
+            if object_attributes_by_oid:
+                print(
+                    f"[INFO] Loaded attributes for {len(object_attributes_by_oid)} objects "
+                    f"from {objects_json_path} (cache enrichment)."
+                )
+        else:
+            print("[INFO] Cache already contains object attributes; skipping objects.json reload.")
+
     annotations = []
 
     # --- Loop only over selected keyframes ---
@@ -341,11 +695,27 @@ def main(scene_id: str, dataset: str, config_path: str):
             print(f"[WARN] No visible objects for frame {fid}. Skipping.")
             continue
 
-        # --- Apply GPT-based saliency filtering (optional) ---
-        if filter_nonsalient:
-            visible_objects = filter_salient_objects_gpt(visible_objects, model=description_model)
+        # Ensure attributes are present in outputs even for older caches.
+        visible_objects = attach_object_attributes(visible_objects, object_attributes_by_oid)
 
-            # Filter spatial relations to only include salient objects
+        # --- Apply saliency filtering (optional) ---
+        if saliency_mode == "gpt":
+            visible_objects = filter_salient_objects_gpt(
+                visible_objects,
+                model=description_model,
+                debug_log=saliency_debug_log,
+            )
+        elif saliency_mode == "rule_based":
+            visible_objects = filter_salient_objects_rule_based(
+                visible_objects,
+                exclude_labels=exclude_labels,
+                min_pixel_percent=rule_min_pixel_percent,
+                max_objects=rule_max_objects,
+                debug_log=saliency_debug_log,
+            )
+
+        if saliency_mode != "none":
+            # Keep only relations between retained salient object labels.
             salient_labels = {obj.get('label', '').lower() for obj in visible_objects.values()}
             spatial_relations = [
                 rel for rel in spatial_relations

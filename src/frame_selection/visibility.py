@@ -296,6 +296,7 @@ def compute_visible_objects(
     coverage_threshold: float = 0.05,
     min_pixel_count: int = 50,
     full_object_geometry: Optional[Dict[int, Dict[str, np.ndarray]]] = None,
+    object_attributes: Optional[Dict[int, Dict[str, object]]] = None,
 ) -> Dict[int, Dict[str, object]]:
     """
     Compute per-object metadata for objects visible in this frame.
@@ -337,6 +338,8 @@ def compute_visible_objects(
         min_pixel_count (int):  Minimum absolute pixel count for an object to be considered visible.
         full_object_geometry: Optional precomputed object geometry from
             `precompute_object_geometry(...)`. If None, computed on-demand.
+        object_attributes: Optional mapping `objectId -> attributes` to attach
+            to each visible object entry (e.g., loaded from 3RScan `objects.json`).
 
     Returns:
         Dict[int, Dict[str, object]]:
@@ -356,6 +359,7 @@ def compute_visible_objects(
                 "distance_from_camera": float     # Euclidean distance (m) from camera to centroid
                 "visible_faces": int,             # number of visible faces for this object
                 "visible_pixels": int,            # number of visible pixels for this object
+                "attributes": dict                # optional semantic attributes (if provided)
             }
     """
     cam_pos = pose[:3, 3]
@@ -430,7 +434,7 @@ def compute_visible_objects(
         dist_from_cam = float(np.linalg.norm(centroid_world - cam_pos))
         bbox_min, bbox_max = geom["bbox_min"], geom["bbox_max"]
 
-        visible_objects[int(oid)] = {
+        object_entry = {
             "label": obj_to_label.get(int(oid), ""),
             "pixel_percent": float(round(coverage * 100.0, 3)),
             "centroid_world": centroid_world.tolist(),
@@ -446,6 +450,13 @@ def compute_visible_objects(
             "visible_faces": int(obj_face_ids.size),
             "visible_pixels": int(px_count),
         }
+        if object_attributes is not None:
+            attrs = object_attributes.get(int(oid), {})
+            if isinstance(attrs, dict):
+                object_entry["attributes"] = attrs
+            else:
+                object_entry["attributes"] = {}
+        visible_objects[int(oid)] = object_entry
 
     return visible_objects
 
