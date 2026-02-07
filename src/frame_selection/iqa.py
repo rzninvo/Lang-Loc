@@ -43,7 +43,7 @@ def filter_quality_images(
     threshold: float,
     file_pattern: str = "*.jpg",
     device: str = "cuda",
-    min_pass_count: int = 20,
+    min_pass_count: int = 50,
     fallback_top_k: int = 50,
 ) -> list[str]:
     """

@@ -224,6 +224,64 @@ def load_object_geometry_from_semseg(scene_path: Path):
     return geometry
 
 
+def load_object_attributes(scene_id: str, dataset_path: Path):
+    """
+    Load per-object metadata for a specific 3RScan scene from `objects.json`.
+
+    Returns:
+        Dict[int, Dict[str, object]] mapping `objectId -> merged metadata`.
+        Includes nested semantic attributes plus selected top-level fields:
+        `ply_color`, `nyu40`, `eigen13`, `rio27`, `global_id`, `id`,
+        `label`, and `affordances`.
+    """
+    objects_json = dataset_path / "objects.json"
+    if not objects_json.exists():
+        print(f"[WARN] 3RScan object metadata not found: {objects_json}")
+        return {}
+
+    try:
+        payload = json.loads(objects_json.read_text())
+    except Exception as exc:
+        print(f"[WARN] Failed to parse {objects_json}: {exc}")
+        return {}
+
+    scans = payload.get("scans", [])
+    scan_entry = next((s for s in scans if s.get("scan") == scene_id), None)
+    if scan_entry is None:
+        print(f"[WARN] Scene {scene_id} not found in {objects_json.name}.")
+        return {}
+
+    attributes_by_oid = {}
+    for obj in scan_entry.get("objects", []):
+        raw_id = obj.get("id")
+        if raw_id is None:
+            continue
+        try:
+            oid = int(raw_id)
+        except (TypeError, ValueError):
+            continue
+        attrs_raw = obj.get("attributes", {})
+        merged = dict(attrs_raw) if isinstance(attrs_raw, dict) else {}
+
+        for key in ("ply_color", "nyu40", "eigen13", "rio27", "global_id", "id", "label"):
+            value = obj.get(key)
+            if value is None:
+                continue
+            if isinstance(value, str):
+                value = value.strip()
+                if not value:
+                    continue
+            merged[key] = value
+
+        affordances = obj.get("affordances")
+        if isinstance(affordances, list):
+            merged["affordances"] = affordances
+
+        attributes_by_oid[oid] = merged
+
+    return attributes_by_oid
+
+
 # -------------------------- Debug Visualization Helpers -----------------------
 
 @torch.no_grad()
@@ -357,6 +415,9 @@ def main(scene_id: str, config_path: str, device_str=None,
     cache_dir = output_dir / "cache"
     output_dir.mkdir(parents=True, exist_ok=True)
     cache_dir.mkdir(parents=True, exist_ok=True)
+    object_attributes_cache = load_object_attributes(scene_id, dataset_path)
+    if object_attributes_cache:
+        print(f"[INFO] Loaded attributes for {len(object_attributes_cache)} objects from objects.json.")
 
     # -------------------------- Device Setup ----------------------------
     device = torch.device(device_str or ("cuda:0" if torch.cuda.is_available() else "cpu"))
@@ -475,6 +536,30 @@ def main(scene_id: str, config_path: str, device_str=None,
                 print("[WARN] Cache missing obb_world/full-object geometry. Recomputing...")
                 cache_json.unlink()
                 image_stats = None
+            elif object_attributes_cache:
+                missing_attributes = False
+                for entry in image_stats[:20]:
+                    visible_objects = entry.get("visible_objects", {})
+                    for oid_raw, obj_meta in visible_objects.items():
+                        try:
+                            oid = int(oid_raw)
+                        except (TypeError, ValueError):
+                            continue
+                        if oid in object_attributes_cache:
+                            attrs = obj_meta.get("attributes")
+                            if not isinstance(attrs, dict):
+                                missing_attributes = True
+                                break
+                            # Older caches may have only partial attrs; force refresh.
+                            if "ply_color" not in attrs:
+                                missing_attributes = True
+                                break
+                    if missing_attributes:
+                        break
+                if missing_attributes:
+                    print("[WARN] Cache missing/partial object attributes from objects.json. Recomputing...")
+                    cache_json.unlink()
+                    image_stats = None
     else:
         image_stats = None
 
@@ -524,6 +609,7 @@ def main(scene_id: str, config_path: str, device_str=None,
                 coverage_threshold=nbv_cfg.coverage_threshold,
                 min_pixel_count=nbv_cfg.min_pixel_count,
                 full_object_geometry=object_geometry_cache,
+                object_attributes=object_attributes_cache,
             )
             spatial_relations = compute_spatial_relations(
                 visible_objects,

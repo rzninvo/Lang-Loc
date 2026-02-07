@@ -51,8 +51,8 @@ scannetpp:
   dpp_stage2_sigma_angle: 20.0    # RBF sigma for view angle distance (degrees)
   dpp_stage2_sigma_overlap: 0.35  # RBF sigma for (1 - Jaccard overlap)
   dpp_hard_max_overlap: 0.5       # Stage 3 max allowed Jaccard overlap
-  dpp_hard_min_position_distance: 0.2  # Stage 3 min camera position distance (meters)
-  dpp_hard_min_angle_distance: 10.0    # Stage 3 min view angle distance (degrees)
+  dpp_hard_min_position_distance: 0.5  # Stage 3 min camera position distance (meters)
+  dpp_hard_min_angle_distance: 20.0    # Stage 3 min view angle distance (degrees)
   dpp_clip_model: "ViT-B/32"     # OpenAI CLIP model architecture
   dpp_clip_device: "cuda"         # Device for CLIP model
 
@@ -69,7 +69,13 @@ scannetpp:
   # Description generation (used by generate_descriptions.py)
   generate_descriptions: true
   description_model: "gpt-5.2"
-  filter_nonsalient_objects: true  # Use GPT to filter out walls, floors, and unimportant objects
+  saliency_filter_mode: "rule_based"  # "none" | "rule_based" | "gpt"
+  saliency_rule_based:
+    exclude_labels: ["wall", "floor", "ceiling", "beam", "column"]
+    min_pixel_percent: 0.5
+    max_objects: 12
+  saliency_debug_log: true
+  filter_nonsalient_objects: false  # Legacy fallback: used only if saliency_filter_mode is unset
 
 # ------------------------------------------------------------
 # 3RScan NBV configuration (for 3rscan_best_views.py)
@@ -118,8 +124,8 @@ scannetpp:
   dpp_stage2_sigma_angle: 20.0    # RBF sigma for view angle distance (degrees)
   dpp_stage2_sigma_overlap: 0.35  # RBF sigma for (1 - Jaccard overlap)
   dpp_hard_max_overlap: 0.5       # Stage 3 max allowed Jaccard overlap
-  dpp_hard_min_position_distance: 0.2  # Stage 3 min camera position distance (meters)
-  dpp_hard_min_angle_distance: 10.0    # Stage 3 min view angle distance (degrees)
+  dpp_hard_min_position_distance: 0.5  # Stage 3 min camera position distance (meters)
+  dpp_hard_min_angle_distance: 20.0    # Stage 3 min view angle distance (degrees)
   dpp_clip_model: "ViT-B/32"     # OpenAI CLIP model architecture
   dpp_clip_device: "cuda"         # Device for CLIP model
 
@@ -136,7 +142,13 @@ scannetpp:
   # Description generation (used by generate_descriptions.py)
   generate_descriptions: true
   description_model: "gpt-5.2"
-  filter_nonsalient_objects: true  # Use GPT to filter out walls, floors, and unimportant objects
+  saliency_filter_mode: "rule_based"  # "none" | "rule_based" | "gpt"
+  saliency_rule_based:
+    exclude_labels: ["wall", "floor", "ceiling", "beam", "column"]
+    min_pixel_percent: 0.5
+    max_objects: 12
+  saliency_debug_log: true
+  filter_nonsalient_objects: false  # Legacy fallback: used only if saliency_filter_mode is unset
 
 # ------------------------------------------------------------
 # File system paths
