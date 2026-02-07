@@ -45,12 +45,12 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 echo "[INFO] Step 2/3: Running keyframe generation for $SCAN_ID (dataset=$DATASET)..."
 
 if [ "$DATASET" == "scannet" ]; then
-    python3 -m src.image_generation.scannetpp_best_views \
+    python3 -m src.frame_selection.scannetpp_best_views \
         "$SCAN_ID" \
         --config "$CONFIG_PATH" \
         --auto_clean
 elif [ "$DATASET" == "3RScan" ]; then
-    python3 -m src.image_generation.3rscan_best_views \
+    python3 -m src.frame_selection.3rscan_best_views \
         "$SCAN_ID" \
         --config "$CONFIG_PATH" \
         --auto_clean \

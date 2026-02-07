@@ -34,23 +34,26 @@ from pytorch3d.renderer import (
 )
 from pytorch3d.utils import cameras_from_opencv_projection
 
-# Project imports - shared NBV pipeline components
-from src.image_generation.nbv_pipeline import (
+# Project imports - modular frame selection components
+from src.frame_selection.iqa import filter_quality_images
+from src.frame_selection.visibility import (
     VOID_ID,
-    filter_quality_images,
     make_p3d_camera_from_opencv,
     make_rasterizer,
     per_face_object_ids,
+    precompute_object_geometry,
     rasterize_visibility,
     compute_image_visibility,
     compute_visible_objects,
     compute_spatial_relations,
-    greedy_next_best_views,
-    pix_to_instance_mask,
-    pix_to_semantic_mask,
-    save_png16,
-    cluster_camera_poses,
 )
+from src.frame_selection.dpp import (
+    compute_face_normals,
+    compute_clip_embeddings,
+    dpp_select_views,
+)
+from src.frame_selection.legacy import greedy_next_best_views, cluster_camera_poses
+from src.frame_selection.masks import pix_to_instance_mask, pix_to_semantic_mask, save_png16
 from src.utils.camera_utils import (
     invert_se3_to_opencv,
     load_cam2world,
@@ -157,6 +160,68 @@ def load_segments_and_instances(scene_path: Path, base_vertices: np.ndarray):
 
     seg_to_obj = {int(oid): int(oid) for oid in np.unique(vert_obj) if oid >= 0}
     return vert_obj.astype(np.int32), seg_to_obj, obj_to_label
+
+
+def load_object_geometry_from_semseg(scene_path: Path):
+    """
+    Load per-object geometry from 3RScan `semseg.v2.json` OBB fields.
+
+    The file provides, per object:
+      - centroid
+      - axis lengths
+      - normalized axes (3x3)
+
+    We convert this into the geometry structure expected by
+    `compute_visible_objects(...)`:
+      centroid_world, bbox_min/max, obb_center/axes/extents.
+    """
+    semseg_json = scene_path / "semseg.v2.json"
+    if not semseg_json.exists():
+        return {}
+
+    groups = json.loads(semseg_json.read_text()).get("segGroups", [])
+    geometry = {}
+
+    # 8 corners of a box in local OBB coordinates.
+    signs = np.array(
+        [[sx, sy, sz] for sx in (-1.0, 1.0) for sy in (-1.0, 1.0) for sz in (-1.0, 1.0)],
+        dtype=np.float64,
+    )
+
+    for g in groups:
+        oid = int(g.get("objectId", -1))
+        if oid < 0:
+            continue
+
+        obb = g.get("obb") or {}
+        try:
+            center = np.asarray(obb["centroid"], dtype=np.float64).reshape(3)
+            axes_lengths = np.asarray(obb["axesLengths"], dtype=np.float64).reshape(3)
+            axes = np.asarray(obb["normalizedAxes"], dtype=np.float64).reshape(3, 3)
+        except Exception:
+            continue
+
+        # Normalize row-wise to ensure unit axis vectors.
+        norms = np.linalg.norm(axes, axis=1, keepdims=True)
+        axes = axes / np.maximum(norms, 1e-12)
+        extents = np.maximum(axes_lengths / 2.0, 1e-8)
+
+        # rows in `axes` are interpreted as world-space axis vectors.
+        local_corners = signs * extents[None, :]
+        corners_world = center[None, :] + local_corners @ axes
+        bbox_min = corners_world.min(axis=0)
+        bbox_max = corners_world.max(axis=0)
+
+        geometry[oid] = {
+            "centroid_world": center,
+            "bbox_min": bbox_min,
+            "bbox_max": bbox_max,
+            "obb_center": center,
+            "obb_axes": axes,
+            "obb_extents": extents,
+        }
+
+    return geometry
 
 
 # -------------------------- Debug Visualization Helpers -----------------------
@@ -346,24 +411,7 @@ def main(scene_id: str, config_path: str, device_str=None,
     )
 
     if not frame_ids:
-        print(f"[WARN] No frames passed quality threshold {iqa_threshold} for {iqa_metric}")
-        # For QualiCLIP: try relaxing by decreasing threshold (more permissive)
-        relax_seq = [iqa_threshold - 0.05, iqa_threshold - 0.10, iqa_threshold - 0.15, max(0.0, iqa_threshold - 0.20)]
-
-        for thr in relax_seq:
-            frame_ids = filter_quality_images(
-                scan_path,
-                metric_name=iqa_metric,
-                threshold=thr,
-                file_pattern="*.color.jpg",
-                device=iqa_device,
-            )
-            if frame_ids:
-                print(f"[WARN] Relaxed {iqa_metric} threshold to {thr:.4f}; kept {len(frame_ids)} frames.")
-                break
-
-    if not frame_ids:
-        raise RuntimeError(f"No quality images found even after relaxing threshold.")
+        raise RuntimeError("No quality images found.")
 
     frame_ids = [fid.replace(".color", "") for fid in frame_ids]
     if nbv_cfg.subsample_factor > 1:
@@ -411,7 +459,26 @@ def main(scene_id: str, config_path: str, device_str=None,
     if cache_json.exists():
         print(f"[INFO] Loading cached visibility stats: {cache_json}")
         image_stats = json.loads(cache_json.read_text())
+        # Check for DPP-required fields
+        if nbv_cfg.dpp_enabled and image_stats and "visible_face_ids" not in image_stats[0]:
+            print("[WARN] Cache missing visible_face_ids (needed for DPP). Recomputing...")
+            cache_json.unlink()
+            image_stats = None
+        elif image_stats:
+            sample_obj_meta = None
+            for entry in image_stats[:10]:
+                vo = entry.get("visible_objects", {})
+                if vo:
+                    sample_obj_meta = next(iter(vo.values()))
+                    break
+            if sample_obj_meta is not None and "obb_world" not in sample_obj_meta:
+                print("[WARN] Cache missing obb_world/full-object geometry. Recomputing...")
+                cache_json.unlink()
+                image_stats = None
     else:
+        image_stats = None
+
+    if image_stats is None:
         print(f"[INFO] Computing visibility for {len(frame_ids)} frames at {H_vis}x{W_vis}...")
         rasterizer_vis = make_rasterizer(H_vis, W_vis,
                                          faces_per_pixel=nbv_cfg.faces_per_pixel,
@@ -420,6 +487,23 @@ def main(scene_id: str, config_path: str, device_str=None,
                                          blur_radius=nbv_cfg.blur_radius,
                                          )
         image_stats = []
+        object_geometry_cache = load_object_geometry_from_semseg(scan_path)
+        if not object_geometry_cache:
+            print("[WARN] semseg.v2.json OBB geometry missing/unusable. Falling back to mesh-derived geometry.")
+            object_geometry_cache = precompute_object_geometry(verts, faces, face_obj_ids)
+        else:
+            mesh_object_ids = set(int(oid) for oid in np.unique(face_obj_ids[face_obj_ids >= 0]))
+            missing_geom = sorted(mesh_object_ids - set(object_geometry_cache.keys()))
+            if missing_geom:
+                print(
+                    f"[WARN] semseg geometry missing {len(missing_geom)} object(s). "
+                    "Filling missing entries from mesh geometry."
+                )
+                fallback_geom = precompute_object_geometry(verts, faces, face_obj_ids)
+                for oid in missing_geom:
+                    if oid in fallback_geom:
+                        object_geometry_cache[oid] = fallback_geom[oid]
+
         for fid in tqdm(frame_ids, desc="Visibility", dynamic_ncols=True):
             pose = load_cam2world(scan_path / f"{fid}.pose.txt")
             R_cv, t_cv = invert_se3_to_opencv(pose)
@@ -439,6 +523,7 @@ def main(scene_id: str, config_path: str, device_str=None,
                 fov_depth_clip=nbv_cfg.fov_depth_clip,
                 coverage_threshold=nbv_cfg.coverage_threshold,
                 min_pixel_count=nbv_cfg.min_pixel_count,
+                full_object_geometry=object_geometry_cache,
             )
             spatial_relations = compute_spatial_relations(
                 visible_objects,
@@ -447,12 +532,17 @@ def main(scene_id: str, config_path: str, device_str=None,
                 eps=nbv_cfg.spatial_eps,
             )
 
+            # Extract unique visible face indices for DPP normal/novelty computation
+            p2f_np = pix_to_face.cpu().numpy()
+            visible_face_ids = np.unique(p2f_np[p2f_np >= 0]).tolist()
+
             image_entry = {
                 "fid": fid,
                 "obj_pixels": obj_px,
                 "total_labeled_px": int(total_px),
                 "visible_objects": visible_objects,
                 "spatial_relations": spatial_relations,
+                "visible_face_ids": visible_face_ids,
             }
             image_stats.append(image_entry)
 
@@ -460,11 +550,25 @@ def main(scene_id: str, config_path: str, device_str=None,
         cache_json.write_text(json.dumps(image_stats, indent=2))
         print(f"[INFO] Saved visibility cache: {cache_json}")
 
-    # ---------------------- Greedy NBV (Cached) --------------------------
-    # Load camera poses for spatial filtering (if enabled)
-    camera_poses_dict = None
-    if nbv_cfg.nbv_enable_pose_filtering:
-        print("[INFO] Loading camera poses for spatial diversity filtering...")
+    # ---------------------- VIEW SELECTION --------------------------------
+    if nbv_cfg.dpp_enabled:
+        # ======================== DPP VIEW SELECTION ========================
+        print("[INFO] Using 3-stage DPP view selection...")
+
+        # 1. Precompute face normals (once per scene)
+        face_normals = compute_face_normals(verts_np, faces)
+
+        # 2. Compute CLIP embeddings for all candidate frames
+        clip_image_paths = [scan_path / f"{stat['fid']}.color.jpg" for stat in image_stats]
+        print(f"[INFO] Computing CLIP embeddings for {len(clip_image_paths)} frames...")
+        clip_embeddings = compute_clip_embeddings(
+            clip_image_paths,
+            model_name=nbv_cfg.dpp_clip_model,
+            device=nbv_cfg.dpp_clip_device,
+        )
+
+        # 3. Load camera poses for Stage 2/3 spatial constraints
+        print("[INFO] Loading camera poses for spatial DPP stages...")
         camera_poses_dict = {}
         for stat in image_stats:
             fid = stat["fid"]
@@ -473,44 +577,79 @@ def main(scene_id: str, config_path: str, device_str=None,
                 camera_poses_dict[fid] = load_cam2world(pose_path)
         print(f"[INFO] Loaded {len(camera_poses_dict)} camera poses.")
 
-    order_cache = cache_dir / f"{scene_id}.pth"
-    if order_cache.exists():
-        print(f"[INFO] Loading cached NBV order: {order_cache}")
-        best_views = torch.load(order_cache)
-    else:
-        print("[INFO] Computing greedy next-best views...")
-        best_views = greedy_next_best_views(
+        # 4. Run 3-stage DPP selection
+        cluster_reps = dpp_select_views(
             image_stats,
-            max_images=nbv_cfg.max_best,
-            min_gain_pixels=nbv_cfg.min_gain_pixels,
-            alpha=nbv_cfg.nbv_alpha,
-            min_obj_pixels_for_presence=nbv_cfg.min_obj_pixels_for_presence,
+            verts_np, faces, face_normals, face_obj_ids, clip_embeddings,
+            total_views=nbv_cfg.dpp_total_views,
+            seed_size=nbv_cfg.dpp_seed_size,
             camera_poses=camera_poses_dict,
-            min_position_distance=nbv_cfg.nbv_min_position_distance,
-            min_angle_distance=nbv_cfg.nbv_min_angle_distance,
-            enable_pose_filtering=nbv_cfg.nbv_enable_pose_filtering,
+            stage1_total_views=nbv_cfg.dpp_stage1_total_views,
+            stage2_total_views=nbv_cfg.dpp_stage2_total_views,
+            stage2_sigma_position=nbv_cfg.dpp_stage2_sigma_position,
+            stage2_sigma_angle=nbv_cfg.dpp_stage2_sigma_angle,
+            stage2_sigma_overlap=nbv_cfg.dpp_stage2_sigma_overlap,
+            hard_max_overlap=nbv_cfg.dpp_hard_max_overlap,
+            hard_min_position_distance=nbv_cfg.dpp_hard_min_position_distance,
+            hard_min_angle_distance=nbv_cfg.dpp_hard_min_angle_distance,
         )
-        torch.save(best_views, order_cache)
-        print(f"[INFO] Saved NBV order: {order_cache}")
+        print(f"[INFO] DPP selected {len(cluster_reps)} views.")
 
-    if not best_views:
-        raise RuntimeError("No best views selected — check BRISQUE threshold or config.")
+        if not cluster_reps:
+            raise RuntimeError("No views selected by DPP — check config or input data.")
 
-    # -------------------- Adaptive K-means Clustering --------------------
-    print("[INFO] Applying adaptive K-means clustering to selected camera poses...")
-    camera_poses = [load_cam2world(scan_path / f"{fid}.pose.txt") for fid in best_views]
-    n_candidates = len(best_views)
-
-    if isinstance(nbv_cfg.kmeans_n_clusters, int) and nbv_cfg.kmeans_n_clusters > 0:
-        n_clusters = min(n_candidates, nbv_cfg.kmeans_n_clusters)
     else:
-        n_clusters = max(6, min(40, int(round(n_candidates / 12)))) if n_candidates >= 6 else n_candidates
+        # ======================== LEGACY: GREEDY + K-MEANS ========================
+        # Load camera poses for spatial filtering (if enabled)
+        camera_poses_dict = None
+        if nbv_cfg.nbv_enable_pose_filtering:
+            print("[INFO] Loading camera poses for spatial diversity filtering...")
+            camera_poses_dict = {}
+            for stat in image_stats:
+                fid = stat["fid"]
+                pose_path = scan_path / f"{fid}.pose.txt"
+                if pose_path.exists():
+                    camera_poses_dict[fid] = load_cam2world(pose_path)
+            print(f"[INFO] Loaded {len(camera_poses_dict)} camera poses.")
 
-    cluster_reps, cluster_labels = cluster_camera_poses(
-        camera_poses, best_views, n_clusters
-    )
+        order_cache = cache_dir / f"{scene_id}.pth"
+        if order_cache.exists():
+            print(f"[INFO] Loading cached NBV order: {order_cache}")
+            best_views = torch.load(order_cache)
+        else:
+            print("[INFO] Computing greedy next-best views...")
+            best_views = greedy_next_best_views(
+                image_stats,
+                max_images=nbv_cfg.max_best,
+                min_gain_pixels=nbv_cfg.min_gain_pixels,
+                alpha=nbv_cfg.nbv_alpha,
+                min_obj_pixels_for_presence=nbv_cfg.min_obj_pixels_for_presence,
+                camera_poses=camera_poses_dict,
+                min_position_distance=nbv_cfg.nbv_min_position_distance,
+                min_angle_distance=nbv_cfg.nbv_min_angle_distance,
+                enable_pose_filtering=nbv_cfg.nbv_enable_pose_filtering,
+            )
+            torch.save(best_views, order_cache)
+            print(f"[INFO] Saved NBV order: {order_cache}")
 
-    print(f"[INFO] Selected {len(cluster_reps)} cluster representatives.")
+        if not best_views:
+            raise RuntimeError("No best views selected — check BRISQUE threshold or config.")
+
+        # Adaptive K-means Clustering
+        print("[INFO] Applying adaptive K-means clustering to selected camera poses...")
+        camera_poses = [load_cam2world(scan_path / f"{fid}.pose.txt") for fid in best_views]
+        n_candidates = len(best_views)
+
+        if isinstance(nbv_cfg.kmeans_n_clusters, int) and nbv_cfg.kmeans_n_clusters > 0:
+            n_clusters = min(n_candidates, nbv_cfg.kmeans_n_clusters)
+        else:
+            n_clusters = max(6, min(40, int(round(n_candidates / 12)))) if n_candidates >= 6 else n_candidates
+
+        cluster_reps, cluster_labels = cluster_camera_poses(
+            camera_poses, best_views, n_clusters
+        )
+
+        print(f"[INFO] Selected {len(cluster_reps)} cluster representatives.")
 
     # -------------------------- Save Outputs ----------------------------
     color_out = output_dir / "color"
@@ -524,7 +663,7 @@ def main(scene_id: str, config_path: str, device_str=None,
         shutil.copy(scan_path / f"{fid}.color.jpg", color_out / f"{fid}.jpg")
         shutil.copy(scan_path / f"{fid}.depth.pgm", depth_out / f"{fid}.pgm")
         shutil.copy(scan_path / f"{fid}.pose.txt", pose_out / f"{fid}.txt")
-        print(f"[INFO] Saved cluster-representative frame {fid}.")
+        print(f"[INFO] Saved selected frame {fid}.")
 
     with open(output_dir / "camera_pose.json", "w") as f:
         json.dump(cam_json, f, indent=2)
