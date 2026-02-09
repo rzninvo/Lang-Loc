@@ -1,15 +1,14 @@
 """
-Determinantal Point Process (DPP) based view selection (3-stage pipeline).
+Determinantal Point Process (DPP) based view selection (2-stage pipeline).
 
 Stage 1: Semantic 2-phase DPP (quality + CLIP similarity).
-Stage 2: Spatial one-shot DPP (pose + overlap diversity).
-Stage 3: Hard spatial sanity filter to final target count.
+Stage 2: Spatial one-shot DPP (pose + pixel-IoU diversity) to final count.
 """
 from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -360,7 +359,7 @@ def greedy_map_dpp_conditioned(
     return new_selected
 
 
-# ======================= Spatial Similarity & Hard Filter =====================
+# ======================= Spatial Similarity ===================================
 
 
 def _gaussian_similarity(distance: float, sigma: float) -> float:
@@ -371,31 +370,62 @@ def _gaussian_similarity(distance: float, sigma: float) -> float:
     return float(np.exp(-(distance ** 2) / (2.0 * sigma ** 2)))
 
 
-def _jaccard_similarity(a: Set[int], b: Set[int]) -> float:
+def _compute_pairwise_iou(
+    visibility_masks: List[np.ndarray],
+    candidate_indices: List[int],
+) -> np.ndarray:
     """
-    Jaccard similarity between two sets in [0, 1].
+    Compute symmetric pairwise pixel IoU for candidate frames.
+
+    Args:
+        visibility_masks: per-frame (H, W) uint8 labeled-object masks.
+        candidate_indices: indices into visibility_masks.
+
+    Returns:
+        (M, M) float64 symmetric IoU matrix with 1s on diagonal.
     """
-    if not a and not b:
-        return 0.0
-    union = len(a | b)
-    if union == 0:
-        return 0.0
-    return float(len(a & b) / union)
+    M = len(candidate_indices)
+    iou = np.zeros((M, M), dtype=np.float64)
+
+    for i_local in range(M):
+        mi = visibility_masks[candidate_indices[i_local]].ravel().astype(bool)
+        for j_local in range(i_local + 1, M):
+            mj = visibility_masks[candidate_indices[j_local]].ravel().astype(bool)
+            intersection = np.count_nonzero(mi & mj)
+            union = np.count_nonzero(mi | mj)
+            if union > 0:
+                iou_val = intersection / union
+                iou[i_local, j_local] = iou_val
+                iou[j_local, i_local] = iou_val
+
+    np.fill_diagonal(iou, 1.0)
+    return iou
 
 
 def _build_spatial_similarity_matrix(
     candidate_indices: List[int],
-    visible_face_sets: List[Set[int]],
+    visibility_masks: List[np.ndarray],
     poses_by_index: Dict[int, np.ndarray],
     sigma_position: float,
     sigma_angle: float,
-    sigma_overlap: float,
+    iou_gamma: float = 1.0,
 ) -> np.ndarray:
     """
-    Build spatial similarity S = S_pose * S_overlap for Stage 2 DPP.
+    Build spatial similarity S = S_pose * IoU^gamma for Stage 2 DPP.
 
-    - S_pose is high when positions and directions are close.
-    - S_overlap is high when visible face sets overlap.
+    High similarity = frames are similar (close pose AND overlapping content),
+    so the DPP will repel them.
+
+    Args:
+        candidate_indices: indices into the full image_stats list.
+        visibility_masks: per-frame (H, W) uint8 labeled-object masks.
+        poses_by_index: mapping from frame index to (4,4) cam2world pose.
+        sigma_position: RBF bandwidth for position distance (meters).
+        sigma_angle: RBF bandwidth for angular distance (degrees).
+        iou_gamma: exponent on IoU (< 1 softens, 1 = direct IoU).
+
+    Returns:
+        (M, M) similarity matrix.
     """
     from src.utils.camera_utils import compute_pose_distance
 
@@ -404,15 +434,15 @@ def _build_spatial_similarity_matrix(
     if M <= 1:
         return sim
 
+    iou_matrix = _compute_pairwise_iou(visibility_masks, candidate_indices)
+
     for i_local in range(M):
         i = candidate_indices[i_local]
         pose_i = poses_by_index.get(i)
-        faces_i = visible_face_sets[i]
 
         for j_local in range(i_local + 1, M):
             j = candidate_indices[j_local]
             pose_j = poses_by_index.get(j)
-            faces_j = visible_face_sets[j]
 
             pose_sim = 1.0
             if pose_i is not None and pose_j is not None:
@@ -421,8 +451,7 @@ def _build_spatial_similarity_matrix(
                     ang_dist, sigma_angle
                 )
 
-            jacc = _jaccard_similarity(faces_i, faces_j)
-            overlap_sim = _gaussian_similarity(1.0 - jacc, sigma_overlap)
+            overlap_sim = iou_matrix[i_local, j_local] ** iou_gamma
 
             sim_ij = pose_sim * overlap_sim
             sim[i_local, j_local] = sim_ij
@@ -432,73 +461,7 @@ def _build_spatial_similarity_matrix(
     return sim
 
 
-def _hard_spatial_filter(
-    candidate_indices: List[int],
-    quality_scores: np.ndarray,
-    visible_face_sets: List[Set[int]],
-    poses_by_index: Dict[int, np.ndarray],
-    target_count: int,
-    max_overlap: float,
-    min_position_distance: float,
-    min_angle_distance: float,
-) -> List[int]:
-    """
-    Stage 3 hard sanity filter with greedy quality-first retention.
-    """
-    from src.utils.camera_utils import compute_pose_distance
-
-    if target_count <= 0:
-        return []
-
-    ordered = sorted(candidate_indices, key=lambda idx: quality_scores[idx], reverse=True)
-
-    selected: List[int] = []
-    selected_set: Set[int] = set()
-    for candidate in ordered:
-        if len(selected) >= target_count:
-            break
-
-        keep = True
-        for chosen in selected:
-            if max_overlap < 1.0:
-                overlap = _jaccard_similarity(
-                    visible_face_sets[candidate], visible_face_sets[chosen]
-                )
-                if overlap > max_overlap:
-                    keep = False
-                    break
-
-            pose_c = poses_by_index.get(candidate)
-            pose_s = poses_by_index.get(chosen)
-            if pose_c is None or pose_s is None:
-                continue
-
-            pos_dist, ang_dist = compute_pose_distance(pose_c, pose_s)
-            if min_position_distance > 0.0 and pos_dist < min_position_distance:
-                keep = False
-                break
-            if min_angle_distance > 0.0 and ang_dist < min_angle_distance:
-                keep = False
-                break
-
-        if keep:
-            selected.append(candidate)
-            selected_set.add(candidate)
-
-    # If hard constraints are too strict, backfill by quality to reach target.
-    if len(selected) < target_count:
-        for idx in ordered:
-            if idx in selected_set:
-                continue
-            selected.append(idx)
-            selected_set.add(idx)
-            if len(selected) >= target_count:
-                break
-
-    return selected[:target_count]
-
-
-# ======================= 3-Stage DPP Pipeline =================================
+# ======================= 2-Stage DPP Pipeline =================================
 
 
 def dpp_select_views(
@@ -508,32 +471,27 @@ def dpp_select_views(
     face_normals: np.ndarray,
     face_obj_ids: np.ndarray,
     clip_embeddings: np.ndarray,
+    visibility_masks: List[np.ndarray],
     total_views: int = 10,
     seed_size: int = 4,
     camera_poses: Optional[Dict[str, np.ndarray]] = None,
     stage1_total_views: int = 25,
-    stage2_total_views: int = 15,
     stage2_sigma_position: float = 0.75,
     stage2_sigma_angle: float = 20.0,
-    stage2_sigma_overlap: float = 0.35,
-    hard_max_overlap: float = 0.5,
-    hard_min_position_distance: float = 0.2,
-    hard_min_angle_distance: float = 10.0,
+    stage2_iou_gamma: float = 1.0,
 ) -> List[str]:
     """
-    Three-stage DPP view selection.
+    Two-stage DPP view selection.
 
     Stage 1: semantic 2-phase DPP on all candidate views.
-        Similarity: CLIP cosine in [0, 1]
-        Quality: q_i = H_v * S_rel * V_norm (plus novelty in sequential phase)
+        Similarity: CLIP cosine in [0, 1].
+        Quality: q_i = H_v * S_rel * V_norm (plus novelty in sequential phase).
+        No backfill — DPP may naturally produce fewer than stage1_total_views.
 
-    Stage 2: spatial one-shot DPP on Stage-1 subset.
-        Similarity: S_pose(i,j) * S_overlap(i,j)
+    Stage 2: spatial one-shot DPP on Stage-1 subset to final count.
+        Similarity: S_pose(i,j) * IoU(i,j)^gamma.
         Quality: uniform (q_i = 1), i.e. pure spatial diversity.
-
-    Stage 3: hard sanity filtering on Stage-2 subset to final target.
-        Enforces overlap and pose-distance constraints.
-        If constraints are too strict, backfills by Stage-1 quality.
+        No backfill — may return fewer than total_views.
 
     Args:
         image_stats: per-frame stats, each must have keys:
@@ -541,22 +499,19 @@ def dpp_select_views(
         V: (Nv, 3) mesh vertices.
         F: (Nf, 3) face indices.
         face_normals: (Nf, 3) precomputed unit face normals.
-        face_obj_ids: (Nf,) object id per face (kept for API compatibility).
+        face_obj_ids: (Nf,) object id per face.
         clip_embeddings: (N, d) L2-normalized CLIP embeddings.
-        total_views: final number of views after Stage 3.
+        visibility_masks: (N,) list of (H, W) uint8 labeled-object masks.
+        total_views: final number of views (Stage 2 target).
         seed_size: Stage-1 seed count for semantic DPP.
         camera_poses: optional dict mapping fid -> (4,4) cam2world pose.
-        stage1_total_views: number of candidates after Stage 1.
-        stage2_total_views: number of candidates after Stage 2.
+        stage1_total_views: max candidates after Stage 1.
         stage2_sigma_position: RBF bandwidth for position distance (meters).
         stage2_sigma_angle: RBF bandwidth for angular distance (degrees).
-        stage2_sigma_overlap: RBF bandwidth for (1 - Jaccard overlap).
-        hard_max_overlap: Stage-3 max allowed Jaccard overlap.
-        hard_min_position_distance: Stage-3 min position distance (meters).
-        hard_min_angle_distance: Stage-3 min angle distance (degrees).
+        stage2_iou_gamma: exponent on IoU for Stage 2 (< 1 softens).
 
     Returns:
-        List of selected frame ID strings.
+        List of selected frame ID strings (length <= total_views).
     """
     _ = face_obj_ids
 
@@ -567,20 +522,22 @@ def dpp_select_views(
         raise ValueError(
             f"clip_embeddings has {clip_embeddings.shape[0]} rows but image_stats has {N} items."
         )
+    if len(visibility_masks) != N:
+        raise ValueError(
+            f"visibility_masks has {len(visibility_masks)} items but image_stats has {N} items."
+        )
 
     final_target = min(max(int(total_views), 0), N)
     if final_target <= 0:
         return []
-    requested_final_target = final_target
 
     stage1_target = min(max(int(stage1_total_views), final_target), N)
-    stage2_target = min(max(int(stage2_total_views), final_target), stage1_target)
     seed_size = min(max(int(seed_size), 0), stage1_target)
     phase2_size = stage1_target - seed_size
 
     print(
-        "[DPP] 3-stage config: "
-        f"stage1={stage1_target}, stage2={stage2_target}, final={final_target}"
+        "[DPP] 2-stage config: "
+        f"stage1={stage1_target}, final={final_target}"
     )
 
     Nv = V.shape[0]
@@ -591,7 +548,6 @@ def dpp_select_views(
     rel_densities = np.zeros(N, dtype=np.float64)
     norm_variances = np.zeros(N, dtype=np.float64)
     visible_face_ids_list: List[np.ndarray] = []
-    visible_face_sets: List[Set[int]] = []
 
     for i, stat in enumerate(image_stats):
         entropies[i] = compute_instance_entropy(stat.get("obj_pixels", {}))
@@ -603,7 +559,6 @@ def dpp_select_views(
         else:
             vfids_arr = np.array(list(vfids), dtype=np.int64)
         visible_face_ids_list.append(vfids_arr)
-        visible_face_sets.append(set(vfids_arr.tolist()))
         norm_variances[i] = compute_normal_variance(face_normals, vfids_arr)
 
     # Normalize relation density to [0, 1] across candidates.
@@ -613,7 +568,6 @@ def dpp_select_views(
     else:
         rel_densities[:] = 1.0
 
-    # Stage-1 semantic quality (also used for Stage-3 priority).
     q_base = entropies * rel_densities * norm_variances
     q_base = np.maximum(q_base, 1e-8)
 
@@ -623,7 +577,7 @@ def dpp_select_views(
     np.fill_diagonal(sim_sem, 1.0)
 
     # ======================== STAGE 1: Semantic DPP =========================
-    print(f"[DPP] Stage 1: selecting {stage1_target} semantic candidates...")
+    print(f"[DPP] Stage 1: selecting up to {stage1_target} semantic candidates...")
     L_seed = np.outer(q_base, q_base) * sim_sem
     L_seed += np.eye(N) * 1e-10
 
@@ -659,25 +613,12 @@ def dpp_select_views(
         remaining.remove(chosen)
         update_vertex_counts(F, visible_face_ids_list[chosen], vertex_counts)
 
-    # Backfill by semantic quality if DPP becomes degenerate.
-    if len(selected_indices) < stage1_target:
-        ranked = np.argsort(-q_base)
-        for idx in ranked:
-            idx = int(idx)
-            if idx in selected_set:
-                continue
-            selected_indices.append(idx)
-            selected_set.add(idx)
-            if len(selected_indices) >= stage1_target:
-                break
-
     stage1_indices = selected_indices[:stage1_target]
     stage1_fids = [image_stats[i]["fid"] for i in stage1_indices]
     print(f"[DPP] Stage 1 output ({len(stage1_fids)}): {stage1_fids}")
 
     # ======================== STAGE 2: Spatial DPP ==========================
-    if stage2_target > len(stage1_indices):
-        stage2_target = len(stage1_indices)
+    stage2_target = min(final_target, len(stage1_indices))
 
     poses_by_index: Dict[int, np.ndarray] = {}
     if camera_poses is not None:
@@ -689,58 +630,26 @@ def dpp_select_views(
 
     missing_poses = len(stage1_indices) - len(poses_by_index)
     if camera_poses is None:
-        print("[DPP] Stage 2: no camera poses provided, using overlap-only similarity.")
+        print("[DPP] Stage 2: no camera poses provided, using IoU-only similarity.")
     elif missing_poses > 0:
         print(
             f"[DPP] Stage 2: {missing_poses} candidates missing poses, "
-            "falling back to overlap-only for those pairs."
+            "falling back to IoU-only for those pairs."
         )
 
-    print(f"[DPP] Stage 2: selecting {stage2_target} spatially diverse candidates...")
+    print(f"[DPP] Stage 2: selecting up to {stage2_target} spatially diverse views...")
     spatial_sim = _build_spatial_similarity_matrix(
         stage1_indices,
-        visible_face_sets,
+        visibility_masks,
         poses_by_index,
         sigma_position=stage2_sigma_position,
         sigma_angle=stage2_sigma_angle,
-        sigma_overlap=stage2_sigma_overlap,
+        iou_gamma=stage2_iou_gamma,
     )
     L_spatial = spatial_sim + np.eye(len(stage1_indices)) * 1e-10
     stage2_local = greedy_map_dpp(L_spatial, stage2_target)
     stage2_indices = [stage1_indices[i] for i in stage2_local]
 
-    if len(stage2_indices) < stage2_target:
-        stage2_set = set(stage2_indices)
-        ranked_stage1 = sorted(stage1_indices, key=lambda idx: q_base[idx], reverse=True)
-        for idx in ranked_stage1:
-            if idx in stage2_set:
-                continue
-            stage2_indices.append(idx)
-            stage2_set.add(idx)
-            if len(stage2_indices) >= stage2_target:
-                break
-
-    stage2_fids = [image_stats[i]["fid"] for i in stage2_indices]
-    print(f"[DPP] Stage 2 output ({len(stage2_fids)}): {stage2_fids}")
-
-    # ======================== STAGE 3: Hard Filter ==========================
-    final_target = min(final_target, len(stage2_indices))
-    final_indices = _hard_spatial_filter(
-        candidate_indices=stage2_indices,
-        quality_scores=q_base,
-        visible_face_sets=visible_face_sets,
-        poses_by_index=poses_by_index,
-        target_count=final_target,
-        max_overlap=float(hard_max_overlap),
-        min_position_distance=float(hard_min_position_distance),
-        min_angle_distance=float(hard_min_angle_distance),
-    )
-
-    result = [image_stats[i]["fid"] for i in final_indices]
-    if len(result) < requested_final_target:
-        print(
-            f"[DPP] Stage 3 produced {len(result)} views (requested {requested_final_target}) "
-            "because Stage 2 output was smaller."
-        )
+    result = [image_stats[i]["fid"] for i in stage2_indices]
     print(f"[DPP] Final selection ({len(result)} views): {result}")
     return result

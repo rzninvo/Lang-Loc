@@ -54,18 +54,14 @@ class NBVConfig:
 
         # DPP selection parameters
         dpp_enabled: Enable DPP-based view selection.
-        dpp_total_views: Final output count after Stage 3.
+        dpp_total_views: Final output count (Stage 2 target).
         dpp_seed_size: Stage-1 semantic DPP seed count.
         dpp_clip_model: CLIP model architecture for semantic similarity.
         dpp_clip_device: Device for CLIP model inference.
         dpp_stage1_total_views: Stage-1 semantic DPP output size.
-        dpp_stage2_total_views: Stage-2 spatial DPP output size.
         dpp_stage2_sigma_position: Position RBF sigma (meters).
         dpp_stage2_sigma_angle: Angle RBF sigma (degrees).
-        dpp_stage2_sigma_overlap: Overlap RBF sigma for (1 - Jaccard).
-        dpp_hard_max_overlap: Stage-3 max allowed Jaccard overlap.
-        dpp_hard_min_position_distance: Stage-3 minimum position distance.
-        dpp_hard_min_angle_distance: Stage-3 minimum angle distance.
+        dpp_stage2_iou_gamma: Exponent on pixel IoU for Stage 2 (< 1 softens).
 
         # Spatial relations parameters
         spatial_max_distance: Max distance (m) for spatial relations.
@@ -122,13 +118,9 @@ class NBVConfig:
     dpp_clip_model: str = "ViT-B/32"
     dpp_clip_device: str = "cuda"
     dpp_stage1_total_views: int = 25
-    dpp_stage2_total_views: int = 15
     dpp_stage2_sigma_position: float = 0.75
     dpp_stage2_sigma_angle: float = 20.0
-    dpp_stage2_sigma_overlap: float = 0.35
-    dpp_hard_max_overlap: float = 0.5
-    dpp_hard_min_position_distance: float = 0.2
-    dpp_hard_min_angle_distance: float = 10.0
+    dpp_stage2_iou_gamma: float = 1.0
 
     # Spatial relations parameters
     spatial_max_distance: float = 2.0
@@ -213,13 +205,9 @@ def extract_nbv_config(cfg: Dict[str, Any], dataset: str = "scannetpp") -> NBVCo
         dpp_clip_model=str(section.get("dpp_clip_model", "ViT-B/32")),
         dpp_clip_device=str(section.get("dpp_clip_device", "cuda")),
         dpp_stage1_total_views=int(section.get("dpp_stage1_total_views", 25)),
-        dpp_stage2_total_views=int(section.get("dpp_stage2_total_views", 15)),
         dpp_stage2_sigma_position=float(section.get("dpp_stage2_sigma_position", 0.75)),
         dpp_stage2_sigma_angle=float(section.get("dpp_stage2_sigma_angle", 20.0)),
-        dpp_stage2_sigma_overlap=float(section.get("dpp_stage2_sigma_overlap", 0.35)),
-        dpp_hard_max_overlap=float(section.get("dpp_hard_max_overlap", 0.5)),
-        dpp_hard_min_position_distance=float(section.get("dpp_hard_min_position_distance", 0.2)),
-        dpp_hard_min_angle_distance=float(section.get("dpp_hard_min_angle_distance", 10.0)),
+        dpp_stage2_iou_gamma=float(section.get("dpp_stage2_iou_gamma", 1.0)),
 
         # Spatial relations parameters
         spatial_max_distance=float(section.get("spatial_max_distance", 2.0)),

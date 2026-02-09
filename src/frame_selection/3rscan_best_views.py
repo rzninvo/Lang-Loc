@@ -5,7 +5,7 @@
 Pipeline:
 1) Load 3RScan scene: mesh (+ vertex colors from OBJ+MTL+PNG), segmentation,
    semseg.json groups, color frames, poses, and intrinsics.
-2) Filter frames by BRISQUE quality & subsample (with fallback thresholds).
+2) Filter frames with IQA (Qualiclip) & subsample (with fallback thresholds).
 3) Rasterize visibility for candidate frames; compute per-object pixel counts.
 4) Greedy NBV selection + adaptive K-means clustering for diversity.
 5) Save representative frames + poses + masks (instance/semantic).
@@ -517,6 +517,7 @@ def main(scene_id: str, config_path: str, device_str=None,
     fx_vis, fy_vis, cx_vis, cy_vis = fx / downsample, fy / downsample, cx / downsample, cy / downsample
 
     cache_json = cache_dir / f"{scene_id}.json"
+    mask_cache_npz = cache_dir / f"{scene_id}_masks.npz"
     if cache_json.exists():
         print(f"[INFO] Loading cached visibility stats: {cache_json}")
         image_stats = json.loads(cache_json.read_text())
@@ -560,8 +561,15 @@ def main(scene_id: str, config_path: str, device_str=None,
                     print("[WARN] Cache missing/partial object attributes from objects.json. Recomputing...")
                     cache_json.unlink()
                     image_stats = None
+        # Check for DPP mask cache
+        if image_stats is not None and nbv_cfg.dpp_enabled and not mask_cache_npz.exists():
+            print("[WARN] Cache missing visibility masks (needed for DPP IoU). Recomputing...")
+            cache_json.unlink()
+            image_stats = None
     else:
         image_stats = None
+
+    visibility_masks = []
 
     if image_stats is None:
         print(f"[INFO] Computing visibility for {len(frame_ids)} frames at {H_vis}x{W_vis}...")
@@ -622,6 +630,12 @@ def main(scene_id: str, config_path: str, device_str=None,
             p2f_np = pix_to_face.cpu().numpy()
             visible_face_ids = np.unique(p2f_np[p2f_np >= 0]).tolist()
 
+            # Build labeled-object binary mask for pixel IoU (DPP Stage 2)
+            mask = np.zeros(p2f_np.shape, dtype=np.uint8)
+            valid = p2f_np >= 0
+            mask[valid] = (face_obj_ids[p2f_np[valid]] >= 0).astype(np.uint8)
+            visibility_masks.append(mask)
+
             image_entry = {
                 "fid": fid,
                 "obj_pixels": obj_px,
@@ -632,14 +646,24 @@ def main(scene_id: str, config_path: str, device_str=None,
             }
             image_stats.append(image_entry)
 
-
         cache_json.write_text(json.dumps(image_stats, indent=2))
         print(f"[INFO] Saved visibility cache: {cache_json}")
+
+        # Cache masks for DPP
+        np.savez_compressed(mask_cache_npz, masks=np.stack(visibility_masks, axis=0))
+        print(f"[INFO] Saved mask cache: {mask_cache_npz}")
+
+    elif nbv_cfg.dpp_enabled:
+        # Load cached masks
+        masks_data = np.load(mask_cache_npz)
+        masks_array = masks_data["masks"]
+        visibility_masks = [masks_array[i] for i in range(masks_array.shape[0])]
+        print(f"[INFO] Loaded {len(visibility_masks)} cached visibility masks.")
 
     # ---------------------- VIEW SELECTION --------------------------------
     if nbv_cfg.dpp_enabled:
         # ======================== DPP VIEW SELECTION ========================
-        print("[INFO] Using 3-stage DPP view selection...")
+        print("[INFO] Using 2-stage DPP view selection...")
 
         # 1. Precompute face normals (once per scene)
         face_normals = compute_face_normals(verts_np, faces)
@@ -653,8 +677,8 @@ def main(scene_id: str, config_path: str, device_str=None,
             device=nbv_cfg.dpp_clip_device,
         )
 
-        # 3. Load camera poses for Stage 2/3 spatial constraints
-        print("[INFO] Loading camera poses for spatial DPP stages...")
+        # 3. Load camera poses for Stage 2 spatial constraints
+        print("[INFO] Loading camera poses for spatial DPP stage...")
         camera_poses_dict = {}
         for stat in image_stats:
             fid = stat["fid"]
@@ -663,21 +687,18 @@ def main(scene_id: str, config_path: str, device_str=None,
                 camera_poses_dict[fid] = load_cam2world(pose_path)
         print(f"[INFO] Loaded {len(camera_poses_dict)} camera poses.")
 
-        # 4. Run 3-stage DPP selection
+        # 4. Run 2-stage DPP selection
         cluster_reps = dpp_select_views(
             image_stats,
             verts_np, faces, face_normals, face_obj_ids, clip_embeddings,
+            visibility_masks,
             total_views=nbv_cfg.dpp_total_views,
             seed_size=nbv_cfg.dpp_seed_size,
             camera_poses=camera_poses_dict,
             stage1_total_views=nbv_cfg.dpp_stage1_total_views,
-            stage2_total_views=nbv_cfg.dpp_stage2_total_views,
             stage2_sigma_position=nbv_cfg.dpp_stage2_sigma_position,
             stage2_sigma_angle=nbv_cfg.dpp_stage2_sigma_angle,
-            stage2_sigma_overlap=nbv_cfg.dpp_stage2_sigma_overlap,
-            hard_max_overlap=nbv_cfg.dpp_hard_max_overlap,
-            hard_min_position_distance=nbv_cfg.dpp_hard_min_position_distance,
-            hard_min_angle_distance=nbv_cfg.dpp_hard_min_angle_distance,
+            stage2_iou_gamma=nbv_cfg.dpp_stage2_iou_gamma,
         )
         print(f"[INFO] DPP selected {len(cluster_reps)} views.")
 
