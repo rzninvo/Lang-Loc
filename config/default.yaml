@@ -43,16 +43,12 @@ scannetpp:
 
   # DPP selection (alternative to greedy+kmeans)
   dpp_enabled: true               # Use DPP selection instead of greedy+kmeans
-  dpp_total_views: 10             # Final output count (after Stage 3)
+  dpp_total_views: 10             # Final output count (after Stage 2)
   dpp_seed_size: 2                # Stage 1 semantic DPP seed views
   dpp_stage1_total_views: 25      # Stage 1 output count (semantic candidates)
-  dpp_stage2_total_views: 15      # Stage 2 output count (spatial candidates)
   dpp_stage2_sigma_position: 0.75 # RBF sigma for camera position distance (meters)
   dpp_stage2_sigma_angle: 20.0    # RBF sigma for view angle distance (degrees)
-  dpp_stage2_sigma_overlap: 0.35  # RBF sigma for (1 - Jaccard overlap)
-  dpp_hard_max_overlap: 0.5       # Stage 3 max allowed Jaccard overlap
-  dpp_hard_min_position_distance: 0.5  # Stage 3 min camera position distance (meters)
-  dpp_hard_min_angle_distance: 20.0    # Stage 3 min view angle distance (degrees)
+  dpp_stage2_iou_gamma: 1.0       # Exponent on pixel IoU for Stage 2 (< 1 softens)
   dpp_clip_model: "ViT-B/32"     # OpenAI CLIP model architecture
   dpp_clip_device: "cuda"         # Device for CLIP model
 
@@ -116,16 +112,12 @@ scannetpp:
 
   # DPP selection (alternative to greedy+kmeans)
   dpp_enabled: true               # Use DPP selection instead of greedy+kmeans
-  dpp_total_views: 10             # Final output count (after Stage 3)
+  dpp_total_views: 10             # Final output count (after Stage 2)
   dpp_seed_size: 2                # Stage 1 semantic DPP seed views
   dpp_stage1_total_views: 25      # Stage 1 output count (semantic candidates)
-  dpp_stage2_total_views: 15      # Stage 2 output count (spatial candidates)
   dpp_stage2_sigma_position: 0.75 # RBF sigma for camera position distance (meters)
   dpp_stage2_sigma_angle: 20.0    # RBF sigma for view angle distance (degrees)
-  dpp_stage2_sigma_overlap: 0.35  # RBF sigma for (1 - Jaccard overlap)
-  dpp_hard_max_overlap: 0.5       # Stage 3 max allowed Jaccard overlap
-  dpp_hard_min_position_distance: 0.5  # Stage 3 min camera position distance (meters)
-  dpp_hard_min_angle_distance: 20.0    # Stage 3 min view angle distance (degrees)
+  dpp_stage2_iou_gamma: 1.0       # Exponent on pixel IoU for Stage 2 (< 1 softens)
   dpp_clip_model: "ViT-B/32"     # OpenAI CLIP model architecture
   dpp_clip_device: "cuda"         # Device for CLIP model
 
