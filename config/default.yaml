@@ -27,13 +27,19 @@ scannetpp:
   min_gain_pixels: 500         # Min new pixels gained per view
 
   # Object visibility thresholds
-  coverage_threshold: 0.05     # Min % of TOTAL IMAGE pixels for object (0.05 = 5% of image area)
+  coverage_threshold: 0.02     # Min % of TOTAL IMAGE pixels for object (0.05 = 5% of image area)
   min_pixel_count: 100          # Min absolute pixel count for object visibility
   min_obj_pixels_for_presence: 100  # Min pixels to count object as present (diversity)
 
   # FOV and depth settings
   fov_depth_clip_min: 0.2      # Min depth (meters) for object visibility
   fov_depth_clip_max: 10.0     # Max depth (meters) for object visibility
+
+  # Depth-aware visibility (sensor depth vs rendered depth consistency)
+  depth_visibility_enabled: true  # Enable sensor-depth consistency check
+  depth_vis_threshold: 0.20        # Relative tolerance: |sensor - rendered| <= thres * sensor
+  depth_consistent_ratio_threshold: 0.30  # Open3DSG ratio heuristic (ratio > 0.3)
+  min_depth_consistent_pixels: 12   # Open3DSG minimum visible-pixel heuristic (pixels > 12)
 
   # NBV algorithm parameters
   nbv_alpha: 0.5               # Balance between coverage (1.0) and diversity (0.0)
@@ -77,6 +83,9 @@ scannetpp:
 # 3RScan NBV configuration (for 3rscan_best_views.py)
 # ------------------------------------------------------------
 3rscan:
+  # Semantic ID mapping
+  semantic_id_key: "global_id"   # objects.json attribute used as canonical semantic ID
+
   # Rasterization settings
   image_downsample_factor: 1   # Downsample factor for NBV rasterization
   mask_downsample_factor: 1    # Downsample factor for masks
@@ -96,13 +105,19 @@ scannetpp:
   min_gain_pixels: 500         # Min new pixels gained per view
 
   # Object visibility thresholds
-  coverage_threshold: 0.05     # Min % of TOTAL IMAGE pixels for object (0.05 = 5% of image area)
+  coverage_threshold: 0.02     # Min % of TOTAL IMAGE pixels for object (0.05 = 5% of image area)
   min_pixel_count: 50          # Min absolute pixel count for object visibility
   min_obj_pixels_for_presence: 100  # Min pixels to count object as present (diversity)
 
   # FOV and depth settings
   fov_depth_clip_min: 0.2      # Min depth (meters) for object visibility
   fov_depth_clip_max: 10.0     # Max depth (meters) for object visibility
+
+  # Depth-aware visibility (sensor depth vs rendered depth consistency)
+  depth_visibility_enabled: true  # Enable sensor-depth consistency check
+  depth_vis_threshold: 0.20        # Relative tolerance: |sensor - rendered| <= thres * sensor
+  depth_consistent_ratio_threshold: 0.30  # Open3DSG ratio heuristic (ratio > 0.3)
+  min_depth_consistent_pixels: 12   # Open3DSG minimum visible-pixel heuristic (pixels > 12)
 
   # NBV algorithm parameters
   nbv_alpha: 0.5               # Balance between coverage (1.0) and diversity (0.0)
@@ -156,6 +171,7 @@ paths:
   camera_pose_file: camera_pose.json
   download_script: scripts/download_subset.sh
   3rscan_release_scans_file: config/3RScan_release_scans.txt
+  3rscan_partial_scans_file: config/3RScan_partial.txt
 
 # ------------------------------------------------------------
 # Scannet download settings

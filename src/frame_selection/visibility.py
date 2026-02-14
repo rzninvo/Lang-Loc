@@ -241,6 +241,86 @@ def rasterize_visibility(
     return p2f, zbuf
 
 
+def depth_consistency_mask(
+    zbuf: torch.Tensor,
+    sensor_depth: np.ndarray,
+    vis_thres: float = 0.20,
+    ignore_invalid_depth: bool = True,
+) -> np.ndarray:
+    """
+    Compute a boolean mask of depth-consistent pixels.
+
+    A pixel is depth-consistent when the sensor (measured) depth agrees with
+    the rendered (mesh-rasterized) depth within a relative tolerance::
+
+        |sensor_depth - zbuf| <= vis_thres * sensor_depth
+
+    This mirrors the occlusion check in Open3DSG's ``compute_mapping()``.
+
+    Args:
+        zbuf: (H, W) rendered depth from the rasterizer (meters, >0 for valid).
+        sensor_depth: (H, W) sensor depth in meters (>0 for valid measurements).
+        vis_thres: Relative depth tolerance.  Default 0.20 (20 %) matches
+            the Open3DSG production threshold.
+        ignore_invalid_depth: If True, pixels where ``sensor_depth <= 0``
+            are marked *inconsistent*.
+
+    Returns:
+        (H, W) bool ndarray — ``True`` for depth-consistent pixels.
+    """
+    zbuf_np = zbuf.cpu().numpy() if isinstance(zbuf, torch.Tensor) else zbuf
+
+    consistent = np.abs(sensor_depth - zbuf_np) <= vis_thres * sensor_depth
+
+    # Background pixels (no rendered face) are always inconsistent.
+    consistent &= zbuf_np > 0
+
+    if ignore_invalid_depth:
+        consistent &= sensor_depth > 0
+
+    return consistent
+
+
+def compute_depth_consistent_counts(
+    pix_to_face: torch.Tensor,
+    face_obj_ids: np.ndarray,
+    depth_mask: np.ndarray,
+) -> Dict[int, int]:
+    """
+    Count depth-consistent pixels per object id.
+
+    This is analogous to :func:`compute_image_visibility` but only counts
+    pixels that pass the depth-consistency mask produced by
+    :func:`depth_consistency_mask`.
+
+    Args:
+        pix_to_face: (H, W) face-index tensor from the rasterizer.
+        face_obj_ids: (Nf,) object id per face (-1 = unlabeled).
+        depth_mask: (H, W) boolean mask (``True`` = depth-consistent).
+
+    Returns:
+        Dict mapping ``object_id -> depth_consistent_pixel_count``.
+    """
+    p2f_flat = pix_to_face.cpu().numpy().reshape(-1)
+    mask_flat = depth_mask.reshape(-1)
+
+    valid = (p2f_flat >= 0) & mask_flat
+    faces = p2f_flat[valid]
+    if faces.size == 0:
+        return {}
+
+    obj_ids = face_obj_ids[faces]
+    labeled = obj_ids >= 0
+    obj_ids = obj_ids[labeled]
+
+    counts: Dict[int, int] = {}
+    if obj_ids.size > 0:
+        unique, cnts = np.unique(obj_ids, return_counts=True)
+        for u, c in zip(unique, cnts):
+            counts[int(u)] = int(c)
+    return counts
+
+
 def compute_image_visibility(
     pix_to_face: torch.Tensor, face_obj_ids: np.ndarray
 ) -> Tuple[Dict[int, int], int]:
@@ -297,6 +377,10 @@ def compute_visible_objects(
     min_pixel_count: int = 50,
     full_object_geometry: Optional[Dict[int, Dict[str, np.ndarray]]] = None,
     object_attributes: Optional[Dict[int, Dict[str, object]]] = None,
+    depth_consistent_counts: Optional[Dict[int, int]] = None,
+    depth_consistent_ratio_threshold: float = 0.0,
+    min_depth_consistent_pixels: int = 0,
+    filtered_reasons: Optional[Dict[int, str]] = None,
 ) -> Dict[int, Dict[str, object]]:
     """
     Compute per-object metadata for objects visible in this frame.
@@ -340,6 +424,23 @@ def compute_visible_objects(
             `precompute_object_geometry(...)`. If None, computed on-demand.
         object_attributes: Optional mapping `objectId -> attributes` to attach
             to each visible object entry (e.g., loaded from 3RScan `objects.json`).
+        depth_consistent_counts: Optional per-object depth-consistent pixel
+            counts from :func:`compute_depth_consistent_counts`. When provided,
+            enables depth-based gating and adds ``depth_consistent_pixels``
+            and ``depth_consistent_ratio`` to each output entry.
+        depth_consistent_ratio_threshold: Minimum depth-consistent ratio
+            (depth_consistent_pixels / visible_pixels) to keep an object.
+            Set to 0.0 (default) for log-only mode without gating.
+        min_depth_consistent_pixels: Minimum absolute depth-consistent pixel
+            count to keep an object.  Set to 0 (default) for no gating.
+        filtered_reasons: Optional dict that, if provided, will be populated
+            with ``{object_id: reason_string}`` for every object that was
+            filtered out. Reason strings include: ``"too_few_pixels"``,
+            ``"low_coverage"``, ``"depth_few_consistent_px"``,
+            ``"depth_low_ratio"``, ``"no_visible_faces"``,
+            ``"no_visible_verts"``, ``"behind_camera"``,
+            ``"outside_depth_range"``, ``"outside_image_bounds"``,
+            ``"no_geometry"``.
 
     Returns:
         Dict[int, Dict[str, object]]:
@@ -359,6 +460,8 @@ def compute_visible_objects(
                 "distance_from_camera": float     # Euclidean distance (m) from camera to centroid
                 "visible_faces": int,             # number of visible faces for this object
                 "visible_pixels": int,            # number of visible pixels for this object
+                "depth_consistent_pixels": int,   # (if depth_consistent_counts provided)
+                "depth_consistent_ratio": float,  # (if depth_consistent_counts provided)
                 "attributes": dict                # optional semantic attributes (if provided)
             }
     """
@@ -380,35 +483,62 @@ def compute_visible_objects(
     for oid, px_count in obj_px.items():
 
         if px_count < min_pixel_count:
+            if filtered_reasons is not None:
+                filtered_reasons[oid] = "too_few_pixels"
             continue
 
         coverage = px_count / total_image_pixels
 
         # Filter out low-coverage objects
         if coverage < coverage_threshold:
+            if filtered_reasons is not None:
+                filtered_reasons[oid] = "low_coverage"
             continue
+
+        # Depth consistency gating (optional)
+        if depth_consistent_counts is not None:
+            dc_px = depth_consistent_counts.get(oid, 0)
+            dc_ratio = dc_px / px_count if px_count > 0 else 0.0
+            if dc_px < min_depth_consistent_pixels:
+                if filtered_reasons is not None:
+                    filtered_reasons[oid] = "depth_few_consistent_px"
+                continue
+            if dc_ratio < depth_consistent_ratio_threshold:
+                if filtered_reasons is not None:
+                    filtered_reasons[oid] = "depth_low_ratio"
+                continue
 
         # Faces belonging to this object that are actually visible
         mask = face_obj_ids[visible_face_ids] == oid
         if not np.any(mask):
+            if filtered_reasons is not None:
+                filtered_reasons[oid] = "no_visible_faces"
             continue
         obj_face_ids = visible_face_ids[mask]
         if obj_face_ids.size == 0:
+            if filtered_reasons is not None:
+                filtered_reasons[oid] = "no_visible_faces"
             continue
 
         # Visible-surface centroid is used for in-frame/depth gating only.
         visible_verts_idx = np.unique(F[obj_face_ids].reshape(-1))
         visible_verts = V[visible_verts_idx]
         if visible_verts.size == 0:
+            if filtered_reasons is not None:
+                filtered_reasons[oid] = "no_visible_verts"
             continue
 
         visible_centroid_world = visible_verts.mean(axis=0)
         visible_centroid_cam = R_cv @ visible_centroid_world + t_cv
         if visible_centroid_cam[2] <= 0:
+            if filtered_reasons is not None:
+                filtered_reasons[oid] = "behind_camera"
             continue
 
         # Filter: in front of camera & within depth range
         if visible_centroid_cam[2] < fov_depth_clip[0] or visible_centroid_cam[2] > fov_depth_clip[1]:
+            if filtered_reasons is not None:
+                filtered_reasons[oid] = "outside_depth_range"
             continue
         # Filter: visible centroid should project inside image bounds (with slack)
         z = visible_centroid_cam[2]
@@ -418,10 +548,14 @@ def compute_visible_objects(
         pad_w = 0.02 * image_width
         pad_h = 0.02 * image_height
         if (u < -pad_w) or (u > image_width + pad_w) or (v < -pad_h) or (v > image_height + pad_h):
+            if filtered_reasons is not None:
+                filtered_reasons[oid] = "outside_image_bounds"
             continue
 
         geom = full_object_geometry.get(int(oid))
         if geom is None:
+            if filtered_reasons is not None:
+                filtered_reasons[oid] = "no_geometry"
             continue
 
         centroid_world = geom["centroid_world"]
@@ -450,6 +584,12 @@ def compute_visible_objects(
             "visible_faces": int(obj_face_ids.size),
             "visible_pixels": int(px_count),
         }
+        if depth_consistent_counts is not None:
+            dc_px = depth_consistent_counts.get(oid, 0)
+            object_entry["depth_consistent_pixels"] = dc_px
+            object_entry["depth_consistent_ratio"] = (
+                round(dc_px / px_count, 4) if px_count > 0 else 0.0
+            )
         if object_attributes is not None:
             attrs = object_attributes.get(int(oid), {})
             if isinstance(attrs, dict):
@@ -600,3 +740,247 @@ def compute_spatial_relations(
             )
 
     return spatial_relations
+
+
+# ----------------------------- Debug Visualization ----------------------------
+
+
+def save_depth_debug_panel(
+    rgb_path,
+    sensor_depth: np.ndarray,
+    zbuf,
+    depth_mask: np.ndarray,
+    pix_to_face,
+    face_obj_ids: np.ndarray,
+    visible_objects: Dict[int, Dict],
+    out_path,
+    fid: str = "",
+    vis_thres: float = 0.20,
+    obj_px: Optional[Dict[int, int]] = None,
+    obj_to_label: Optional[Dict[int, str]] = None,
+    filtered_reasons: Optional[Dict[int, str]] = None,
+) -> None:
+    """
+    Save a 3x3 diagnostic figure for depth-consistency validation.
+
+    Panels:
+        (0,0) RGB image
+        (0,1) Sensor depth (viridis colormap)
+        (0,2) Rendered depth / zbuf (same colormap)
+        (1,0) |sensor - rendered| absolute difference
+        (1,1) Consistency mask overlay (green = pass, red = fail)
+        (1,2) Per-object depth-consistent ratio (green = high, red = low)
+        (2,0) All raster-visible objects (before filtering)
+        (2,1) Surviving objects after filtering (filtered objects in gray)
+        (2,2) Summary statistics
+
+    Args:
+        rgb_path: Path to the RGB image for this frame.
+        sensor_depth: (H, W) float32 sensor depth in meters.
+        zbuf: (H, W) rendered depth (torch Tensor or ndarray).
+        depth_mask: (H, W) bool mask from ``depth_consistency_mask()``.
+        pix_to_face: (H, W) face-index tensor from the rasterizer.
+        face_obj_ids: (Nf,) object id per face.
+        visible_objects: Output of ``compute_visible_objects()`` (with dc fields).
+        out_path: Destination PNG path.
+        fid: Frame id string (used in the title).
+        vis_thres: Threshold used (shown in title).
+        obj_px: Raw per-object pixel counts from ``compute_image_visibility()``
+            (before depth filtering). Used for before/after comparison.
+        obj_to_label: Object id to label name mapping.
+        filtered_reasons: Optional dict ``{object_id: reason_string}`` from
+            ``compute_visible_objects()``. Displayed next to each filtered
+            object in the summary panel.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from pathlib import Path
+    from PIL import Image
+
+    zbuf_np = zbuf.cpu().numpy() if isinstance(zbuf, torch.Tensor) else np.asarray(zbuf)
+    p2f_np = pix_to_face.cpu().numpy() if isinstance(pix_to_face, torch.Tensor) else np.asarray(pix_to_face)
+    H, W = sensor_depth.shape[:2]
+
+    # Load and resize RGB to match depth resolution
+    rgb = np.array(Image.open(rgb_path).resize((W, H), Image.BILINEAR))
+
+    # Per-pixel object id map (shared across panels)
+    obj_ids_px = np.full((H, W), -1, dtype=np.int32)
+    valid_faces = p2f_np >= 0
+    if valid_faces.any():
+        obj_ids_px[valid_faces] = face_obj_ids[p2f_np[valid_faces]]
+
+    all_raster_oids = set(int(x) for x in np.unique(obj_ids_px[obj_ids_px >= 0]))
+    surviving_oids = set(
+        int(k) if isinstance(k, str) else k for k in visible_objects.keys()
+    )
+    filtered_oids = all_raster_oids - surviving_oids
+
+    # Stable per-object colour via tab20 colormap
+    cmap = plt.cm.get_cmap("tab20")
+
+    def _obj_color(oid: int):
+        return np.array(cmap(hash(oid) % 20)[:3])
+
+    # Shared depth colour range
+    valid_depths = sensor_depth[sensor_depth > 0]
+    vmin = 0.0
+    vmax = float(np.percentile(valid_depths, 98)) if valid_depths.size > 0 else 5.0
+
+    fig, axes = plt.subplots(3, 3, figsize=(18, 16))
+    fig.suptitle(
+        f"Depth Consistency — Frame {fid}  (threshold = {vis_thres:.0%})",
+        fontsize=14,
+    )
+
+    # ======================= ROW 0: Depth data =======================
+
+    # (0,0) RGB
+    axes[0, 0].imshow(rgb)
+    axes[0, 0].set_title("RGB")
+    axes[0, 0].axis("off")
+
+    # (0,1) Sensor depth
+    sd = np.where(sensor_depth > 0, sensor_depth, np.nan)
+    im1 = axes[0, 1].imshow(sd, cmap="viridis", vmin=vmin, vmax=vmax)
+    axes[0, 1].set_title("Sensor Depth (m)")
+    axes[0, 1].axis("off")
+    fig.colorbar(im1, ax=axes[0, 1], fraction=0.046, pad=0.04)
+
+    # (0,2) Rendered depth (zbuf)
+    zb = np.where(zbuf_np > 0, zbuf_np, np.nan)
+    im2 = axes[0, 2].imshow(zb, cmap="viridis", vmin=vmin, vmax=vmax)
+    axes[0, 2].set_title("Rendered Depth / zbuf (m)")
+    axes[0, 2].axis("off")
+    fig.colorbar(im2, ax=axes[0, 2], fraction=0.046, pad=0.04)
+
+    # ===================== ROW 1: Consistency ========================
+
+    # (1,0) |sensor − rendered| difference
+    diff = np.abs(sensor_depth - zbuf_np)
+    diff_display = np.where((sensor_depth > 0) & (zbuf_np > 0), diff, np.nan)
+    im3 = axes[1, 0].imshow(
+        diff_display, cmap="hot", vmin=0, vmax=max(vmax * vis_thres * 2, 0.5)
+    )
+    axes[1, 0].set_title("|Sensor − Rendered| (m)")
+    axes[1, 0].axis("off")
+    fig.colorbar(im3, ax=axes[1, 0], fraction=0.046, pad=0.04)
+
+    # (1,1) Consistency mask overlay on RGB
+    overlay = rgb.astype(np.float32) / max(float(rgb.max()), 1.0)
+    has_data = (sensor_depth > 0) & (zbuf_np > 0)
+    green = depth_mask & has_data
+    red = ~depth_mask & has_data
+    overlay[green] = overlay[green] * 0.4 + np.array([0, 0.8, 0]) * 0.6
+    overlay[red] = overlay[red] * 0.4 + np.array([0.8, 0, 0]) * 0.6
+    overlay[~has_data] *= 0.3
+    axes[1, 1].imshow(np.clip(overlay, 0, 1))
+    n_pass = int(green.sum())
+    n_total = int(has_data.sum())
+    pct = n_pass / n_total * 100 if n_total > 0 else 0
+    axes[1, 1].set_title(f"Consistency Mask ({pct:.1f}% pass, {n_pass}/{n_total})")
+    axes[1, 1].axis("off")
+
+    # (1,2) Per-object depth-consistent ratio map
+    obj_map = np.full((H, W, 3), 0.15, dtype=np.float32)
+    for oid_key, meta in visible_objects.items():
+        oid = int(oid_key) if isinstance(oid_key, str) else oid_key
+        dc_ratio = meta.get("depth_consistent_ratio", 1.0)
+        pmask = obj_ids_px == oid
+        if not pmask.any():
+            continue
+        obj_map[pmask] = [1.0 - dc_ratio, dc_ratio, 0.1]
+
+    axes[1, 2].imshow(np.clip(obj_map, 0, 1))
+    axes[1, 2].set_title("Per-Object DC Ratio (green=high, red=low)")
+    axes[1, 2].axis("off")
+
+    if len(visible_objects) <= 15:
+        for oid_key, meta in visible_objects.items():
+            dc_ratio = meta.get("depth_consistent_ratio")
+            if dc_ratio is None:
+                continue
+            label = meta.get("label", "")
+            ndc = meta.get("centroid_ndc", [0, 0])
+            px_x = (ndc[0] + 1) / 2 * W
+            px_y = (1 - ndc[1]) / 2 * H
+            if 0 <= px_x < W and 0 <= px_y < H:
+                axes[1, 2].text(
+                    px_x, px_y,
+                    f"{label}\n{dc_ratio:.0%}",
+                    fontsize=6, color="white", ha="center", va="center",
+                    bbox=dict(
+                        boxstyle="round,pad=0.2", facecolor="black", alpha=0.6
+                    ),
+                )
+
+    # ================ ROW 2: Before / After filter ===================
+
+    # (2,0) All raster-visible objects (before any filtering)
+    before_map = np.full((H, W, 3), 0.1, dtype=np.float32)
+    for oid in all_raster_oids:
+        pmask = obj_ids_px == oid
+        before_map[pmask] = _obj_color(oid)
+    axes[2, 0].imshow(np.clip(before_map, 0, 1))
+    axes[2, 0].set_title(f"All Raster Objects ({len(all_raster_oids)})")
+    axes[2, 0].axis("off")
+
+    # (2,1) Surviving objects (kept = colour, filtered = gray)
+    after_map = np.full((H, W, 3), 0.1, dtype=np.float32)
+    for oid in all_raster_oids:
+        pmask = obj_ids_px == oid
+        if oid in surviving_oids:
+            after_map[pmask] = _obj_color(oid)
+        else:
+            after_map[pmask] = [0.35, 0.35, 0.35]
+    axes[2, 1].imshow(np.clip(after_map, 0, 1))
+    axes[2, 1].set_title(
+        f"After Filtering ({len(surviving_oids)} kept, "
+        f"{len(filtered_oids)} removed)"
+    )
+    axes[2, 1].axis("off")
+
+    # (2,2) Summary statistics
+    axes[2, 2].axis("off")
+    _label = obj_to_label or {}
+    lines = [
+        f"Raster objects:  {len(all_raster_oids)}",
+        f"Surviving:       {len(surviving_oids)}",
+        f"Filtered out:    {len(filtered_oids)}",
+        "",
+    ]
+    if filtered_oids:
+        lines.append("--- Filtered objects ---")
+        _reasons = filtered_reasons or {}
+        for oid in sorted(filtered_oids):
+            name = _label.get(oid, f"id_{oid}")
+            raw_px = obj_px.get(oid, 0) if obj_px else "?"
+            reason = _reasons.get(oid, "unknown")
+            lines.append(f"  {name} (oid={oid}): {raw_px} px — {reason}")
+    if surviving_oids:
+        lines.append("")
+        lines.append("--- Surviving objects ---")
+        for oid in sorted(surviving_oids):
+            meta = visible_objects.get(oid) or visible_objects.get(str(oid), {})
+            name = meta.get("label", _label.get(oid, f"id_{oid}"))
+            dc_r = meta.get("depth_consistent_ratio")
+            dc_px = meta.get("depth_consistent_pixels", "?")
+            vis_px = meta.get("visible_pixels", "?")
+            dc_str = f"dc={dc_r:.0%}" if dc_r is not None else "dc=n/a"
+            lines.append(f"  {name}: {vis_px} px, {dc_str} ({dc_px} dc_px)")
+
+    axes[2, 2].text(
+        0.02, 0.98,
+        "\n".join(lines),
+        transform=axes[2, 2].transAxes,
+        fontsize=7, fontfamily="monospace",
+        verticalalignment="top",
+        bbox=dict(boxstyle="round,pad=0.4", facecolor="white", alpha=0.9),
+    )
+    axes[2, 2].set_title("Filter Summary")
+
+    plt.tight_layout()
+    Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(str(out_path), dpi=150, bbox_inches="tight")
+    plt.close(fig)

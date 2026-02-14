@@ -71,6 +71,9 @@ from src.frame_selection.visibility import (
     compute_image_visibility,
     compute_visible_objects,
     compute_spatial_relations,
+    depth_consistency_mask,
+    compute_depth_consistent_counts,
+    save_depth_debug_panel,
 )
 from src.frame_selection.dpp import (
     compute_face_normals,
@@ -427,6 +430,18 @@ def main(scene_id: str, config_path: str, device_str: str | None = None,
                 print("[WARN] Cache missing obb_world/full-object geometry. Recomputing...")
                 cache_json.unlink()
                 image_stats = None
+        # Check for depth consistency fields
+        if image_stats is not None and nbv_cfg.depth_visibility_enabled:
+            sample_obj_meta = None
+            for entry in image_stats[:10]:
+                vo = entry.get("visible_objects", {})
+                if vo:
+                    sample_obj_meta = next(iter(vo.values()))
+                    break
+            if sample_obj_meta is not None and "depth_consistent_pixels" not in sample_obj_meta:
+                print("[WARN] Cache missing depth_consistent_pixels. Recomputing...")
+                cache_json.unlink()
+                image_stats = None
         # Check for DPP mask cache
         if image_stats is not None and nbv_cfg.dpp_enabled and not mask_cache_npz.exists():
             print("[WARN] Cache missing visibility masks (needed for DPP IoU). Recomputing...")
@@ -449,9 +464,27 @@ def main(scene_id: str, config_path: str, device_str: str | None = None,
             cams_vis = make_p3d_camera_from_opencv(
                 R_cv, t_cv, fx_vis, fy_vis, cx_vis, cy_vis, H_vis, W_vis, device
             )
-            pix_to_face, _ = rasterize_visibility(meshes, cams_vis, rasterizer_vis)
+            pix_to_face, zbuf = rasterize_visibility(meshes, cams_vis, rasterizer_vis)
             obj_px, total_px = compute_image_visibility(pix_to_face, face_obj_ids)
 
+            # Depth-aware visibility (optional)
+            dc_counts = None
+            if nbv_cfg.depth_visibility_enabled:
+                depth_path = depth_dir / f"{fid}.png"
+                if depth_path.exists():
+                    sensor_img = Image.open(depth_path)
+                    if (sensor_img.height, sensor_img.width) != (H_vis, W_vis):
+                        sensor_img = sensor_img.resize((W_vis, H_vis), Image.NEAREST)
+                    sensor_depth_m = np.array(sensor_img).astype(np.float32) / 1000.0
+                    d_mask = depth_consistency_mask(
+                        zbuf, sensor_depth_m,
+                        vis_thres=nbv_cfg.depth_vis_threshold,
+                    )
+                    dc_counts = compute_depth_consistent_counts(
+                        pix_to_face, face_obj_ids, d_mask,
+                    )
+
+            filter_reasons: Dict[int, str] = {}
             visible_objects = compute_visible_objects(
                 V, F, vert_seg, seg_to_obj, obj_to_label,
                 obj_px, face_obj_ids, pix_to_face,
@@ -462,6 +495,10 @@ def main(scene_id: str, config_path: str, device_str: str | None = None,
                 coverage_threshold=nbv_cfg.coverage_threshold,
                 min_pixel_count=nbv_cfg.min_pixel_count,
                 full_object_geometry=object_geometry_cache,
+                depth_consistent_counts=dc_counts,
+                depth_consistent_ratio_threshold=nbv_cfg.depth_consistent_ratio_threshold,
+                min_depth_consistent_pixels=nbv_cfg.min_depth_consistent_pixels,
+                filtered_reasons=filter_reasons,
             )
             spatial_relations = compute_spatial_relations(
                 visible_objects,
@@ -492,6 +529,25 @@ def main(scene_id: str, config_path: str, device_str: str | None = None,
 
             if idx < 5 and debug:
                 print(f"[DEBUG] Frame {fid}: {len(visible_objects)} objs, {len(spatial_relations)} relations")
+                if dc_counts is not None:
+                    debug_dir = output_dir / "debug"
+                    debug_dir.mkdir(parents=True, exist_ok=True)
+                    save_depth_debug_panel(
+                        rgb_path=color_dir / f"{fid}.jpg",
+                        sensor_depth=sensor_depth_m,
+                        zbuf=zbuf,
+                        depth_mask=d_mask,
+                        pix_to_face=pix_to_face,
+                        face_obj_ids=face_obj_ids,
+                        visible_objects=visible_objects,
+                        out_path=debug_dir / f"{fid}_depth_debug.png",
+                        fid=fid,
+                        vis_thres=nbv_cfg.depth_vis_threshold,
+                        obj_px=obj_px,
+                        obj_to_label=obj_to_label,
+                        filtered_reasons=filter_reasons,
+                    )
+                    print(f"[DEBUG] Saved depth panel: {debug_dir / f'{fid}_depth_debug.png'}")
 
         cache_json.write_text(json.dumps(image_stats, indent=2))
         print(f"[INFO] Saved visibility cache: {cache_json}")

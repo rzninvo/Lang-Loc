@@ -105,6 +105,12 @@ class NBVConfig:
     fov_depth_clip_min: float = 0.2
     fov_depth_clip_max: float = 10.0
 
+    # Depth-aware visibility
+    depth_visibility_enabled: bool = False
+    depth_vis_threshold: float = 0.20
+    depth_consistent_ratio_threshold: float = 0.0
+    min_depth_consistent_pixels: int = 0
+
     # NBV algorithm parameters
     nbv_alpha: float = 0.5
     nbv_min_position_distance: float = 0.0
@@ -191,6 +197,12 @@ def extract_nbv_config(cfg: Dict[str, Any], dataset: str = "scannetpp") -> NBVCo
         # FOV and depth settings
         fov_depth_clip_min=float(section.get("fov_depth_clip_min", 0.2)),
         fov_depth_clip_max=float(section.get("fov_depth_clip_max", 10.0)),
+
+        # Depth-aware visibility
+        depth_visibility_enabled=bool(section.get("depth_visibility_enabled", False)),
+        depth_vis_threshold=float(section.get("depth_vis_threshold", 0.20)),
+        depth_consistent_ratio_threshold=float(section.get("depth_consistent_ratio_threshold", 0.0)),
+        min_depth_consistent_pixels=int(section.get("min_depth_consistent_pixels", 0)),
 
         # NBV algorithm parameters
         nbv_alpha=float(section.get("nbv_alpha", 0.5)),
