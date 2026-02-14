@@ -239,6 +239,23 @@ def get_scene_ids(
             scene_ids.append(f"scene{i:04d}_00")
 
     elif dataset == "3RScan":
+        partial_file_raw = cfg["paths"].get("3rscan_partial_scans_file", "")
+        partial_file = Path(partial_file_raw) if partial_file_raw else None
+        partial_ids = set()
+        if partial_file is not None:
+            if partial_file.exists() and partial_file.is_file():
+                with open(partial_file) as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith("#"):
+                            continue
+                        if "#" in line:
+                            line = line.split("#", 1)[0].strip()
+                        if line:
+                            partial_ids.add(line)
+            else:
+                print(f"[WARN] 3RScan partial file not found: {partial_file}")
+
         if source == "scanscribe":
             scanscribe_file = Path("config/scanscribe_cleaned.json")
             if not scanscribe_file.exists():
@@ -247,6 +264,11 @@ def get_scene_ids(
             with open(scanscribe_file) as f:
                 data = json.load(f)
             all_ids = list(data.keys())
+            if partial_ids:
+                before = len(all_ids)
+                all_ids = [sid for sid in all_ids if sid not in partial_ids]
+                removed = before - len(all_ids)
+                print(f"[INFO] Filtered {removed} partial scans from ScanScribe source")
             if num_scenes == "all":
                 scene_ids = all_ids
             else:
@@ -259,6 +281,11 @@ def get_scene_ids(
                 sys.exit(1)
             with open(rscan_file) as f:
                 all_ids = [line.strip() for line in f if line.strip()]
+            if partial_ids:
+                before = len(all_ids)
+                all_ids = [sid for sid in all_ids if sid not in partial_ids]
+                removed = before - len(all_ids)
+                print(f"[INFO] Filtered {removed} partial scans from default 3RScan list")
             if num_scenes == "all":
                 scene_ids = all_ids
             else:

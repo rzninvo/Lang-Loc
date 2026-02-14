@@ -46,6 +46,9 @@ from src.frame_selection.visibility import (
     compute_image_visibility,
     compute_visible_objects,
     compute_spatial_relations,
+    depth_consistency_mask,
+    compute_depth_consistent_counts,
+    save_depth_debug_panel,
 )
 from src.frame_selection.dpp import (
     compute_face_normals,
@@ -65,6 +68,33 @@ import matplotlib.pyplot as plt
 
 
 # ----------------------------- Loaders ---------------------------------
+
+
+def load_scan_id_set(path: Path | None) -> set[str]:
+    """
+    Load newline-separated scan IDs from a text file.
+
+    Returns an empty set if the path is unset, missing, or not a file.
+    """
+    if path is None:
+        return set()
+    if not path.exists():
+        return set()
+    if not path.is_file():
+        print(f"[WARN] Expected partial scans file, got non-file path: {path}")
+        return set()
+
+    ids = set()
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        # Support inline comments.
+        if "#" in line:
+            line = line.split("#", 1)[0].strip()
+        if line:
+            ids.add(line)
+    return ids
 
 def load_mesh_with_textures(scene_path, device):
     """
@@ -282,6 +312,78 @@ def load_object_attributes(scene_id: str, dataset_path: Path):
     return attributes_by_oid
 
 
+def build_semantic_id_mapping(
+    obj_to_label: dict,
+    object_attributes: dict,
+    semantic_id_key: str = "global_id",
+    void_id: int = 0,
+    object_ids: list[int] | None = None,
+) -> dict:
+    """
+    Build a canonical ``objectId -> semanticId`` mapping for 3RScan.
+
+    Instead of scene-local enumeration (1, 2, 3, …), this maps each object
+    to its cross-dataset semantic class id using a field from ``objects.json``
+    (typically ``global_id``).
+
+    Args:
+        obj_to_label: Mapping ``objectId -> label`` (from segmentation).
+        object_attributes: Per-object metadata from :func:`load_object_attributes`.
+        semantic_id_key: Which attribute to use as the semantic id
+            (``"global_id"``, ``"nyu40"``, ``"rio27"``, ``"eigen13"``).
+        void_id: Value for objects without a valid semantic mapping.
+        object_ids: Optional explicit object id list to map (e.g., all mesh
+            object ids). If omitted, keys from ``obj_to_label`` are used.
+
+    Returns:
+        Dict[int, int] mapping ``objectId -> semanticId``.
+    """
+    obj_to_sem: dict = {}
+    n_mapped = 0
+    n_missing = 0
+    missing_oids = []
+
+    all_oids: set[int] = set(int(oid) for oid in obj_to_label.keys())
+    if object_ids is not None:
+        all_oids.update(int(oid) for oid in object_ids)
+
+    for oid in sorted(all_oids):
+        attrs = object_attributes.get(oid, {})
+        raw_val = attrs.get(semantic_id_key)
+        if raw_val is not None:
+            try:
+                sem_id = int(raw_val)
+                obj_to_sem[oid] = sem_id
+                n_mapped += 1
+                continue
+            except (TypeError, ValueError):
+                pass
+        # Fallback: no valid mapping
+        obj_to_sem[oid] = void_id
+        n_missing += 1
+        missing_oids.append(oid)
+
+    if n_missing > 0:
+        labels = []
+        for oid in missing_oids[:10]:
+            label = obj_to_label.get(oid)
+            if not label:
+                label = object_attributes.get(oid, {}).get("label", "?")
+            labels.append(label)
+        print(
+            f"[WARN] Semantic mapping ({semantic_id_key}): "
+            f"{n_mapped} mapped, {n_missing} missing → VOID. "
+            f"Missing sample: {dict(zip(missing_oids[:10], labels))}"
+        )
+    else:
+        print(
+            f"[INFO] Semantic mapping ({semantic_id_key}): "
+            f"all {n_mapped} objects mapped successfully."
+        )
+
+    return obj_to_sem
+
+
 # -------------------------- Debug Visualization Helpers -----------------------
 
 @torch.no_grad()
@@ -382,7 +484,8 @@ def _save_overlay(rgb_path: Path, pix_to_face: torch.Tensor, out_path: Path):
 
 def main(scene_id: str, config_path: str, device_str=None,
          debug=False, auto_clean=False,
-         save_semantic_masks=False, save_instance_masks=False):
+         save_semantic_masks=False, save_instance_masks=False,
+         allow_partial: bool = False):
     """
     Entry point for selecting representative 3RScan frames and exporting assets.
 
@@ -403,10 +506,21 @@ def main(scene_id: str, config_path: str, device_str=None,
         auto_clean (bool): If True, removes raw frames once outputs are saved.
         save_semantic_masks (bool): Export semantic 16-bit PNG masks if True.
         save_instance_masks (bool): Export instance 16-bit PNG masks if True.
+        allow_partial (bool): If True, process scenes listed in the partial
+            scan blocklist.
     """
 
     cfg = load_config(config_path)
     nbv_cfg = extract_nbv_config(cfg, dataset="3rscan")
+    partial_path_raw = cfg.get("paths", {}).get("3rscan_partial_scans_file")
+    partial_file = Path(partial_path_raw) if partial_path_raw else None
+    partial_ids = load_scan_id_set(partial_file)
+    if partial_file is not None and scene_id in partial_ids and not allow_partial:
+        print(
+            f"[WARN] Scene {scene_id} is listed in partial scans ({partial_file}). "
+            "Skipping 3RScan processing for this scene."
+        )
+        return
 
     dataset_path = Path(cfg["paths"]["3rscan_dataset_path"])
     scan_path = dataset_path / scene_id
@@ -447,7 +561,25 @@ def main(scene_id: str, config_path: str, device_str=None,
     faces = faces_np
     face_obj_ids = per_face_object_ids(faces, vert_seg, seg_to_obj)
 
-    obj_to_sem_id = {oid: idx + 1 for idx, oid in enumerate(obj_to_label.keys())}
+    mesh_oids = sorted(int(oid) for oid in np.unique(face_obj_ids[face_obj_ids >= 0]))
+    obj_to_sem_id = build_semantic_id_mapping(
+        obj_to_label,
+        object_attributes_cache,
+        semantic_id_key=nbv_cfg.semantic_id_key,
+        void_id=VOID_ID,
+        object_ids=mesh_oids,
+    )
+    missing_sem_oids = [oid for oid in mesh_oids if int(obj_to_sem_id.get(oid, VOID_ID)) == VOID_ID]
+    print(
+        f"[INFO] 3RScan semantic mapping coverage ({nbv_cfg.semantic_id_key}): "
+        f"{len(mesh_oids) - len(missing_sem_oids)}/{len(mesh_oids)} mesh objects mapped to non-VOID ids."
+    )
+    if missing_sem_oids:
+        sample = {
+            oid: (obj_to_label.get(oid) or object_attributes_cache.get(oid, {}).get("label", ""))
+            for oid in missing_sem_oids[:10]
+        }
+        print(f"[WARN] Objects mapped to VOID in semantic masks (sample): {sample}")
 
     fx, fy, cx, cy = load_intrinsics_info(scan_path / "_info.txt")
 
@@ -561,6 +693,18 @@ def main(scene_id: str, config_path: str, device_str=None,
                     print("[WARN] Cache missing/partial object attributes from objects.json. Recomputing...")
                     cache_json.unlink()
                     image_stats = None
+        # Check for depth consistency fields
+        if image_stats is not None and nbv_cfg.depth_visibility_enabled:
+            sample_obj_meta_dc = None
+            for entry in image_stats[:10]:
+                vo = entry.get("visible_objects", {})
+                if vo:
+                    sample_obj_meta_dc = next(iter(vo.values()))
+                    break
+            if sample_obj_meta_dc is not None and "depth_consistent_pixels" not in sample_obj_meta_dc:
+                print("[WARN] Cache missing depth_consistent_pixels. Recomputing...")
+                cache_json.unlink()
+                image_stats = None
         # Check for DPP mask cache
         if image_stats is not None and nbv_cfg.dpp_enabled and not mask_cache_npz.exists():
             print("[WARN] Cache missing visibility masks (needed for DPP IoU). Recomputing...")
@@ -597,16 +741,34 @@ def main(scene_id: str, config_path: str, device_str=None,
                     if oid in fallback_geom:
                         object_geometry_cache[oid] = fallback_geom[oid]
 
-        for fid in tqdm(frame_ids, desc="Visibility", dynamic_ncols=True):
+        for _idx, fid in enumerate(tqdm(frame_ids, desc="Visibility", dynamic_ncols=True)):
             pose = load_cam2world(scan_path / f"{fid}.pose.txt")
             R_cv, t_cv = invert_se3_to_opencv(pose)
 
             cams = make_p3d_camera_from_opencv(
                 R_cv, t_cv, fx_vis, fy_vis, cx_vis, cy_vis, H_vis, W_vis, device
             )
-            pix_to_face, _ = rasterize_visibility(meshes, cams, rasterizer_vis)
+            pix_to_face, zbuf = rasterize_visibility(meshes, cams, rasterizer_vis)
             obj_px, total_px = compute_image_visibility(pix_to_face, face_obj_ids)
 
+            # Depth-aware visibility (optional)
+            dc_counts = None
+            if nbv_cfg.depth_visibility_enabled:
+                depth_path = scan_path / f"{fid}.depth.pgm"
+                if depth_path.exists():
+                    sensor_img = Image.open(depth_path)
+                    if (sensor_img.height, sensor_img.width) != (H_vis, W_vis):
+                        sensor_img = sensor_img.resize((W_vis, H_vis), Image.NEAREST)
+                    sensor_depth_m = np.array(sensor_img).astype(np.float32) / 1000.0
+                    d_mask = depth_consistency_mask(
+                        zbuf, sensor_depth_m,
+                        vis_thres=nbv_cfg.depth_vis_threshold,
+                    )
+                    dc_counts = compute_depth_consistent_counts(
+                        pix_to_face, face_obj_ids, d_mask,
+                    )
+
+            filter_reasons: dict[int, str] = {}
             visible_objects = compute_visible_objects(
                 verts, faces, vert_seg, seg_to_obj, obj_to_label,
                 obj_px, face_obj_ids, pix_to_face,
@@ -618,6 +780,10 @@ def main(scene_id: str, config_path: str, device_str=None,
                 min_pixel_count=nbv_cfg.min_pixel_count,
                 full_object_geometry=object_geometry_cache,
                 object_attributes=object_attributes_cache,
+                depth_consistent_counts=dc_counts,
+                depth_consistent_ratio_threshold=nbv_cfg.depth_consistent_ratio_threshold,
+                min_depth_consistent_pixels=nbv_cfg.min_depth_consistent_pixels,
+                filtered_reasons=filter_reasons,
             )
             spatial_relations = compute_spatial_relations(
                 visible_objects,
@@ -645,6 +811,26 @@ def main(scene_id: str, config_path: str, device_str=None,
                 "visible_face_ids": visible_face_ids,
             }
             image_stats.append(image_entry)
+
+            if _idx < 5 and debug and dc_counts is not None:
+                debug_dir = output_dir / "debug"
+                debug_dir.mkdir(parents=True, exist_ok=True)
+                save_depth_debug_panel(
+                    rgb_path=scan_path / f"{fid}.color.jpg",
+                    sensor_depth=sensor_depth_m,
+                    zbuf=zbuf,
+                    depth_mask=d_mask,
+                    pix_to_face=pix_to_face,
+                    face_obj_ids=face_obj_ids,
+                    visible_objects=visible_objects,
+                    out_path=debug_dir / f"{fid}_depth_debug.png",
+                    fid=fid,
+                    vis_thres=nbv_cfg.depth_vis_threshold,
+                    obj_px=obj_px,
+                    obj_to_label=obj_to_label,
+                    filtered_reasons=filter_reasons,
+                )
+                print(f"[DEBUG] Saved depth panel: {debug_dir / f'{fid}_depth_debug.png'}")
 
         cache_json.write_text(json.dumps(image_stats, indent=2))
         print(f"[INFO] Saved visibility cache: {cache_json}")
@@ -782,6 +968,14 @@ def main(scene_id: str, config_path: str, device_str=None,
         sem_dir = output_dir / "semantic"
         if save_instance_masks: inst_dir.mkdir(parents=True, exist_ok=True)
         if save_semantic_masks: sem_dir.mkdir(parents=True, exist_ok=True)
+        if save_semantic_masks:
+            unique_sem = sorted({int(v) for v in obj_to_sem_id.values() if int(v) != VOID_ID})
+            print(
+                f"[INFO] Semantic mask export uses canonical '{nbv_cfg.semantic_id_key}' ids "
+                f"with {len(unique_sem)} non-VOID classes in this scene."
+            )
+            expected_sem_ids = {int(v) for v in obj_to_sem_id.values()}
+            expected_sem_ids.add(int(VOID_ID))
 
         mask_ds = nbv_cfg.mask_downsample_factor
         Hm = max(1, H0 // max(1, mask_ds))
@@ -804,6 +998,9 @@ def main(scene_id: str, config_path: str, device_str=None,
                 save_png16(inst_dir / f"{fid}.png", inst)
             if save_semantic_masks:
                 sem = pix_to_semantic_mask(p2f_np, face_obj_ids_np, obj_to_sem_id, VOID_ID)
+                unexpected = set(int(x) for x in np.unique(sem)) - expected_sem_ids
+                if unexpected:
+                    print(f"[WARN] Semantic mask {fid} contains unexpected ids: {sorted(unexpected)}")
                 save_png16(sem_dir / f"{fid}.png", sem)
 
     # --------------------------- Auto Clean ------------------------------
@@ -823,10 +1020,12 @@ if __name__ == "__main__":
     p.add_argument("--save_instance_masks", action="store_true")
     p.add_argument("--debug", action="store_true")
     p.add_argument("--auto_clean", action="store_true")
+    p.add_argument("--allow_partial", action="store_true", help="Process scenes listed in partial scans file.")
     args = p.parse_args()
     main(args.scene_id, args.config,
          device_str=args.device,
          save_semantic_masks=args.save_semantic_masks,
          save_instance_masks=args.save_instance_masks,
          debug=args.debug,
-         auto_clean=args.auto_clean)
+         auto_clean=args.auto_clean,
+         allow_partial=args.allow_partial)

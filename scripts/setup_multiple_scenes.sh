@@ -80,6 +80,14 @@ print(cfg["paths"].get("3rscan_release_scans_file", ""))
 PY
 )
 
+RSCAN_PARTIAL_FILE=$(python3 - <<PY "$CONFIG_PATH"
+import sys, yaml
+with open(sys.argv[1]) as f:
+    cfg = yaml.safe_load(f)
+print(cfg["paths"].get("3rscan_partial_scans_file", ""))
+PY
+)
+
 # -------- LOOP OVER DATASETS --------
 if [ "$DATASET" == "scannet" ]; then
     for i in $(seq -w 0 $((NUM_SCENES - 1))); do
@@ -154,6 +162,20 @@ PY
         else
             SCAN_IDS=$(head -n "$NUM_SCENES" "$RSCAN_FILE")
         fi
+    fi
+
+    # Filter known partial/incomplete scans.
+    if [ -n "$RSCAN_PARTIAL_FILE" ] && [ -f "$RSCAN_PARTIAL_FILE" ]; then
+        BEFORE_FILTER=$(echo "$SCAN_IDS" | sed '/^\s*$/d' | wc -l)
+        CLEAN_PARTIAL_IDS=$(mktemp)
+        sed -e 's/#.*$//' -e '/^[[:space:]]*$/d' "$RSCAN_PARTIAL_FILE" > "$CLEAN_PARTIAL_IDS"
+        SCAN_IDS=$(echo "$SCAN_IDS" | grep -vxF -f "$CLEAN_PARTIAL_IDS" || true)
+        rm -f "$CLEAN_PARTIAL_IDS"
+        AFTER_FILTER=$(echo "$SCAN_IDS" | sed '/^\s*$/d' | wc -l)
+        REMOVED=$((BEFORE_FILTER - AFTER_FILTER))
+        echo "[INFO] Filtered partial 3RScan IDs using $RSCAN_PARTIAL_FILE: removed $REMOVED, kept $AFTER_FILTER."
+    elif [ -n "$RSCAN_PARTIAL_FILE" ]; then
+        echo "[WARN] Partial scans file not found: $RSCAN_PARTIAL_FILE (skipping partial-scan filtering)."
     fi
 
     for SCAN_ID in $SCAN_IDS; do
