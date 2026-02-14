@@ -132,6 +132,7 @@ class NBVConfig:
     spatial_max_distance: float = 2.0
     spatial_size_ratio_threshold: float = 5.0
     spatial_eps: float = 0.1
+    spatial_max_surface_distance: float = 1.5
 
     # Mask export settings
     mask_downsample_factor: int = 1
@@ -225,6 +226,7 @@ def extract_nbv_config(cfg: Dict[str, Any], dataset: str = "scannetpp") -> NBVCo
         spatial_max_distance=float(section.get("spatial_max_distance", 2.0)),
         spatial_size_ratio_threshold=float(section.get("spatial_size_ratio_threshold", 5.0)),
         spatial_eps=float(section.get("spatial_eps", 0.1)),
+        spatial_max_surface_distance=float(section.get("spatial_max_surface_distance", 1.5)),
 
         # Mask export settings
         mask_downsample_factor=int(section.get("mask_downsample_factor", 1)),

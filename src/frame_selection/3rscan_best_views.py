@@ -384,6 +384,269 @@ def build_semantic_id_mapping(
     return obj_to_sem
 
 
+# ----------------------- GT Relationship Helpers ------------------------------
+
+def load_gt_relationships(scene_id: str, dataset_path: Path) -> list[list] | None:
+    """
+    Load ground-truth relationships for a 3RScan scene.
+
+    Reads ``relationships.json`` (3DSSG format) and returns the raw
+    relationship triples for the requested scene.
+
+    Args:
+        scene_id: UUID of the 3RScan scene.
+        dataset_path: Root of the 3RScan dataset (e.g. ``data/3RScan/``).
+
+    Returns:
+        List of ``[subject_id, object_id, predicate_id, predicate_str]``
+        entries, or ``None`` if the scene is not found in the file.
+    """
+    rel_path = dataset_path / "relationships.json"
+    if not rel_path.exists():
+        print(f"[WARN] GT relationships file not found: {rel_path}")
+        return None
+
+    # Use a module-level cache to avoid re-reading for batch runs.
+    if not hasattr(load_gt_relationships, "_cache"):
+        load_gt_relationships._cache = {}
+
+    if rel_path not in load_gt_relationships._cache:
+        try:
+            payload = json.loads(rel_path.read_text())
+        except Exception as exc:
+            print(f"[WARN] Failed to parse {rel_path}: {exc}")
+            return None
+        idx = {s["scan"]: s for s in payload.get("scans", [])}
+        load_gt_relationships._cache[rel_path] = idx
+
+    idx = load_gt_relationships._cache[rel_path]
+    entry = idx.get(scene_id)
+    if entry is None:
+        return None
+
+    return entry.get("relationships", [])
+
+
+def build_fcl_collision_objects(
+    verts_np: np.ndarray,
+    faces_np: np.ndarray,
+    face_obj_ids: np.ndarray,
+) -> dict:
+    """
+    Build per-object FCL ``CollisionObject`` instances with BVH geometry.
+
+    Each object's triangles are extracted from the global mesh and compiled
+    into a BVH for fast distance and collision queries.  Call this once per
+    scene and reuse across all frames.
+
+    Args:
+        verts_np: (V, 3) global mesh vertices.
+        faces_np: (F, 3) global mesh face indices.
+        face_obj_ids: (F,) object id per face (-1 = unlabeled).
+
+    Returns:
+        Dict mapping ``objectId -> fcl.CollisionObject``.
+    """
+    import fcl
+
+    face_obj_ids = np.asarray(face_obj_ids)
+    v = np.ascontiguousarray(verts_np, dtype=np.float64)
+    objects: dict = {}
+
+    for oid in np.unique(face_obj_ids):
+        if oid < 0:
+            continue
+        obj_faces = np.ascontiguousarray(
+            faces_np[face_obj_ids == oid], dtype=np.int32,
+        )
+        if obj_faces.shape[0] == 0:
+            continue
+
+        model = fcl.BVHModel()
+        model.beginModel(v.shape[0], obj_faces.shape[0])
+        model.addSubModel(v, obj_faces)
+        model.endModel()
+        objects[int(oid)] = fcl.CollisionObject(model)
+
+    return objects
+
+
+def compute_surface_distance(
+    fcl_objects: dict,
+    oid_a: int,
+    oid_b: int,
+) -> float:
+    """
+    Exact minimum surface-to-surface distance between two object meshes.
+
+    Uses FCL's BVH-accelerated distance query with an upfront collision
+    check (intersecting meshes return 0.0).
+
+    Args:
+        fcl_objects: Dict from :func:`build_fcl_collision_objects`.
+        oid_a: Subject object id.
+        oid_b: Object object id.
+
+    Returns:
+        Minimum surface distance in meters, or -1.0 if either object
+        has no FCL geometry.
+    """
+    import fcl
+
+    obj_a = fcl_objects.get(oid_a)
+    obj_b = fcl_objects.get(oid_b)
+    if obj_a is None or obj_b is None:
+        return -1.0
+
+    # Collision check — intersecting meshes have distance 0.
+    creq = fcl.CollisionRequest(num_max_contacts=1, enable_contact=True)
+    cres = fcl.CollisionResult()
+    if fcl.collide(obj_a, obj_b, creq, cres) > 0:
+        return 0.0
+
+    dreq = fcl.DistanceRequest(enable_nearest_points=False)
+    dres = fcl.DistanceResult()
+    dist = fcl.distance(obj_a, obj_b, dreq, dres)
+    return max(float(dist), 0.0)
+
+
+def build_gt_spatial_relations(
+    gt_relationships: list[list],
+    visible_objects: dict[int, dict],
+    obj_to_label: dict[int, str],
+    object_geometry: dict[int, dict],
+    fcl_objects: dict | None = None,
+    max_surface_distance: float | None = None,
+) -> list[dict]:
+    """
+    Build per-frame spatial relations from scene-level GT relationships.
+
+    Only edges where **both** subject and object are visible in the current
+    frame are kept.  Each edge is enriched with centroid distance and
+    exact mesh surface-to-surface distance (via FCL BVH).
+
+    View-dependent directional predicates (left/right/front/behind, IDs 2-5)
+    are re-projected from scene/world coordinates into the camera frame using
+    ``centroid_cam`` from ``visible_objects``.  The OpenCV convention is used:
+    X = right, Y = down, Z = forward.
+
+    Args:
+        gt_relationships: Raw GT triples
+            ``[[sub_id, obj_id, pred_id, pred_str], ...]``.
+        visible_objects: Per-frame visible objects (keyed by int objectId).
+            Must include ``centroid_cam`` for view-dependent correction.
+        obj_to_label: Global objectId -> label mapping.
+        object_geometry: Per-object geometry with ``centroid_world``.
+        fcl_objects: Per-object FCL CollisionObjects from
+            :func:`build_fcl_collision_objects`.  If ``None``, surface
+            distance is reported as -1.
+        max_surface_distance: Prune relations whose ``surface_min_distance``
+            exceeds this threshold (meters).  ``None`` disables pruning.
+
+    Returns:
+        List of relation dicts sorted by ``surface_min_distance`` ascending.
+    """
+    # Predicate IDs for view-dependent directional relations (3DSSG convention)
+    _VIEW_DEP_PRED_IDS = {2, 3, 4, 5}  # left, right, front, behind
+    _DIR_EPS = 0.1  # min displacement (m) to call a directional relation
+
+    visible_ids = set(int(oid) for oid in visible_objects.keys())
+    relations: list[dict] = []
+    # Remove exact duplicates only — keyed by ordered (src, dst, pred_id).
+    # Both directions (A→B and B→A) are kept since downstream GNN uses
+    # directed edges and needs messages in both directions.
+    _seen_edges: set[tuple] = set()
+
+    for triple in gt_relationships:
+        if len(triple) < 4:
+            continue
+        sub_id, obj_id, pred_id, pred_str = (
+            int(triple[0]), int(triple[1]), int(triple[2]), str(triple[3]),
+        )
+        if sub_id not in visible_ids or obj_id not in visible_ids:
+            continue
+        if sub_id == obj_id:
+            continue
+
+        sub_label = obj_to_label.get(sub_id, f"id_{sub_id}")
+        obj_label = obj_to_label.get(obj_id, f"id_{obj_id}")
+
+        # Re-project view-dependent predicates into camera frame
+        view_corrected = False
+        if pred_id in _VIEW_DEP_PRED_IDS:
+            sub_meta = visible_objects.get(sub_id) or visible_objects.get(str(sub_id))
+            obj_meta = visible_objects.get(obj_id) or visible_objects.get(str(obj_id))
+            if sub_meta is not None and obj_meta is not None:
+                ca = np.asarray(sub_meta["centroid_cam"], dtype=np.float64)
+                cb = np.asarray(obj_meta["centroid_cam"], dtype=np.float64)
+                delta = ca - cb  # vector from object → subject
+
+                # Dominant horizontal axis: X (left/right) vs Z (front/behind)
+                abs_dx, abs_dz = abs(delta[0]), abs(delta[2])
+                if abs_dx >= abs_dz:
+                    # X-dominant: left / right
+                    if abs_dx < _DIR_EPS:
+                        continue  # too close — drop relation
+                    pred_str = "right" if delta[0] > 0 else "left"
+                else:
+                    # Z-dominant: front / behind
+                    if abs_dz < _DIR_EPS:
+                        continue
+                    pred_str = "behind" if delta[2] > 0 else "front"
+                view_corrected = True
+
+        # Exact-duplicate check (ordered: A→B ≠ B→A).
+        # For view-corrected predicates, key by corrected pred_str so that
+        # different original pred_ids (e.g. 2="left" and 3="right") that
+        # resolve to the same camera-frame direction are deduplicated.
+        edge_key = (sub_id, obj_id, pred_str) if view_corrected else (sub_id, obj_id, pred_id)
+        if edge_key in _seen_edges:
+            continue
+        _seen_edges.add(edge_key)
+
+        # Centroid distance
+        geom_s = object_geometry.get(sub_id)
+        geom_o = object_geometry.get(obj_id)
+        if geom_s is not None and geom_o is not None:
+            cs = np.asarray(geom_s["centroid_world"], dtype=np.float64)
+            co = np.asarray(geom_o["centroid_world"], dtype=np.float64)
+            centroid_dist = float(np.linalg.norm(cs - co))
+        else:
+            centroid_dist = -1.0
+
+        # Exact mesh surface distance (FCL BVH)
+        if fcl_objects is not None:
+            surface_dist = compute_surface_distance(fcl_objects, sub_id, obj_id)
+        else:
+            surface_dist = -1.0
+
+        rel_dict = {
+            "subject": sub_label,
+            "object": obj_label,
+            "relation": pred_str,
+            "centroid_distance": centroid_dist,
+            "surface_min_distance": surface_dist,
+            "subject_id": sub_id,
+            "object_id": obj_id,
+            "predicate_id": pred_id,
+            "source": "gt",
+        }
+        if view_corrected:
+            rel_dict["view_corrected"] = True
+        relations.append(rel_dict)
+
+    # Prune distant relations by surface distance.
+    if max_surface_distance is not None:
+        relations = [
+            r for r in relations
+            if 0 <= r["surface_min_distance"] <= max_surface_distance
+        ]
+
+    # Closest relations first (downstream takes first N).
+    relations.sort(key=lambda r: r["surface_min_distance"] if r["surface_min_distance"] >= 0 else 1e9)
+    return relations
+
+
 # -------------------------- Debug Visualization Helpers -----------------------
 
 @torch.no_grad()
@@ -705,6 +968,34 @@ def main(scene_id: str, config_path: str, device_str=None,
                 print("[WARN] Cache missing depth_consistent_pixels. Recomputing...")
                 cache_json.unlink()
                 image_stats = None
+        # Check for GT spatial relations in cache
+        if image_stats is not None:
+            sample_rels = None
+            for entry in image_stats[:10]:
+                sr = entry.get("spatial_relations", [])
+                if sr:
+                    sample_rels = sr[0]
+                    break
+            if sample_rels is not None and sample_rels.get("source") != "gt":
+                print("[WARN] Cache contains heuristic spatial relations. Recomputing with GT...")
+                cache_json.unlink()
+                image_stats = None
+            elif sample_rels is not None and "surface_min_distance" not in sample_rels:
+                print("[WARN] Cache has GT relations but missing surface_min_distance. Recomputing...")
+                cache_json.unlink()
+                image_stats = None
+        # Check for view-corrected directional predicates
+        if image_stats is not None:
+            for entry in image_stats[:20]:
+                for rel in entry.get("spatial_relations", []):
+                    if rel.get("source") == "gt" and rel.get("predicate_id") in (2, 3, 4, 5):
+                        if "view_corrected" not in rel:
+                            print("[WARN] Cache has GT directional relations without view correction. Recomputing...")
+                            cache_json.unlink()
+                            image_stats = None
+                        break
+                if image_stats is None:
+                    break
         # Check for DPP mask cache
         if image_stats is not None and nbv_cfg.dpp_enabled and not mask_cache_npz.exists():
             print("[WARN] Cache missing visibility masks (needed for DPP IoU). Recomputing...")
@@ -740,6 +1031,16 @@ def main(scene_id: str, config_path: str, device_str=None,
                 for oid in missing_geom:
                     if oid in fallback_geom:
                         object_geometry_cache[oid] = fallback_geom[oid]
+
+        gt_relationships = load_gt_relationships(scene_id, dataset_path)
+        if gt_relationships is not None:
+            print(f"[INFO] Loaded {len(gt_relationships)} GT relationships for scene {scene_id}.")
+            print("[INFO] Building FCL BVH collision objects for surface distance...")
+            fcl_objects = build_fcl_collision_objects(verts_np, faces, face_obj_ids)
+            print(f"[INFO] Built FCL objects for {len(fcl_objects)} mesh objects.")
+        else:
+            print("[WARN] No GT relationships found. Using heuristic spatial relations.")
+            fcl_objects = None
 
         for _idx, fid in enumerate(tqdm(frame_ids, desc="Visibility", dynamic_ncols=True)):
             pose = load_cam2world(scan_path / f"{fid}.pose.txt")
@@ -785,12 +1086,22 @@ def main(scene_id: str, config_path: str, device_str=None,
                 min_depth_consistent_pixels=nbv_cfg.min_depth_consistent_pixels,
                 filtered_reasons=filter_reasons,
             )
-            spatial_relations = compute_spatial_relations(
-                visible_objects,
-                max_distance=nbv_cfg.spatial_max_distance,
-                size_ratio_threshold=nbv_cfg.spatial_size_ratio_threshold,
-                eps=nbv_cfg.spatial_eps,
-            )
+            if gt_relationships is not None:
+                spatial_relations = build_gt_spatial_relations(
+                    gt_relationships,
+                    visible_objects,
+                    obj_to_label,
+                    object_geometry_cache,
+                    fcl_objects=fcl_objects,
+                    max_surface_distance=nbv_cfg.spatial_max_surface_distance,
+                )
+            else:
+                spatial_relations = compute_spatial_relations(
+                    visible_objects,
+                    max_distance=nbv_cfg.spatial_max_distance,
+                    size_ratio_threshold=nbv_cfg.spatial_size_ratio_threshold,
+                    eps=nbv_cfg.spatial_eps,
+                )
 
             # Extract unique visible face indices for DPP normal/novelty computation
             p2f_np = pix_to_face.cpu().numpy()
