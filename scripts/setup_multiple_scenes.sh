@@ -88,10 +88,31 @@ print(cfg["paths"].get("3rscan_partial_scans_file", ""))
 PY
 )
 
+SCANNET_SCENES_FILE=$(python3 - <<PY "$CONFIG_PATH"
+import sys, yaml
+with open(sys.argv[1]) as f:
+    cfg = yaml.safe_load(f)
+print(cfg["paths"].get("scannet_scenes_file", ""))
+PY
+)
+
 # -------- LOOP OVER DATASETS --------
 if [ "$DATASET" == "scannet" ]; then
-    for i in $(seq -w 0 $((NUM_SCENES - 1))); do
-        SCENE_ID=$(printf "scene%04d_00" $((10#$i)))
+    if [ ! -f "$SCANNET_SCENES_FILE" ]; then
+        echo "[ERROR] ScanNet scenes file not found: $SCANNET_SCENES_FILE"
+        echo "[ERROR] Set paths.scannet_scenes_file in your config (e.g. config/scannetv2_all.txt)"
+        exit 1
+    fi
+
+    if [ "$NUM_SCENES" == "all" ]; then
+        SCAN_IDS=$(cat "$SCANNET_SCENES_FILE")
+        TOTAL_SCENES=$(echo "$SCAN_IDS" | wc -l)
+        echo "[INFO] Found $TOTAL_SCENES scenes in $SCANNET_SCENES_FILE"
+    else
+        SCAN_IDS=$(head -n "$NUM_SCENES" "$SCANNET_SCENES_FILE")
+    fi
+
+    for SCENE_ID in $SCAN_IDS; do
         SCENE_PATH="${DATASET_PATH}/${SCENE_ID}"
 
         # Skip if already downloaded

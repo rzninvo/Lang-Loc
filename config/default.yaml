@@ -159,6 +159,7 @@ paths:
   download_script: scripts/download_subset.sh
   3rscan_release_scans_file: config/3RScan_release_scans.txt
   3rscan_partial_scans_file: config/3RScan_partial.txt
+  scannet_scenes_file: config/scannetv2_all.txt
 
 # ------------------------------------------------------------
 # Scannet download settings
