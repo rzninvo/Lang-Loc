@@ -120,6 +120,9 @@ elif [ "$DATASET" == "3RScan" ]; then
     if [[ ! -f "data/3RScan/relationships.json" ]]; then
         wget "http://campar.in.tum.de/public_datasets/3DSSG/3DSSG/relationships.json" -P data/3RScan
     fi
+    if [[ ! -f "data/3RScan/relationships.txt" ]]; then
+        wget "http://campar.in.tum.de/public_datasets/3DSSG/3DSSG/relationships.txt" -P data/3RScan
+    fi
 
     # Determine source of scene IDs
     if [ "$SOURCE" == "scanscribe" ]; then
