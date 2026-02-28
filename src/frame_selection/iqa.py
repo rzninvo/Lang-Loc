@@ -65,10 +65,7 @@ def filter_quality_images(
         Ordered list of frame ids (stems) that pass the threshold.
     """
     # Find all image files
-    all_image_files = sorted(color_dir.glob(file_pattern))
-
-    # Filter to only include color images (exclude depth and mesh textures)
-    image_files = [f for f in all_image_files if ".color." in f.name]
+    image_files = sorted(color_dir.glob(file_pattern))
 
     if not image_files:
         print(f"[WARN] No color images found in {color_dir} with pattern {file_pattern}")

@@ -608,136 +608,165 @@ def compute_spatial_relations(
     eps: float = 0.1,
 ) -> List[Dict[str, object]]:
     """
-    Compute symbolic *spatial relations* between all pairs of visible objects
-    based on their 3D centroids in **camera coordinates**.
+    Compute heuristic spatial relations between all pairs of visible objects.
 
-    Instead of numeric distances, this function encodes *qualitative geometry*
-    (e.g., "left_of", "above", "in_front_of"), which is more useful for language
-    and scene description models such as GPT.
+    Emits multiple relations per pair. Relation names match the 3DSSG predicate
+    vocabulary (``relationships.txt``).
 
-    Relations are determined by the **dominant displacement axis** between centroids:
-      - X-axis -> "left_of" / "right_of"
-      - Y-axis -> "above" / "below"
-      - Z-axis -> "in_front_of" / "behind"
+    **Directional** (camera-frame, dominant axis):
+      left, right, front, behind, higher than, lower than
 
-    The camera coordinate frame follows the OpenCV convention:
-      X -> right,  Y -> down,  Z -> forward (depth).
+    **Comparative** (world-frame bbox):
+      bigger than, smaller than
+
+    **Proximity / support** (world-frame):
+      close by, standing on, supported by
+
+    **Containment** (world-frame bbox):
+      inside
+
+    Camera coordinate frame follows OpenCV: X->right, Y->down, Z->forward.
 
     Args:
-        visible_objects (dict): Mapping from object ID -> metadata dictionary.
-                                Must include "centroid_cam" for each object.
-        max_distance (float): Maximum distance (meters) between centroids to
-                                consider a relation. Default = 2.0 m.
-        size_ratio_threshold (float): Maximum size ratio between objects to
-                                consider a relation. Default = 5.0.
-        eps (float): Minimum displacement (meters) required to consider a
-                     directional relation meaningful. Default = 0.1 m (10 cm).
+        visible_objects: Object ID -> metadata dict. Must include
+            ``centroid_cam``, ``centroid_world``, ``bbox_world``.
+        max_distance: Max world distance (m) between centroids.
+        size_ratio_threshold: Max bbox diagonal ratio to consider a pair.
+        eps: Min displacement (m) for directional relations.
 
     Returns:
-        List[Dict[str, object]]: A list of pairwise relations, each entry
-            contains the human-readable labels (lowercase, may be empty):
-            [
-              {"subject": "chair", "object": "table", "relation": "right_of", "distance": 0.5},
-              {"subject": "chair", "object": "lamp", "relation": "in_front_of", "distance": 1.2},
-                ...
-            ]
+        List of relation dicts with keys:
+        ``subject``, ``object``, ``relation``, ``distance``.
     """
 
-    # 1. Define Semantic Constraints
-    # The list contains the allowed relations WHERE THE KEY IS THE SUBJECT.
-    # e.g. "floor" can only be the SUBJECT of a "below" relation ("floor is below chair")
+    # Semantic constraints: restrict which relations certain labels
+    # can be the SUBJECT of.
     SEMANTIC_RULES = {
-        "ceiling": ["above"],
-        "floor": ["below"],
-        "wall": ["behind", "in_front_of"],  # Walls shouldn't be "left of" furniture
-        "carpet": ["below", "under"],
-        "rug": ["below", "under"],
+        "ceiling": {"higher than"},
+        "floor": {"lower than", "supported by"},
+        "wall": {"behind", "front", "close by"},
+        "carpet": {"lower than", "supported by"},
+        "rug": {"lower than", "supported by"},
     }
 
-    spatial_relations = []
+    spatial_relations: List[Dict[str, object]] = []
     visible_ids = list(visible_objects.keys())
 
-    # Pre-calculate sizes (volume of bbox) for ratio checks
-    # If bbox isn't perfect, we estimate size via diagonal length of bbox
+    # Pre-calculate bbox diagonal and volume per object
     sizes = {}
+    volumes = {}
+    bboxes = {}
     for oid in visible_ids:
         bbox = visible_objects[oid]["bbox_world"]
-        # bbox is [[minx, miny, minz], [maxx, maxy, maxz]]
-        diag = np.linalg.norm(np.array(bbox[1]) - np.array(bbox[0]))
-        sizes[oid] = diag
+        bmin = np.array(bbox[0])
+        bmax = np.array(bbox[1])
+        dims = np.maximum(bmax - bmin, 1e-8)
+        sizes[oid] = float(np.linalg.norm(dims))
+        volumes[oid] = float(dims[0] * dims[1] * dims[2])
+        bboxes[oid] = (bmin, bmax)
+
+    def _add(subj_label, subj_id, obj_label, obj_id, relation, dist):
+        sl = subj_label.lower() if subj_label else f"id_{subj_id}"
+        allowed = SEMANTIC_RULES.get(sl)
+        if allowed is not None and relation not in allowed:
+            return
+        spatial_relations.append({
+            "subject": sl,
+            "object": obj_label.lower() if obj_label else f"id_{obj_id}",
+            "relation": relation,
+            "distance": float(dist),
+        })
 
     for i in range(len(visible_ids)):
         for j in range(i + 1, len(visible_ids)):
             id_a, id_b = visible_ids[i], visible_ids[j]
             obj_a = visible_objects[id_a]
             obj_b = visible_objects[id_b]
+            label_a = obj_a.get("label", "")
+            label_b = obj_b.get("label", "")
 
-            # --- FILTER 1: Proximity (World Distance) ---
-            # We use world coordinates for distance because camera depth can be misleading
-            # (perspective distortion).
-            center_a_world = np.array(obj_a["centroid_world"])
-            center_b_world = np.array(obj_b["centroid_world"])
-            dist_world = np.linalg.norm(center_a_world - center_b_world)
-
+            # World-space distance filter
+            cw_a = np.array(obj_a["centroid_world"])
+            cw_b = np.array(obj_b["centroid_world"])
+            dist_world = float(np.linalg.norm(cw_a - cw_b))
             if dist_world > max_distance:
                 continue
 
-            # --- FILTER 2: Size Ratio ---
-            # Avoid relating tiny objects to massive structure unless necessary
-            size_a = sizes[id_a]
-            size_b = sizes[id_b]
-
+            # Size ratio filter
+            size_a, size_b = sizes[id_a], sizes[id_b]
             if size_a > 0 and size_b > 0:
-                ratio = max(size_a, size_b) / min(size_a, size_b)
-                if ratio > size_ratio_threshold:
+                if max(size_a, size_b) / min(size_a, size_b) > size_ratio_threshold:
                     continue
 
-            # --- Geometric Calculation (Camera Coordinates) ---
-            # We use Camera coords for Left/Right/Up/Down interpretation
+            # Camera-space centroids
             ca = np.array(obj_a["centroid_cam"])
             cb = np.array(obj_b["centroid_cam"])
-            delta = ca - cb  # Vector from B to A
+            delta = ca - cb  # vector from B to A in camera frame
 
-            axis = np.argmax(np.abs(delta))
-            relation = None
+            # ── 1. DIRECTIONAL (dominant axis, camera-frame) ──
+            axis = int(np.argmax(np.abs(delta)))
+            # OpenCV: X=right, Y=down, Z=forward
+            if axis == 0 and abs(delta[0]) > eps:
+                if delta[0] > 0:
+                    _add(label_a, id_a, label_b, id_b, "right", dist_world)
+                    _add(label_b, id_b, label_a, id_a, "left", dist_world)
+                else:
+                    _add(label_a, id_a, label_b, id_b, "left", dist_world)
+                    _add(label_b, id_b, label_a, id_a, "right", dist_world)
+            elif axis == 1 and abs(delta[1]) > eps:
+                if delta[1] > 0:
+                    _add(label_a, id_a, label_b, id_b, "lower than", dist_world)
+                    _add(label_b, id_b, label_a, id_a, "higher than", dist_world)
+                else:
+                    _add(label_a, id_a, label_b, id_b, "higher than", dist_world)
+                    _add(label_b, id_b, label_a, id_a, "lower than", dist_world)
+            elif axis == 2 and abs(delta[2]) > eps:
+                if delta[2] > 0:
+                    _add(label_a, id_a, label_b, id_b, "behind", dist_world)
+                    _add(label_b, id_b, label_a, id_a, "front", dist_world)
+                else:
+                    _add(label_a, id_a, label_b, id_b, "front", dist_world)
+                    _add(label_b, id_b, label_a, id_a, "behind", dist_world)
 
-            # OpenCV Coords: X (Right), Y (Down), Z (Forward)
-            if axis == 0:  # X-axis
-                if delta[0] > eps:
-                    relation = "right_of"  # A is right of B
-                elif delta[0] < -eps:
-                    relation = "left_of"  # A is left of B
-            elif axis == 1:  # Y-axis
-                if delta[1] > eps:
-                    relation = "below"  # A is below B (Y increases downwards)
-                elif delta[1] < -eps:
-                    relation = "above"  # A is above B
-            elif axis == 2:  # Z-axis
-                if delta[2] > eps:
-                    relation = "behind"  # A is further (higher Z)
-                elif delta[2] < -eps:
-                    relation = "in_front_of"  # A is closer (lower Z)
+            # ── 2. COMPARATIVE: bigger than / smaller than ──
+            vol_a, vol_b = volumes[id_a], volumes[id_b]
+            if vol_a > 0 and vol_b > 0:
+                vol_ratio = vol_a / vol_b
+                if vol_ratio > 1.5:
+                    _add(label_a, id_a, label_b, id_b, "bigger than", dist_world)
+                    _add(label_b, id_b, label_a, id_a, "smaller than", dist_world)
+                elif vol_ratio < 1.0 / 1.5:
+                    _add(label_a, id_a, label_b, id_b, "smaller than", dist_world)
+                    _add(label_b, id_b, label_a, id_a, "bigger than", dist_world)
 
-            if not relation:
-                continue
+            # ── 3. PROXIMITY: close by ──
+            if dist_world < 0.5:
+                _add(label_a, id_a, label_b, id_b, "close by", dist_world)
+                _add(label_b, id_b, label_a, id_a, "close by", dist_world)
 
-            # --- FILTER 3: Semantic Validity ---
-            label_a = obj_a.get("label", "").lower()
-            label_b = obj_b.get("label", "").lower()
+            # ── 4. SUPPORT: standing on / supported by ──
+            # A standing on B: A is higher (smaller cam Y), horizontally close
+            dy_cam = delta[1]  # positive = A lower, negative = A higher
+            if abs(dy_cam) > eps and dist_world < 1.0:
+                horiz_dist = float(np.sqrt(delta[0]**2 + delta[2]**2))
+                if horiz_dist < max(size_a, size_b) * 0.7:
+                    if dy_cam < -eps:
+                        # A is higher → A standing on B
+                        _add(label_a, id_a, label_b, id_b, "standing on", dist_world)
+                        _add(label_b, id_b, label_a, id_a, "supported by", dist_world)
+                    else:
+                        _add(label_b, id_b, label_a, id_a, "standing on", dist_world)
+                        _add(label_a, id_a, label_b, id_b, "supported by", dist_world)
 
-            # Check if Subject (A) allows this relation. If not in rules, all relations allowed.
-            if label_a in SEMANTIC_RULES:
-                if relation not in SEMANTIC_RULES[label_a]:
-                    continue
-
-            spatial_relations.append(
-                {
-                    "subject": label_a or f"id_{id_a}",
-                    "object": label_b or f"id_{id_b}",
-                    "relation": relation,
-                    "distance": float(dist_world),  # Helpful for debugging
-                }
-            )
+            # ── 5. CONTAINMENT: inside ──
+            # A inside B: A's centroid within B's world bbox (with margin)
+            margin = 0.05
+            bmin_b, bmax_b = bboxes[id_b]
+            if (cw_a >= bmin_b - margin).all() and (cw_a <= bmax_b + margin).all():
+                _add(label_a, id_a, label_b, id_b, "inside", dist_world)
+            bmin_a, bmax_a = bboxes[id_a]
+            if (cw_b >= bmin_a - margin).all() and (cw_b <= bmax_a + margin).all():
+                _add(label_b, id_b, label_a, id_a, "inside", dist_world)
 
     return spatial_relations
 
