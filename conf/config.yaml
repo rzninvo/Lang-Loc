@@ -1,0 +1,30 @@
+# =============================================================================
+# Root Hydra configuration for LangLoc.
+#
+# Override any value via CLI:
+#   python -m src.localization.cli mode=disabled seed=123 device=cuda
+# =============================================================================
+
+defaults:
+  - paths: default
+  - model: default
+  - graph: default
+  - train: default
+  - eval: default
+  - localization: default
+  - baseline: default
+  - retrieval: default
+  - dialogue: default
+  - _self_
+
+# Weights & Biases logging mode.
+mode: online
+
+# Global random seed for reproducibility.
+seed: 42
+
+# Torch device.  auto | cuda | cpu
+device: auto
+
+# Target 3RScan scene ID (for visualization scripts).
+scan_id: null

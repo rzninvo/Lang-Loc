@@ -1,0 +1,22 @@
+# DualSceneAligner configuration (scene retrieval, Stage 1).
+
+# Model architecture
+node_input_dim: 518       # centroid(3) + color(3) + CLIP(512)
+relation_dim: 64          # Learned relation embeddings
+hidden_dim: 256           # GNN hidden / output dimension
+scene_clip_dim: 512       # Scene-level CLIP descriptor
+num_relations: 9          # Number of spatial relation types
+dropout: 0.0
+
+# Training
+lr: 0.001
+weight_decay: 0.0001
+batch_size: 32
+epochs: 100
+temperature: 0.15         # Supervised contrastive loss temperature
+augment_prob: 0.5         # Subgraph augmentation probability
+
+# Scoring weights (embedding, scene-CLIP, lexical F1)
+w_emb: 0.33
+w_scene: 0.33
+w_jac: 0.34

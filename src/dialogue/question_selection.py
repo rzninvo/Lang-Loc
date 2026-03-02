@@ -7,7 +7,6 @@ and least-first strategies, with IDF weighting and relation preference.
 
 from __future__ import annotations
 
-import argparse
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
@@ -94,7 +93,7 @@ def pick_next_question_system(
     label_pool: List[str],
     rel_pool: List[Any],
     idf: Dict[str, float],
-    args: argparse.Namespace,
+    cfg: Any,
 ) -> Optional[Question]:
     """Select the best next question for a given backend.
 
@@ -103,9 +102,9 @@ def pick_next_question_system(
       - ``binary``: closest ``P(yes)`` to 0.5.
       - ``least_first``: most extreme ``P(yes)``.
 
-    Labels in ``args.ignore_labels`` are skipped.  Relations are
+    Labels in ``cfg.ignore_labels`` are skipped.  Relations are
     preferred over labels when their score is within
-    ``args.rel_prefer_margin`` of the best label score.
+    ``cfg.rel_prefer_margin`` of the best label score.
 
     Args:
         backend_name: Name of the backend (for logging only).
@@ -115,28 +114,25 @@ def pick_next_question_system(
         label_pool: Label pool for index resolution.
         rel_pool: Relation pool for index resolution.
         idf: Per-label IDF weights.
-        args: Namespace with strategy parameters (``question_strategy``,
-            ``ask_min_p``, ``ask_max_p``, ``rel_min_answerable``,
-            ``alpha_label``, ``alpha_rel``, ``p_u_label``, ``p_u_rel``,
-            ``p_u_unanswerable``, ``idf_weight``, ``rel_bonus``,
-            ``rel_prefer_margin``, ``ignore_labels``).
+        cfg: Dialogue configuration (``DialogueConfig`` or argparse
+            namespace) with strategy parameters.
 
     Returns:
         The best :class:`Question`, or ``None`` if no question passes
         the threshold filters.
     """
-    st = args.question_strategy.lower().strip()
+    st = cfg.question_strategy.lower().strip()
     p = backend.posterior_vector()
 
-    ignore = set([x.strip().lower() for x in args.ignore_labels])
+    ignore = set([x.strip().lower() for x in cfg.ignore_labels])
 
     best_rel: Tuple[Optional[Question], float] = (None, -1e18)
     best_lab: Tuple[Optional[Question], float] = (None, -1e18)
 
     def passes_thresholds(p_yes: float, p_ans: float, is_rel: bool) -> bool:
-        if not (args.ask_min_p <= p_yes <= args.ask_max_p):
+        if not (cfg.ask_min_p <= p_yes <= cfg.ask_max_p):
             return False
-        if is_rel and p_ans < args.rel_min_answerable:
+        if is_rel and p_ans < cfg.rel_min_answerable:
             return False
         return True
 
@@ -157,18 +153,18 @@ def pick_next_question_system(
                     p=p,
                     p_true=p_true,
                     p_ans=p_ans,
-                    alpha=args.alpha_label,
-                    p_u_base=args.p_u_label,
-                    p_u_unanswerable=args.p_u_unanswerable,
+                    alpha=cfg.alpha_label,
+                    p_u_base=cfg.p_u_label,
+                    p_u_unanswerable=cfg.p_u_unanswerable,
                 )
                 # IDF boost
-                score *= (1.0 + args.idf_weight * float(idf.get(lab, 0.0)))
+                score *= (1.0 + cfg.idf_weight * float(idf.get(lab, 0.0)))
             elif st == "binary":
                 score = -abs(p_yes - 0.5)
             elif st in ("least_first", "least-first", "least"):
                 score = -min(p_yes, 1.0 - p_yes)
             else:
-                raise ValueError(f"Unknown question_strategy: {args.question_strategy}")
+                raise ValueError(f"Unknown question_strategy: {cfg.question_strategy}")
 
             if score > best_lab[1]:
                 best_lab = (q, score)
@@ -186,23 +182,23 @@ def pick_next_question_system(
                     p=p,
                     p_true=p_true,
                     p_ans=p_ans,
-                    alpha=args.alpha_rel,
-                    p_u_base=args.p_u_rel,
-                    p_u_unanswerable=args.p_u_unanswerable,
+                    alpha=cfg.alpha_rel,
+                    p_u_base=cfg.p_u_rel,
+                    p_u_unanswerable=cfg.p_u_unanswerable,
                 )
-                score *= (1.0 + args.rel_bonus)
+                score *= (1.0 + cfg.rel_bonus)
             elif st == "binary":
                 score = -abs(p_yes - 0.5)
             elif st in ("least_first", "least-first", "least"):
                 score = -min(p_yes, 1.0 - p_yes)
             else:
-                raise ValueError(f"Unknown question_strategy: {args.question_strategy}")
+                raise ValueError(f"Unknown question_strategy: {cfg.question_strategy}")
 
             if score > best_rel[1]:
                 best_rel = (q, score)
 
     # prefer relation if it exists and not terrible
-    if best_rel[0] is not None and best_rel[1] >= best_lab[1] - args.rel_prefer_margin:
+    if best_rel[0] is not None and best_rel[1] >= best_lab[1] - cfg.rel_prefer_margin:
         return best_rel[0]
     if best_lab[0] is not None:
         return best_lab[0]

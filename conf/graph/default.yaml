@@ -1,0 +1,27 @@
+# =============================================================================
+# Graph processing — controls how scene graphs are constructed and matched.
+# =============================================================================
+
+# Embedding backend used to encode node labels, attributes, and edge relations.
+#   word2vec — spaCy en_core_web_lg vectors (300-d, fast, offline)
+#   clip     — OpenAI CLIP text encoder (512-d)
+#   ada      — OpenAI text-embedding-ada-002 via API (1536-d, requires API key)
+embedding_type: word2vec
+
+# Maximum spatial distance (metres) for connecting nodes with edges in 3DSSG
+# scene graphs. Nodes farther apart than this are not connected.
+max_dist: 1.5
+
+# Whether to include object attribute embeddings (e.g. "wooden", "red") in
+# node features. If false, only the object label embedding is used.
+use_attributes: true
+
+# --- DBSCAN subgraph matching parameters ---
+# Used by get_matching_subgraph() to cluster nodes from two graphs by feature
+# similarity and extract the overlapping subgraphs.
+
+# DBSCAN epsilon (cosine distance). Smaller = stricter clusters, fewer matches.
+dbscan_eps: 0.5
+
+# DBSCAN minimum number of samples per cluster.
+dbscan_min_samples: 1

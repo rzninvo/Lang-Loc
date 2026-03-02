@@ -1,0 +1,72 @@
+# Dialogue disambiguation configuration (Stage 3).
+
+# I/O
+candidates_json: ""
+dataset_root: ""
+only_scene_id: ""
+limit: 1
+
+# Evaluation mode
+eval_mode: sequential        # sequential | shared
+backend_order: [a1, a2, a3]
+cache_answers: false
+
+# Candidates
+candidate_set: both          # auto | grid | fov | both
+include_predicted_pose: false
+pred_candidate_prior: 0.35
+
+# Candidate-to-frame mapping
+k_nn: 15
+sigma: 0.25
+use_direction: false
+dir_temp: 0.25
+
+# Dialogue loop
+max_rounds: 12
+min_rounds: 2
+conf_threshold: 0.85
+auto_relax: false
+ask_min_p: 0.01
+ask_max_p: 0.99
+
+# Question selection
+question_strategy: ig        # ig | binary | least_first
+question_driver: a3
+rel_min_answerable: 0.10
+rel_bonus: 0.25
+rel_prefer_margin: 0.05
+
+# Label filtering / IDF
+idf_weight: 1.0
+ignore_labels: [floor, wall, ceiling, room, baseboard, carpet]
+
+# Pools
+rel_min_salience: 0.0
+rel_unique_only: false
+max_pool_frames: 30
+max_rel_pool: 600
+allowed_rels: []
+
+# Likelihood calibration
+alpha_label: 0.82
+alpha_rel: 0.70
+p_u_label: 0.05
+p_u_rel: 0.15
+p_u_unanswerable: 0.90
+vis_tau: 0.20
+ans_tau: 0.10
+
+# A2 particle filter
+n_particles: 256
+p_k_nn: 10
+p_sigma: 0.25
+p_jitter: 0.07
+
+# Answering
+answer_mode: interactive    # interactive | oracle
+oracle_ansable_min: 0.25
+
+# Display
+show_top_n: 5
+show_gt_debug: false
