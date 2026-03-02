@@ -5,7 +5,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 cd "$PROJECT_ROOT" || exit 1
 
-python -m src.localization.baseline_midpoint \
+python -m langloc.localization.baseline_midpoint \
     localization.frame_policy=max_visible \
     baseline.random_pitch_deg=30.0 \
     baseline.save_metrics=./eval/baseline_eval_metrics_mid_point.json \
