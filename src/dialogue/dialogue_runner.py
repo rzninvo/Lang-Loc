@@ -6,7 +6,6 @@ pick a question, render it, obtain an answer, and update the posterior.
 
 from __future__ import annotations
 
-import argparse
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
@@ -52,7 +51,7 @@ def oracle_answer(
     rel_pool: List[Any],
     gt_frame_label_dict: Dict[str, float],
     gt_frame_rel_set: set,
-    args: argparse.Namespace,
+    cfg: Any,
 ) -> str:
     """Generate an oracle answer from ground-truth semantics.
 
@@ -62,7 +61,7 @@ def oracle_answer(
         rel_pool: Relation pool for index resolution.
         gt_frame_label_dict: ``label → salience`` for the GT frame.
         gt_frame_rel_set: Set of ``(subj, rel, obj)`` tuples for the GT frame.
-        args: Namespace with ``vis_tau``, ``ans_tau``, and
+        cfg: Config with ``vis_tau``, ``ans_tau``, and
             ``oracle_ansable_min``.
 
     Returns:
@@ -72,9 +71,9 @@ def oracle_answer(
         lab = label_pool[q.idx]
         sal = float(gt_frame_label_dict.get(lab, 0.0))
         # if barely visible, treat as unknown
-        ansable = salience_to_answerable(sal, args.ans_tau)
-        vis = salience_to_visprob(sal, args.vis_tau)
-        if ansable < args.oracle_ansable_min:
+        ansable = salience_to_answerable(sal, cfg.ans_tau)
+        vis = salience_to_visprob(sal, cfg.vis_tau)
+        if ansable < cfg.oracle_ansable_min:
             return "u"
         return "y" if vis >= 0.5 else "n"
     else:
@@ -82,9 +81,9 @@ def oracle_answer(
         # if subj or obj not answerable -> u
         sal_s = float(gt_frame_label_dict.get(s, 0.0))
         sal_o = float(gt_frame_label_dict.get(o, 0.0))
-        ans_s = salience_to_answerable(sal_s, args.ans_tau)
-        ans_o = salience_to_answerable(sal_o, args.ans_tau)
-        if min(ans_s, ans_o) < args.oracle_ansable_min:
+        ans_s = salience_to_answerable(sal_s, cfg.ans_tau)
+        ans_o = salience_to_answerable(sal_o, cfg.ans_tau)
+        if min(ans_s, ans_o) < cfg.oracle_ansable_min:
             return "u"
         return "y" if (s, r, o) in gt_frame_rel_set else "n"
 
@@ -99,7 +98,7 @@ def run_dialogue_one_backend(
     label_pool: List[str],
     rel_pool: List[Any],
     idf: Dict[str, float],
-    args: argparse.Namespace,
+    cfg: Any,
     answer_cache: Optional[Dict[Tuple, str]],
     oracle_gt_frame_label_dict: Optional[Dict[str, float]],
     oracle_gt_frame_rel_set: Optional[set],
@@ -120,7 +119,7 @@ def run_dialogue_one_backend(
         label_pool: Label pool for rendering questions.
         rel_pool: Relation pool for rendering questions.
         idf: Per-label IDF weights.
-        args: Namespace with dialogue loop parameters.
+        cfg: Dialogue configuration (``DialogueConfig`` or argparse namespace).
         answer_cache: Shared answer cache (or ``None``).
         oracle_gt_frame_label_dict: GT label dict for oracle mode.
         oracle_gt_frame_rel_set: GT relation set for oracle mode.
@@ -137,27 +136,29 @@ def run_dialogue_one_backend(
     print(f"\n=== Dialogue for {backend_name.upper()} ===")
     print(HELP_TEXT)
 
-    for r in range(args.max_rounds):
+    for r in range(cfg.max_rounds):
         tp = backend.top_prob()
         print(f"\n[{backend_name.upper()}] Round {r+1} | topP={tp:.3f}")
 
-        if r + 1 >= args.min_rounds and tp >= args.conf_threshold:
-            print(f"Confident ({tp:.3f} >= {args.conf_threshold:.2f})")
+        if r + 1 >= cfg.min_rounds and tp >= cfg.conf_threshold:
+            print(f"Confident ({tp:.3f} >= {cfg.conf_threshold:.2f})")
             break
 
         # pick question; if none, relax thresholds progressively
-        q = pick_next_question_system(backend_name, backend, questions, label_pool, rel_pool, idf, args)
-        if q is None and args.auto_relax:
-            # relax #1: widen p window
-            old_min, old_max, old_ans = args.ask_min_p, args.ask_max_p, args.rel_min_answerable
-            args.ask_min_p, args.ask_max_p = 0.01, 0.99
-            q = pick_next_question_system(backend_name, backend, questions, label_pool, rel_pool, idf, args)
-            # relax #2: allow relations regardless answerable
-            if q is None:
-                args.rel_min_answerable = 0.0
-                q = pick_next_question_system(backend_name, backend, questions, label_pool, rel_pool, idf, args)
-            # restore
-            args.ask_min_p, args.ask_max_p, args.rel_min_answerable = old_min, old_max, old_ans
+        q = pick_next_question_system(backend_name, backend, questions, label_pool, rel_pool, idf, cfg)
+        if q is None and cfg.auto_relax:
+            # relax thresholds progressively, always restoring originals
+            old_min, old_max, old_ans = cfg.ask_min_p, cfg.ask_max_p, cfg.rel_min_answerable
+            try:
+                # relax #1: widen p window
+                cfg.ask_min_p, cfg.ask_max_p = 0.01, 0.99
+                q = pick_next_question_system(backend_name, backend, questions, label_pool, rel_pool, idf, cfg)
+                # relax #2: allow relations regardless answerable
+                if q is None:
+                    cfg.rel_min_answerable = 0.0
+                    q = pick_next_question_system(backend_name, backend, questions, label_pool, rel_pool, idf, cfg)
+            finally:
+                cfg.ask_min_p, cfg.ask_max_p, cfg.rel_min_answerable = old_min, old_max, old_ans
 
         if q is None:
             print("No more questions that satisfy thresholds.")
@@ -178,12 +179,12 @@ def run_dialogue_one_backend(
             print(f"Ask[rel ]: Is **{s}** {relation_phrase(rrel)} **{o}** ? (P(true)~={p_yes:.2f}, P(ans)~={p_ans_avg:.2f})")
 
         key = question_key(q, label_pool, rel_pool)
-        if answer_cache is not None and key in answer_cache and args.cache_answers:
+        if answer_cache is not None and key in answer_cache and cfg.cache_answers:
             ans = answer_cache[key]
             print(f"[cached answer: {ans}]")
         else:
-            if args.answer_mode == "oracle":
-                ans = oracle_answer(q, label_pool, rel_pool, oracle_gt_frame_label_dict or {}, oracle_gt_frame_rel_set or set(), args)
+            if cfg.answer_mode == "oracle":
+                ans = oracle_answer(q, label_pool, rel_pool, oracle_gt_frame_label_dict or {}, oracle_gt_frame_rel_set or set(), cfg)
                 print(f"[oracle answer: {ans}]")
             else:
                 ans = input("[y/n/u/q/tf/tc/tp/o/h] > ").strip().lower()
@@ -194,7 +195,7 @@ def run_dialogue_one_backend(
             continue
         if ans == "tf":
             if hasattr(backend, "frame_posterior") and frames_pool is not None:
-                show_top_frames(frames_pool, backend.frame_posterior(), top_n=args.show_top_n, title=f"Top frames ({backend_name.upper()})")
+                show_top_frames(frames_pool, backend.frame_posterior(), top_n=cfg.show_top_n, title=f"Top frames ({backend_name.upper()})")
             else:
                 print("tf not available for this backend.")
             continue
@@ -202,13 +203,13 @@ def run_dialogue_one_backend(
             if backend_name != "a1" or cand_pos is None:
                 print("tc only available in A1 dialogue.")
             else:
-                show_top_candidates(cand_pos, cand_dir, backend.posterior_vector(), top_n=args.show_top_n)
+                show_top_candidates(cand_pos, cand_dir, backend.posterior_vector(), top_n=cfg.show_top_n)
             continue
         if ans == "tp":
             if backend_name != "a2" or not hasattr(backend, "p_pos"):
                 print("tp only available in A2 dialogue.")
             else:
-                show_top_particles(backend.p_pos, backend.p_dir, backend.posterior_vector(), top_n=args.show_top_n)
+                show_top_particles(backend.p_pos, backend.p_dir, backend.posterior_vector(), top_n=cfg.show_top_n)
             continue
         if ans == "o":
             print(f"Pool sizes: labels={len(label_pool)} rels={len(rel_pool)} questions={len(questions)}")
@@ -220,7 +221,7 @@ def run_dialogue_one_backend(
             print("Invalid input. Type 'h' for help.")
             continue
 
-        if answer_cache is not None and args.cache_answers:
+        if answer_cache is not None and cfg.cache_answers:
             answer_cache[key] = ans
 
         asked += 1

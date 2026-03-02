@@ -2,15 +2,17 @@
 
 Follows the ``NBVConfig`` pattern from ``src.utils.nbv_config`` — a
 dataclass consolidating all runtime parameters with an
-``extract_dialogue_config`` factory that marshals an
-``argparse.Namespace`` into the typed container.
+``extract_dialogue_config`` factory that marshals a Hydra
+``DictConfig`` or ``argparse.Namespace`` into the typed container.
 """
 
 from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass, field
-from typing import List
+from typing import Any, List, Union
+
+from omegaconf import DictConfig
 
 
 @dataclass
@@ -158,20 +160,33 @@ class DialogueConfig:
     show_gt_debug: bool = False
 
 
-def extract_dialogue_config(args: argparse.Namespace) -> DialogueConfig:
-    """Create a :class:`DialogueConfig` from an argparse namespace.
+def extract_dialogue_config(
+    source: Union[DictConfig, argparse.Namespace, Any],
+) -> DialogueConfig:
+    """Create a :class:`DialogueConfig` from a Hydra config or argparse namespace.
 
-    All fields are read from *args* by name.  Missing attributes fall back
-    to the dataclass defaults.
+    All fields are read from *source* by name.  Missing attributes fall
+    back to the dataclass defaults.  Supports both ``DictConfig`` (from
+    Hydra) and ``argparse.Namespace`` (from standalone CLI).
 
     Args:
-        args: Parsed command-line arguments.
+        source: Hydra ``DictConfig`` section (e.g. ``cfg.dialogue``),
+            or parsed ``argparse.Namespace``.
 
     Returns:
         Populated :class:`DialogueConfig` instance.
     """
     kwargs = {}
     for f in DialogueConfig.__dataclass_fields__:
-        if hasattr(args, f):
-            kwargs[f] = getattr(args, f)
+        if isinstance(source, DictConfig):
+            if f in source:
+                val = source[f]
+                # OmegaConf lists → plain Python lists for dataclass fields
+                if isinstance(val, (list, DictConfig)):
+                    from omegaconf import OmegaConf
+                    val = OmegaConf.to_container(val, resolve=True)
+                kwargs[f] = val
+        else:
+            if hasattr(source, f):
+                kwargs[f] = getattr(source, f)
     return DialogueConfig(**kwargs)

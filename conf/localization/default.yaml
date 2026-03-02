@@ -1,0 +1,149 @@
+# =============================================================================
+# Localization settings — controls the pose estimation pipeline.
+#
+# Run localization:
+#   python -m whereami.localization.cli localization.mode=standard
+#
+# Modes:
+#   standard        — grid-based scoring over all poses
+#   coarse_to_fine  — hierarchical grid refinement for faster convergence
+#   candidates      — rank candidate poses and output top matches
+# =============================================================================
+
+# Localization mode (see above).
+mode: standard
+
+# Grid resolution (metres) for sampling camera positions within the scene.
+# Smaller = more positions = finer spatial resolution, but slower.
+grid_step: 0.25
+
+# Assumed camera height above the floor (metres) for grid sampling.
+eye_height: 1.6
+
+# Number of top-scoring scene graphs to consider when aggregating scores.
+top_k: 25
+
+# Temperature parameter for softmax score normalisation.
+score_tau: 0.5
+
+# Camera horizontal field of view (degrees) for visibility checking.
+h_fov_deg: 100.0
+
+# Camera vertical field of view (degrees) for visibility checking.
+v_fov_deg: 60.0
+
+# Prediction strategy for selecting the final pose estimate.
+#   argmax   — pick the single highest-scoring grid cell
+#   random   — sample from the score distribution
+#   weighted — weighted average of top grid cells (mean-shift)
+prediction_strategy: weighted
+
+# Bandwidth (metres) for mean-shift clustering of candidate positions.
+cluster_bandwidth: 0.75
+
+# Maximum number of grid points fed into the clustering step.
+max_cluster_points: 512
+
+# List of radii (metres) at which to compute hit-rate metrics.
+# A prediction is a "hit" if it falls within this distance of ground truth.
+hit_radii: [0.75, 1.0, 1.5, 2.0, 2.5]
+
+# Percentiles for reporting the probability mass around the ground truth.
+mass_percentiles: [50.0, 90.0]
+
+# Minimum distance (metres) between top-k predictions to ensure diversity.
+top_k_min_dist: 10
+
+# Policy for selecting which camera frame to use per scene.
+#   max_visible — pick the frame with the most visible objects
+frame_policy: max_visible
+
+# Specific frame index to use (overrides frame_policy if set).
+frame_index: 0
+
+# Stride for arrow visualisation (show every N-th arrow).
+arrow_stride: 2
+
+# Length of visualisation arrows (0.0 = auto-scale).
+arrow_len: 0.0
+
+# Number of top poses to visualise.
+top_pose_count: 5
+
+# Show 2D heatmap overlay of score distribution.
+show_heatmap: false
+
+# Show directional arrows on the heatmap.
+show_arrows: false
+
+# Show interactive 3D Open3D visualisation.
+show_3d: false
+
+# --- Scene data paths ---
+
+# Root directory of the 3RScan dataset (required).
+# Reads from the shared paths config (paths.rscan_root = ./data/3rscan).
+root: ${paths.rscan_root}
+
+# Directory containing processed graph .pt files.
+graphs: ${paths.graphs_dir}
+
+# Optional directory for pre-built query graphs.
+query_root: null
+
+# List of specific scene IDs to evaluate. If null, uses all available scenes.
+scene_ids: null
+
+# Random seed for scene sampling (separate from the global seed).
+seed: 42
+
+# Maximum number of scenes to evaluate. If null, evaluate all.
+max_scenes: null
+
+# Single scene ID to visualise in detail (triggers per-scene visualisation).
+visualize_scene: null
+
+# --- Coarse-to-fine parameters ---
+
+# Small epsilon added to probabilities to avoid log(0).
+prob_eps: 1.0e-6
+
+# Hit radius (metres) for the simple coarse-to-fine scoring mode.
+hit_radius: 0.5
+
+# Initial coarse grid step (metres) before refinement.
+coarse_grid_step: 2.0
+
+# Number of hierarchical refinement levels.
+coarse_refine_levels: 3
+
+# Factor by which grid step shrinks at each refinement level.
+coarse_refine_factor: 2.0
+
+# Fraction of grid cells to keep at each refinement level.
+coarse_keep_ratio: 0.7
+
+# Number of top cells to keep after the final refinement.
+coarse_top_k: 16
+
+# Disable non-maximum suppression during refinement.
+coarse_disable_nms: false
+
+# --- Candidates-mode parameters ---
+
+# Number of top candidate scenes to return.
+top_candidates: 10
+
+# Number of top poses per candidate scene.
+top_pose_candidates: 10
+
+# Optional path to write candidate results as JSON.
+output_json: null
+
+# --- Output paths ---
+
+# Path to save evaluation metrics as JSON.
+save_metrics: null
+
+# Path to write a run log file.
+log_file: null

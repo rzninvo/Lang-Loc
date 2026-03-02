@@ -1,0 +1,16 @@
+# =============================================================================
+# Midpoint baseline settings — controls the naive baseline evaluator.
+#
+# Run:
+#   python -m whereami.localization.baseline_midpoint
+# =============================================================================
+
+# Maximum pitch angle (degrees) for random viewing direction.
+# Sampled uniformly in [-deg, +deg].
+random_pitch_deg: 30.0
+
+# Path to save per-scene metrics as JSON.
+save_metrics: ./eval/baseline_eval_metrics_mid_point.json
+
+# Path to write summary log.
+log_file: ./eval/baseline_eval_loc_summary_mid_point.log

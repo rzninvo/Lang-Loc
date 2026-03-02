@@ -13,9 +13,8 @@ A3) Frame posterior (discrete over frames) — exact frame semantics.
 
 Requires
 --------
-- ``pose_level_dialogue_semantic_fallback.py`` (dsf) on PYTHONPATH.
 - ``dataset_root/<scene_id>/output/descriptions/all_descriptions*.json``
-  readable by ``dsf.load_scene_data``.
+  readable by ``scene_data.load_scene_data``.
 - ``candidates_json`` with ``gt_pose``, ``predicted_pose``, and candidate
   lists.
 
@@ -37,11 +36,9 @@ import argparse
 import json
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
-
-import pose_level_dialogue_semantic_fallback as dsf
 
 from src.dialogue.backends import (
     CandidateBackendA1,
@@ -49,6 +46,11 @@ from src.dialogue.backends import (
     ParticleBackendA2,
 )
 from src.dialogue.candidates import extract_candidates
+from src.dialogue.dialogue_config import DialogueConfig, extract_dialogue_config
+from src.dialogue.frame_mapping import (
+    build_cand_to_frame_map,
+    top_frames_by_mapping,
+)
 from src.dialogue.dialogue_runner import (
     nearest_frame_to_gt,
     run_dialogue_one_backend,
@@ -63,6 +65,11 @@ from src.dialogue.math_utils import (
 )
 from src.dialogue.question_pool import Question, build_pools, compute_label_idf
 from src.dialogue.question_selection import pick_next_question_system, show_top_frames
+from src.dialogue.scene_data import (
+    DEFAULT_ALIASES,
+    load_relaxed_json,
+    load_scene_data,
+)
 from src.dialogue.semantics import (
     frame_label_salience,
     frame_relations,
@@ -75,7 +82,7 @@ from src.dialogue.semantics import (
 # ---------------------------------------------------------------------------
 def run_entry(
     entry: Dict[str, Any],
-    args: argparse.Namespace,
+    cfg: Union[DialogueConfig, argparse.Namespace],
 ) -> Optional[Dict[str, Tuple[float, float, float, float]]]:
     """Run the dialogue evaluation for a single scene entry.
 
@@ -84,7 +91,7 @@ def run_entry(
 
     Args:
         entry: Single scene entry from the candidates JSON.
-        args: Namespace with all evaluation parameters.
+        cfg: Dialogue configuration (``DialogueConfig`` or argparse namespace).
 
     Returns:
         Dictionary mapping backend tags (``"A1"``, ``"A2"``, ``"A3"``) to
@@ -95,7 +102,7 @@ def run_entry(
     if not scene_id:
         return None
 
-    scene = dsf.load_scene_data(Path(args.dataset_root), scene_id, dict(dsf.DEFAULT_ALIASES))
+    scene = load_scene_data(Path(cfg.dataset_root), scene_id, dict(DEFAULT_ALIASES))
     frames_all = scene.frames
 
     # gt + predicted baseline
@@ -109,23 +116,23 @@ def run_entry(
     # candidates
     cand_pos, cand_dir, cand_prior = extract_candidates(
         entry,
-        candidate_set=args.candidate_set,
-        include_predicted_pose=args.include_predicted_pose,
-        pred_prior=args.pred_candidate_prior,
+        candidate_set=cfg.candidate_set,
+        include_predicted_pose=cfg.include_predicted_pose,
+        pred_prior=cfg.pred_candidate_prior,
     )
 
     # mapping
-    c2f_map = dsf.build_cand_to_frame_map(
+    c2f_map = build_cand_to_frame_map(
         cand_pos=cand_pos,
         cand_dir=cand_dir,
         frame_pos=scene.frame_pos,
         frame_dir=scene.frame_dir,
-        k_nn=args.k_nn,
-        sigma=args.sigma,
-        use_direction=args.use_direction and (cand_dir is not None),
-        dir_temp=args.dir_temp,
+        k_nn=cfg.k_nn,
+        sigma=cfg.sigma,
+        use_direction=cfg.use_direction and (cand_dir is not None),
+        dir_temp=cfg.dir_temp,
     )
-    frame_subset = dsf.top_frames_by_mapping(c2f_map, max_frames=args.max_pool_frames)
+    frame_subset = top_frames_by_mapping(c2f_map, max_frames=cfg.max_pool_frames)
     frames_pool = [frames_all[i] for i in frame_subset]
 
     # dense W for pooled frames
@@ -144,13 +151,13 @@ def run_entry(
     label_pool, rel_pool = build_pools(
         frames_all=frames_all,
         frame_subset=frame_subset,
-        max_rel_pool=args.max_rel_pool,
-        rel_min_salience=args.rel_min_salience,
-        rel_unique_only=args.rel_unique_only,
-        allowed_rels=args.allowed_rels,
+        max_rel_pool=cfg.max_rel_pool,
+        rel_min_salience=cfg.rel_min_salience,
+        rel_unique_only=cfg.rel_unique_only,
+        allowed_rels=cfg.allowed_rels,
     )
     # label ignore list normalize
-    label_pool = [lab for lab in label_pool if lab not in set([x.strip().lower() for x in args.ignore_labels])]
+    label_pool = [lab for lab in label_pool if lab not in set([x.strip().lower() for x in cfg.ignore_labels])]
 
     # idf
     idf = compute_label_idf(label_pool, pool_label_dicts)
@@ -173,7 +180,7 @@ def run_entry(
 
     print(f"\n=== Scene {scene_id} ===")
     print(f"Candidates={len(cand_pos)} | Frames(pool)={len(frames_pool)} | Labels={len(label_pool)} | Relations={len(rel_pool)}")
-    if args.show_gt_debug:
+    if cfg.show_gt_debug:
         print(f"GT pos: {gt_pos.tolist()}")
         if gt_dir is not None:
             print(f"GT dir: {gt_dir.tolist()}")
@@ -186,12 +193,12 @@ def run_entry(
     # oracle support (optional)
     oracle_label_dict = None
     oracle_rel_set = None
-    if args.answer_mode == "oracle":
+    if cfg.answer_mode == "oracle":
         gt_frame_idx = nearest_frame_to_gt(gt_pos, frames_all, scene)
         fr_gt = frames_all[gt_frame_idx]
         oracle_label_dict = frame_label_salience(fr_gt)
         oracle_rel_set = frame_relations(fr_gt)
-        if args.show_gt_debug:
+        if cfg.show_gt_debug:
             fid = getattr(fr_gt, "frame_id", f"idx={gt_frame_idx}")
             print(f"[oracle] using nearest GT frame: {fid}")
 
@@ -208,13 +215,13 @@ def run_entry(
             frame_label_dicts=pool_label_dicts,
             frame_rel_sets=pool_rel_sets,
             frame_dirs=pool_dir,
-            alpha_label=args.alpha_label,
-            alpha_rel=args.alpha_rel,
-            p_u_label=args.p_u_label,
-            p_u_rel=args.p_u_rel,
-            p_u_unanswerable=args.p_u_unanswerable,
-            vis_tau=args.vis_tau,
-            ans_tau=args.ans_tau,
+            alpha_label=cfg.alpha_label,
+            alpha_rel=cfg.alpha_rel,
+            p_u_label=cfg.p_u_label,
+            p_u_rel=cfg.p_u_rel,
+            p_u_unanswerable=cfg.p_u_unanswerable,
+            vis_tau=cfg.vis_tau,
+            ans_tau=cfg.ans_tau,
         )
         a3 = FrameBackendA3(
             p0=pf0,
@@ -223,13 +230,13 @@ def run_entry(
             frame_rel_sets=pool_rel_sets,
             frame_pos=pool_pos,
             frame_dir=pool_dir,
-            alpha_label=args.alpha_label,
-            alpha_rel=args.alpha_rel,
-            p_u_label=args.p_u_label,
-            p_u_rel=args.p_u_rel,
-            p_u_unanswerable=args.p_u_unanswerable,
-            vis_tau=args.vis_tau,
-            ans_tau=args.ans_tau,
+            alpha_label=cfg.alpha_label,
+            alpha_rel=cfg.alpha_rel,
+            p_u_label=cfg.p_u_label,
+            p_u_rel=cfg.p_u_rel,
+            p_u_unanswerable=cfg.p_u_unanswerable,
+            vis_tau=cfg.vis_tau,
+            ans_tau=cfg.ans_tau,
         )
         a2 = ParticleBackendA2(
             cand_pos=cand_pos,
@@ -239,18 +246,18 @@ def run_entry(
             frame_rel_sets=pool_rel_sets,
             frame_pos=pool_pos,
             frame_dir=pool_dir,
-            n_particles=args.n_particles,
-            k_nn=args.p_k_nn,
-            sigma=args.p_sigma,
-            jitter_pos=args.p_jitter,
-            alpha_label=args.alpha_label,
-            alpha_rel=args.alpha_rel,
-            p_u_label=args.p_u_label,
-            p_u_rel=args.p_u_rel,
-            p_u_unanswerable=args.p_u_unanswerable,
-            vis_tau=args.vis_tau,
-            ans_tau=args.ans_tau,
-            seed=args.seed,
+            n_particles=cfg.n_particles,
+            k_nn=cfg.p_k_nn,
+            sigma=cfg.p_sigma,
+            jitter_pos=cfg.p_jitter,
+            alpha_label=cfg.alpha_label,
+            alpha_rel=cfg.alpha_rel,
+            p_u_label=cfg.p_u_label,
+            p_u_rel=cfg.p_u_rel,
+            p_u_unanswerable=cfg.p_u_unanswerable,
+            vis_tau=cfg.vis_tau,
+            ans_tau=cfg.ans_tau,
+            seed=cfg.seed,
         )
         return {"a1": a1, "a2": a2, "a3": a3}
 
@@ -258,21 +265,21 @@ def run_entry(
     out: Dict[str, Tuple[float, float, float, float]] = {}
     cache: Dict[Tuple, str] = {}
 
-    if args.eval_mode == "shared":
+    if cfg.eval_mode == "shared":
         # shared evidence mode (kept for debugging)
         backends = fresh_backends()
         print("\n=== Shared dialogue mode (one Q/A updates all) ===")
         # run using a selected driver, but still updates all
         questions = list(questions_init)
         asked = 0
-        for r in range(args.max_rounds):
-            driver = args.question_driver
+        for r in range(cfg.max_rounds):
+            driver = cfg.question_driver
             tp = backends[driver].top_prob()
             print(f"\n[Shared] Round {r+1} | driver={driver} topP={tp:.3f}")
-            if r + 1 >= args.min_rounds and tp >= args.conf_threshold:
+            if r + 1 >= cfg.min_rounds and tp >= cfg.conf_threshold:
                 print("Confident (driver)")
                 break
-            q = pick_next_question_system(driver, backends[driver], questions, label_pool, rel_pool, idf, args)
+            q = pick_next_question_system(driver, backends[driver], questions, label_pool, rel_pool, idf, cfg)
             if q is None:
                 print("No more questions.")
                 break
@@ -313,7 +320,7 @@ def run_entry(
 
     else:
         # sequential system-level evaluation
-        order = [x.strip().lower() for x in args.backend_order]
+        order = [x.strip().lower() for x in cfg.backend_order]
         order = [x for x in order if x in ("a1", "a2", "a3")]
         if not order:
             order = ["a1", "a2", "a3"]
@@ -331,7 +338,7 @@ def run_entry(
                 label_pool=label_pool,
                 rel_pool=rel_pool,
                 idf=idf,
-                args=args,
+                cfg=cfg,
                 answer_cache=cache,
                 oracle_gt_frame_label_dict=oracle_label_dict,
                 oracle_gt_frame_rel_set=oracle_rel_set,
@@ -361,10 +368,75 @@ def run_entry(
 
 
 # ---------------------------------------------------------------------------
-# Argparse + main
+# Batch runner (used by both Hydra CLI and argparse main)
+# ---------------------------------------------------------------------------
+def run_batch(cfg: DialogueConfig) -> None:
+    """Run batch dialogue evaluation from a populated config.
+
+    Loads the candidates JSON, filters entries, runs ``run_entry`` for
+    each, and prints aggregate MAP errors.
+
+    Args:
+        cfg: Populated dialogue configuration.
+    """
+    # load relaxed JSON
+    try:
+        data = load_relaxed_json(Path(cfg.candidates_json))
+    except Exception:
+        txt = Path(cfg.candidates_json).read_text(encoding="utf-8").replace("\r\n", "\n")
+        txt = re.sub(r",\s*(\}|\])", r"\1", txt)
+        data = json.loads(txt)
+
+    entries = data.get("scenes", data.get("entries", []))
+    if not isinstance(entries, list):
+        raise ValueError("Expected list under 'scenes' (or 'entries').")
+
+    if cfg.only_scene_id:
+        entries = [e for e in entries if e.get("scene_id", "") == cfg.only_scene_id]
+    if cfg.limit and cfg.limit > 0:
+        entries = entries[: cfg.limit]
+
+    if not entries:
+        print("No entries selected.")
+        return
+
+    # aggregate (MAP only)
+    agg: Dict[str, Dict[str, List[float]]] = {name: {"pos": [], "rot": []} for name in ("PRED", "A1", "A2", "A3")}
+
+    for e in entries:
+        # baseline predicted_pose errors
+        gt_pos, gt_dir, _ = get_pose(e, "gt_pose")
+        pred_pos, pred_dir, _ = get_pose(e, "predicted_pose")
+        if gt_pos is not None and pred_pos is not None:
+            pe, re_ = pose_errors(pred_pos, pred_dir, gt_pos, gt_dir)
+            agg["PRED"]["pos"].append(pe)
+            agg["PRED"]["rot"].append(re_)
+
+        res = run_entry(e, cfg)
+        if res is None:
+            break
+        for name in ("A1", "A2", "A3"):
+            if name not in res:
+                continue
+            pe_map, re_map, _, _ = res[name]
+            agg[name]["pos"].append(pe_map)
+            agg[name]["rot"].append(re_map)
+
+    if len(entries) > 1:
+        print("\n=== Aggregate over entries (MAP errors) ===")
+        for name in ("PRED", "A1", "A2", "A3"):
+            mp = safe_mean(agg[name]["pos"])
+            mdp = safe_median(agg[name]["pos"])
+            mr = safe_mean(agg[name]["rot"])
+            mdr = safe_median(agg[name]["rot"])
+            print(f"{name}: mean_pos={mp:.3f} m | med_pos={mdp:.3f} m | mean_rot={mr:.2f} | med_rot={mdr:.2f}")
+
+
+# ---------------------------------------------------------------------------
+# Standalone argparse entry point (fallback)
 # ---------------------------------------------------------------------------
 def main() -> None:
-    """Parse arguments, load data, and run batch evaluation."""
+    """Parse arguments and run batch evaluation (standalone CLI fallback)."""
     ap = argparse.ArgumentParser(
         description="Pose-level dialogue system evaluation.",
     )
@@ -445,56 +517,8 @@ def main() -> None:
     ap.add_argument("--show_gt_debug", action="store_true")
 
     args = ap.parse_args()
-
-    # load relaxed JSON
-    try:
-        data = dsf.load_relaxed_json(Path(args.candidates_json))
-    except Exception:
-        txt = Path(args.candidates_json).read_text(encoding="utf-8").replace("\r\n", "\n")
-        txt = re.sub(r",\s*(\}|\])", r"\1", txt)
-        data = json.loads(txt)
-
-    entries = data.get("scenes", data.get("entries", []))
-    if not isinstance(entries, list):
-        raise ValueError("Expected list under 'scenes' (or 'entries').")
-
-    if args.only_scene_id:
-        entries = [e for e in entries if e.get("scene_id", "") == args.only_scene_id]
-    if args.limit and args.limit > 0:
-        entries = entries[: args.limit]
-
-    if not entries:
-        print("No entries selected.")
-        return
-
-    # aggregate (MAP only)
-    agg: Dict[str, Dict[str, List[float]]] = {name: {"pos": [], "rot": []} for name in ("PRED", "A1", "A2", "A3")}
-
-    for e in entries:
-        # baseline predicted_pose errors
-        gt_pos, gt_dir, _ = get_pose(e, "gt_pose")
-        pred_pos, pred_dir, _ = get_pose(e, "predicted_pose")
-        if gt_pos is not None and pred_pos is not None:
-            pe, re_ = pose_errors(pred_pos, pred_dir, gt_pos, gt_dir)
-            agg["PRED"]["pos"].append(pe)
-            agg["PRED"]["rot"].append(re_)
-
-        res = run_entry(e, args)
-        if res is None:
-            break
-        for name in ("A1", "A2", "A3"):
-            pe_map, re_map, _, _ = res[name]
-            agg[name]["pos"].append(pe_map)
-            agg[name]["rot"].append(re_map)
-
-    if len(entries) > 1:
-        print("\n=== Aggregate over entries (MAP errors) ===")
-        for name in ("PRED", "A1", "A2", "A3"):
-            mp = safe_mean(agg[name]["pos"])
-            mdp = safe_median(agg[name]["pos"])
-            mr = safe_mean(agg[name]["rot"])
-            mdr = safe_median(agg[name]["rot"])
-            print(f"{name}: mean_pos={mp:.3f} m | med_pos={mdp:.3f} m | mean_rot={mr:.2f} | med_rot={mdr:.2f}")
+    cfg = extract_dialogue_config(args)
+    run_batch(cfg)
 
 
 if __name__ == "__main__":

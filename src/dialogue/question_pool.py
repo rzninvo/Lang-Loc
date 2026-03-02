@@ -11,8 +11,7 @@ import math
 from dataclasses import dataclass
 from typing import Any, Dict, List, Sequence, Tuple
 
-import pose_level_dialogue_semantic_fallback as dsf
-
+from src.dialogue.frame_mapping import label_pool_from_frames, rel_pool_from_frames
 from src.dialogue.math_utils import call_with_supported_kwargs
 from src.dialogue.semantics import _rel_to_tuple, frame_label_salience
 
@@ -53,8 +52,8 @@ def build_pools(
 ) -> Tuple[List[str], List[Any]]:
     """Build label and relation pools from a subset of frames.
 
-    Labels are extracted via ``dsf.label_pool_from_frames`` (with a local
-    fallback).  Relations are extracted via ``dsf.rel_pool_from_frames``
+    Labels are extracted via ``label_pool_from_frames`` (with a local
+    fallback).  Relations are extracted via ``rel_pool_from_frames``
     and optionally filtered by an allow-list of relation types.
 
     Args:
@@ -74,7 +73,7 @@ def build_pools(
 
     # labels
     try:
-        label_pool = list(dsf.label_pool_from_frames(frames_all, frame_subset))
+        label_pool = list(label_pool_from_frames(frames_all, frame_subset))
         label_pool = [str(x).strip().lower() for x in label_pool]
     except Exception:
         s: set = set()
@@ -84,7 +83,7 @@ def build_pools(
 
     # relations
     rel_pool = call_with_supported_kwargs(
-        getattr(dsf, "rel_pool_from_frames"),
+        rel_pool_from_frames,
         frames_all,
         frame_subset,
         max_rel=max_rel_pool,

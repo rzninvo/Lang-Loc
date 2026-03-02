@@ -1,0 +1,23 @@
+# =============================================================================
+# BigGNN model architecture — controls the graph neural network structure.
+#
+# The model uses N layers of TransformerConv self-attention on each graph,
+# followed by cross-attention between the two graphs, then mean-pools and
+# feeds the concatenated embeddings through an MLP to produce a match score.
+# =============================================================================
+
+# Number of self-attention + cross-attention layer pairs.
+# More layers = deeper message passing but slower and more memory.
+N: 1
+
+# Number of attention heads per TransformerConv layer.
+# Multi-head attention lets the model attend to different subspaces.
+heads: 2
+
+# Node and edge embedding dimension.
+# Must match the dimensionality of the input graph embeddings (e.g. word2vec = 300).
+embed_dim: 300
+
+# Dropout probability applied to attention weights in each TransformerConv.
+# Higher values regularise more aggressively; set to 0 to disable.
+dropout: 0.5

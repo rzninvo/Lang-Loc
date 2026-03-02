@@ -1,0 +1,63 @@
+# =============================================================================
+# File paths — all data, checkpoint, and output directories.
+#
+# The project expects this directory structure under data_root (./data):
+#
+#   data/
+#   ├── processed_data/
+#   │   ├── 3dssg/          — 3DSSG scene graphs
+#   │   ├── training/       — ScanScribe training split
+#   │   ├── testing/        — ScanScribe test split
+#   │   ├── scanscribe/     — ScanScribe text graphs
+#   │   ├── human/          — human-authored caption graphs
+#   │   └── sgfusion/       — SGFusion (ScanNet) graphs
+#   ├── model_checkpoints/
+#   │   └── graph2graph/    — trained BigGNN checkpoints
+#   ├── eval_outputs/       — evaluation result files
+#   └── 3rscan/             — 3RScan dataset (meshes, needed for viz/localization)
+#
+# Place your data following this structure. Override data_root via CLI if needed:
+#   paths.data_root=/other/path
+# =============================================================================
+
+# Root directory containing all data artifacts.
+data_root: ./data
+
+# Directory holding all processed graph .pt files, organised by subfolder.
+graphs_dir: ${paths.data_root}/processed_data
+
+# Directory where trained model checkpoints (.pt) are saved / loaded.
+checkpoint_dir: ${paths.data_root}/model_checkpoints/graph2graph
+
+# Root of the 3RScan dataset (mesh files, etc.).
+# Required for visualization and localization scripts; not needed for training/eval.
+rscan_root: ${paths.data_root}/3rscan
+
+# --- Pre-processed graph data files ---
+
+# 3DSSG scene graphs with relation embeddings (the retrieval database).
+graphs_3dssg: ${paths.graphs_dir}/3dssg/3dssg_graphs_processed_edgelists_relationembed.pt
+
+# ScanScribe caption graphs — training split.
+scanscribe_train: ${paths.graphs_dir}/training/scanscribe_graphs_train_final_no_graph_min.pt
+
+# ScanScribe caption graphs — test split.
+scanscribe_test: ${paths.graphs_dir}/testing/scanscribe_graphs_test_final_no_graph_min.pt
+
+# ScanScribe text graphs generated from image descriptions (used in inference/eval).
+scanscribe_text: ${paths.graphs_dir}/scanscribe/scanscribe_text_graphs_from_image_desc_node_edge_features.pt
+
+# Human-authored caption graphs for evaluation.
+human_graphs: ${paths.graphs_dir}/human/human_graphs_processed.pt
+
+# SGFusion (ScanNet-derived) scene graphs for cross-dataset evaluation.
+sgfusion_graphs: ${paths.graphs_dir}/sgfusion/sgfusion_graphs.pt
+
+# SGFusion text graphs for cross-dataset evaluation.
+sgfusion_text_graphs: ${paths.graphs_dir}/sgfusion/sgfusion_text_graphs.pt
+
+# Optional directory for localization query data.
+query_root: null
+
+# Directory where evaluation result files (.txt) are written.
+eval_output_dir: ${paths.data_root}/eval_outputs

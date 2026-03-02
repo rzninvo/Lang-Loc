@@ -1,17 +1,16 @@
 """Frame semantic extraction for the dialogue system.
 
 Extracts label salience dictionaries and spatial relation sets from frame
-objects produced by the ``dsf`` (pose_level_dialogue_semantic_fallback)
-module.  Handles multiple attribute naming conventions robustly.
+objects produced by the scene data module.  Handles multiple attribute
+naming conventions robustly.
 """
 
 from __future__ import annotations
 
 from typing import Any, Dict, Optional, Set, Tuple
 
-import pose_level_dialogue_semantic_fallback as dsf
-
 from src.dialogue.math_utils import _to_prob01
+from src.dialogue.scene_data import relation_to_phrase as _relation_to_phrase
 
 
 def frame_label_salience(fr: Any) -> Dict[str, float]:
@@ -134,7 +133,7 @@ def rel_item_to_tuple(rel_item: Any) -> Tuple[str, str, str]:
 def frame_relations(fr: Any) -> Set[Tuple[str, str, str]]:
     """Extract the set of spatial relations from a frame object.
 
-    Tries attribute names ``rels``, ``relations``, and
+    Tries attribute names ``rel_triples``, ``rels``, ``relations``, and
     ``spatial_relations``.
 
     Args:
@@ -143,7 +142,7 @@ def frame_relations(fr: Any) -> Set[Tuple[str, str, str]]:
     Returns:
         Set of ``(subject, relation, object)`` tuples.
     """
-    for name in ("rels", "relations", "spatial_relations"):
+    for name in ("rel_triples", "rels", "relations", "spatial_relations"):
         if hasattr(fr, name):
             v = getattr(fr, name)
             if isinstance(v, dict):
@@ -166,7 +165,7 @@ def frame_relations(fr: Any) -> Set[Tuple[str, str, str]]:
 def relation_phrase(rel: str) -> str:
     """Convert a relation code to a human-readable phrase.
 
-    Delegates to ``dsf.relation_to_phrase`` when available, falling back to
+    Delegates to ``scene_data.relation_to_phrase``, falling back to
     returning the raw code.
 
     Args:
@@ -175,9 +174,8 @@ def relation_phrase(rel: str) -> str:
     Returns:
         Human-readable phrase for the relation.
     """
-    if hasattr(dsf, "relation_to_phrase"):
-        try:
-            return dsf.relation_to_phrase(rel)
-        except Exception:
-            pass
+    try:
+        return _relation_to_phrase(rel)
+    except Exception:
+        pass
     return rel
