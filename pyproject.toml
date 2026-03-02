@@ -47,4 +47,4 @@ clip = ["clip @ git+https://github.com/openai/CLIP.git"]
 dev = ["pytest", "ruff"]
 
 [tool.setuptools.packages.find]
-include = ["src*"]
+include = ["langloc*"]

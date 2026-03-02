@@ -1,25 +1,35 @@
 #!/usr/bin/env python3
 """
-Interactive viewer for 3RScan meshes with instance segmentation overlays.
+Utility helpers to visualise 3RScan meshes with instance segmentation overlays.
 
-Usage:
-    python scripts/visualize_3rscan_segments.py --scene <scene_id>
+The module exposes reusable functions that can be imported by other scripts
+(e.g., visualize_eval_loc.py) while still supporting the original CLI viewer.
 """
+
+from __future__ import annotations
 
 import argparse
 import json
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 import open3d as o3d
 import plyfile
 from sklearn.neighbors import NearestNeighbors
 
-from langloc.utils.config_loader import load_config
+try:  # Optional dependency; only needed for the CLI entry point.
+    from langloc.utils.config_loader import load_config  # type: ignore
+except ImportError:  # pragma: no cover
+    load_config = None  # type: ignore[assignment]
+
+__all__ = [
+    "build_segmented_mesh",
+    "create_segment_visualizer",
+]
 
 
-def _load_segmentation(scene_path: Path, base_vertices: np.ndarray):
+def _load_segmentation(scene_path: Path, base_vertices: np.ndarray) -> Tuple[np.ndarray, Dict[int, int], Dict[int, str]]:
     """
     Assign instance IDs and semantic labels to each vertex of the textured mesh.
 
@@ -60,7 +70,9 @@ def _load_segmentation(scene_path: Path, base_vertices: np.ndarray):
     return vert_obj.astype(np.int32), seg_to_obj, obj_to_label
 
 
-def _build_colored_mesh(scene_path: Path, rng: np.random.Generator):
+def build_segmented_mesh(scene_path: Path,
+                         seed: int = 7,
+                         only_ids: Optional[Sequence[int]] = None) -> Tuple[o3d.geometry.TriangleMesh, List[Dict[str, object]]]:
     """
     Construct an Open3D mesh with per-vertex colors encoding instance IDs.
 
@@ -90,6 +102,7 @@ def _build_colored_mesh(scene_path: Path, rng: np.random.Generator):
     vert_obj = vert_seg_raw[faces.reshape(-1)]
 
     unique_obj_ids = sorted({oid for oid in vert_obj if oid >= 0})
+    rng = np.random.default_rng(seed)
     palette = {oid: rng.uniform(0.15, 0.95, size=3) for oid in unique_obj_ids}
 
     colors = np.zeros((expanded_verts.shape[0], 3), dtype=np.float64)
@@ -108,6 +121,8 @@ def _build_colored_mesh(scene_path: Path, rng: np.random.Generator):
         vert_idx = np.nonzero(vert_obj == oid)[0]
         if vert_idx.size == 0:
             continue
+        if only_ids and oid not in only_ids:
+            continue
         obj_vertices = expanded_verts[vert_idx]
         centroid = obj_vertices.mean(axis=0)
         bbox = o3d.geometry.AxisAlignedBoundingBox(
@@ -121,57 +136,69 @@ def _build_colored_mesh(scene_path: Path, rng: np.random.Generator):
                 "centroid": centroid,
                 "bbox": bbox,
                 "color": palette[oid],
+                "vertex_indices": vert_idx,
             }
         )
     return mesh_vis, obj_stats
 
 
-def _setup_visualizer(mesh, obj_stats, args):
+def create_segment_visualizer(mesh: o3d.geometry.TriangleMesh,
+                              obj_stats: Sequence[Dict[str, object]],
+                              *,
+                              highlight_ids: Optional[Iterable[int]] = None,
+                              show_bboxes: bool = True,
+                              window_name: str = "3RScan Segmentation") -> o3d.visualization.O3DVisualizer:
     """
-    Launch the Open3D GUI window and populate it with geometry and labels.
-
-    Args:
-        mesh (o3d.geometry.TriangleMesh): Colored mesh to display.
-        obj_stats (list[dict]): Metadata produced by `_build_colored_mesh`.
-        args (argparse.Namespace): Parsed CLI arguments controlling filters.
+    Create an Open3D O3DVisualizer instance populated with coloured segments,
+    per-object bounding boxes, and 3D labels.
     """
     from open3d.visualization import gui, rendering
 
-    gui.Application.instance.initialize()
-    vis = o3d.visualization.O3DVisualizer("3RScan Segmentation", 1280, 720)
-    vis.show_settings = False
+    highlight_ids = set(highlight_ids or [])
 
     material = rendering.MaterialRecord()
     material.shader = "defaultLit"
+
+    line_material = rendering.MaterialRecord()
+    line_material.shader = "unlitLine"
+    line_material.line_width = 1.0
+
+    vis = o3d.visualization.O3DVisualizer(window_name, 1280, 720)
+    vis.show_settings = False
     vis.add_geometry("mesh", mesh, material)
 
-    if not args.no_bboxes:
-        line_material = rendering.MaterialRecord()
-        line_material.shader = "unlitLine"
-        line_material.line_width = 1.0
-        for stats in obj_stats:
-            oid = stats["object_id"]
-            if args.only_ids and oid not in args.only_ids:
-                continue
-            vis.add_geometry(f"bbox_{oid}", stats["bbox"], line_material)
-
     for stats in obj_stats:
-        oid = stats["object_id"]
-        if args.only_ids and oid not in args.only_ids:
-            continue
-        label = stats["label"] or f"id_{oid}"
-        vis.add_3d_label(stats["centroid"], f"{oid}: {label}")
+        oid = int(stats["object_id"])
+        label = stats.get("label") or f"id_{oid}"
+        colour = stats.get("color", (0.8, 0.8, 0.8))
+        centroid = np.asarray(stats["centroid"])
+
+        if show_bboxes and "bbox" in stats:
+            bbox: o3d.geometry.AxisAlignedBoundingBox = stats["bbox"]
+            vis.add_geometry(f"bbox_{oid}", bbox, line_material)
+
+        vis.add_3d_label(centroid, f"{oid}: {label}")
+
+        if highlight_ids and oid in highlight_ids:
+            marker = o3d.geometry.TriangleMesh.create_sphere(radius=0.04)
+            marker.translate(centroid)
+            marker.paint_uniform_color(np.asarray(colour))
+            if not marker.has_vertex_normals():
+                marker.compute_vertex_normals()
+            vis.add_geometry(f"marker_{oid}", marker, material)
 
     vis.reset_camera_to_default()
     gui.Application.instance.add_window(vis)
-    gui.Application.instance.run()
+    return vis
 
 
 def parse_args():
     """Parse command-line arguments for the visualization script."""
     parser = argparse.ArgumentParser(description="Visualize 3RScan instance labels in 3D.")
     parser.add_argument("--scene", required=True, help="3RScan scene folder name.")
-    parser.add_argument("--config", default="config/default.yaml", help="Project config path.")
+    parser.add_argument("--root", type=Path, help="Path to the 3RScan dataset root.")
+    parser.add_argument("--config", default="config/default.yaml",
+                        help="Project config path (fallback if --root missing).")
     parser.add_argument("--seed", type=int, default=7, help="Random seed for colors.")
     parser.add_argument(
         "--only-ids", type=int, nargs="*", help="Optional list of object IDs to annotate."
@@ -183,15 +210,29 @@ def parse_args():
 def main():
     """Program entry: load configuration, build mesh, and start the viewer."""
     args = parse_args()
-    cfg = load_config(args.config)
-    dataset_root = Path(cfg["paths"]["3rscan_dataset_path"]).expanduser()
+    scene_root = args.root
+    if scene_root is None:
+        if load_config is None:
+            raise RuntimeError("Either --root must be provided or load_config must be available.")
+        cfg = load_config(args.config)
+        scene_root = Path(cfg["paths"]["3rscan_dataset_path"]).expanduser()
+
+    dataset_root = scene_root
     scene_path = dataset_root / args.scene
     if not scene_path.exists():
         raise FileNotFoundError(scene_path)
 
-    rng = np.random.default_rng(args.seed)
-    mesh_vis, obj_stats = _build_colored_mesh(scene_path, rng)
-    _setup_visualizer(mesh_vis, obj_stats, args)
+    mesh_vis, obj_stats = build_segmented_mesh(scene_path, seed=args.seed, only_ids=args.only_ids)
+
+    from open3d.visualization import gui
+
+    gui.Application.instance.initialize()
+    vis = create_segment_visualizer(
+        mesh_vis, obj_stats,
+        highlight_ids=args.only_ids,
+        show_bboxes=not args.no_bboxes,
+    )
+    gui.Application.instance.run()
 
 
 if __name__ == "__main__":

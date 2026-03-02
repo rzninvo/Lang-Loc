@@ -5,7 +5,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 cd "$PROJECT_ROOT" || exit 1
 
-python -m src.localization.cli \
+python -m langloc.localization.cli \
     localization.save_metrics=./eval/eval_metrics.json \
     localization.log_file=./eval/eval_loc_summary.log \
     localization.frame_policy=max_visible \
