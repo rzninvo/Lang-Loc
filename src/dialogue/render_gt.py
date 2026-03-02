@@ -1,38 +1,29 @@
 #!/usr/bin/env python3
-"""
-render_gt_images_and_index.py
+"""Ground-truth image rendering and index generation.
 
-Render GT-view RGB images for each entry in a candidates JSON and write index.parquet.
+Renders GT-view RGB images from 3D mesh models for each entry in a
+candidates JSON and writes an index parquet file.  Supports Open3D and
+pyrender backends.
 
-Run this locally where your 3RScan dataset folder exists.
+Expected 3RScan layout per scene::
 
-Expected 3RScan layout per scene:
-  <dataset_root>/<scene_id>/
-    mesh.refined.v2.obj
-    mesh.refined.mtl
-    mesh.refined_0.png
-    ...
-
-Inputs:
-  - candidates_json: abu_eval_pose_candidates*.json (or subset) with:
-      scenes: [
-        { scene_id, gt_pose: { scene_pose (4x4), position, direction }, ...},
+    <dataset_root>/<scene_id>/
+        mesh.refined.v2.obj
+        mesh.refined.mtl
+        mesh.refined_0.png
         ...
-      ]
 
 Outputs:
-  - PNG renders: <out_dir>/<scene_id>/<entry_id>.png
-  - index.parquet: one row per entry (paths + GT pose + render settings)
-
-Install (recommended):
-  pip install open3d pandas pyarrow numpy tqdm pillow
-
-Fallback renderer:
-  pip install trimesh pyrender pyglet PyOpenGL
+    - PNG renders: ``<out_dir>/<scene_id>/<entry_id>.png``
+    - ``index.parquet``: one row per entry (paths + GT pose + render settings)
 """
 
 from __future__ import annotations
-import argparse, json, math, re
+
+import argparse
+import json
+import math
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -42,8 +33,18 @@ import pandas as pd
 from tqdm import tqdm
 
 
-# ------------------------- JSON loading (tolerate trailing commas) -------------------------
+# ---------------------------------------------------------------------------
+# JSON loading (tolerate trailing commas and comments)
+# ---------------------------------------------------------------------------
 def relaxed_json_load(path: Path) -> Dict[str, Any]:
+    """Load a JSON file tolerating C-style comments and trailing commas.
+
+    Args:
+        path: Path to the JSON file.
+
+    Returns:
+        Parsed dictionary.
+    """
     s = path.read_text(encoding="utf-8")
     s = re.sub(r"//.*?$", "", s, flags=re.M)
     s = re.sub(r"/\*.*?\*/", "", s, flags=re.S)
@@ -51,35 +52,61 @@ def relaxed_json_load(path: Path) -> Dict[str, Any]:
     return json.loads(s)
 
 
-# ------------------------- Pose conversions -------------------------
+# ---------------------------------------------------------------------------
+# Pose conversions
+# ---------------------------------------------------------------------------
 def as_mat4(m: Any) -> np.ndarray:
+    """Validate and return a 4x4 homogeneous matrix.
+
+    Args:
+        m: Array-like input.
+
+    Returns:
+        ``(4, 4)`` float64 ndarray.
+
+    Raises:
+        ValueError: If the input is not 4x4.
+    """
     T = np.asarray(m, dtype=np.float64)
     if T.shape != (4, 4):
         raise ValueError(f"Expected 4x4 matrix, got {T.shape}")
     return T
 
+
 def opencv_to_opengl_cam() -> np.ndarray:
-    """
-    Convert OpenCV camera coords (x right, y down, z forward)
-    to OpenGL camera coords (x right, y up, z backward).
-    Applied in camera coordinates.
+    """Return the 4x4 matrix that converts OpenCV camera coordinates to OpenGL.
+
+    OpenCV: x right, y down, z forward.
+    OpenGL: x right, y up, z backward.
+
+    Returns:
+        ``(4, 4)`` diagonal flip matrix.
     """
     C = np.eye(4, dtype=np.float64)
     C[1, 1] = -1.0
     C[2, 2] = -1.0
     return C
 
-def to_camera_pose_c2w(T_scene_pose: np.ndarray, pose_convention: str, camera_coords: str) -> np.ndarray:
-    """
-    Returns camera-to-world pose suitable for OpenGL-style renderers.
 
-    pose_convention:
-      - c2w: input matrix is camera-to-world
-      - w2c: input matrix is world-to-camera (we invert it)
+def to_camera_pose_c2w(
+    T_scene_pose: np.ndarray,
+    pose_convention: str,
+    camera_coords: str,
+) -> np.ndarray:
+    """Convert a scene pose to a camera-to-world matrix for OpenGL renderers.
 
-    camera_coords:
-      - opencv: apply OpenCV->OpenGL axis conversion in camera coordinates
-      - opengl: no conversion
+    Args:
+        T_scene_pose: Input 4x4 pose matrix.
+        pose_convention: ``"c2w"`` (camera-to-world) or ``"w2c"``
+            (world-to-camera, will be inverted).
+        camera_coords: ``"opencv"`` (apply axis flip) or ``"opengl"``
+            (no conversion).
+
+    Returns:
+        Camera-to-world ``(4, 4)`` matrix suitable for OpenGL renderers.
+
+    Raises:
+        ValueError: If *pose_convention* or *camera_coords* are invalid.
     """
     if pose_convention == "c2w":
         T_c2w = T_scene_pose
@@ -96,9 +123,22 @@ def to_camera_pose_c2w(T_scene_pose: np.ndarray, pose_convention: str, camera_co
     return T_c2w
 
 
-# ------------------------- Renderer backends -------------------------
+# ---------------------------------------------------------------------------
+# Renderer backends
+# ---------------------------------------------------------------------------
 @dataclass
 class RenderConfig:
+    """Parameters for offscreen rendering.
+
+    Attributes:
+        width: Image width in pixels.
+        height: Image height in pixels.
+        fov_deg: Vertical field of view in degrees.
+        near: Near clipping plane distance.
+        far: Far clipping plane distance.
+        bg_rgb: Background colour as ``(R, G, B)`` floats in ``[0, 1]``.
+    """
+
     width: int = 640
     height: int = 480
     fov_deg: float = 60.0
@@ -106,7 +146,16 @@ class RenderConfig:
     far: float = 30.0
     bg_rgb: Tuple[float, float, float] = (1.0, 1.0, 1.0)
 
+
 def intrinsics_from_fov(cfg: RenderConfig) -> Tuple[float, float, float, float]:
+    """Compute pinhole camera intrinsics from a vertical FOV.
+
+    Args:
+        cfg: Render configuration with ``fov_deg``, ``width``, and ``height``.
+
+    Returns:
+        Tuple ``(fx, fy, cx, cy)``.
+    """
     fov = math.radians(cfg.fov_deg)
     fy = 0.5 * cfg.height / math.tan(0.5 * fov)
     fx = fy
@@ -114,19 +163,40 @@ def intrinsics_from_fov(cfg: RenderConfig) -> Tuple[float, float, float, float]:
     cy = cfg.height / 2.0
     return fx, fy, cx, cy
 
+
 class BaseRenderer:
+    """Abstract base class for offscreen renderers."""
+
     def render(self, obj_path: Path, T_c2w: np.ndarray, cfg: RenderConfig) -> np.ndarray:
+        """Render a mesh from a given camera pose.
+
+        Args:
+            obj_path: Path to the OBJ mesh file.
+            T_c2w: Camera-to-world 4x4 matrix.
+            cfg: Render configuration.
+
+        Returns:
+            ``(H, W, 3)`` uint8 RGB image.
+        """
         raise NotImplementedError
 
+
 class Open3DRenderer(BaseRenderer):
-    def __init__(self):
+    """GPU-accelerated renderer using Open3D's offscreen rendering.
+
+    Caches loaded meshes and renderers by resolution to avoid redundant
+    I/O across entries within the same scene.
+    """
+
+    def __init__(self) -> None:
         import open3d as o3d  # noqa
         from open3d.visualization import rendering  # noqa
         self.o3d = o3d
         self.rendering = rendering
-        self._cache = {}  # key -> (renderer, scene)
+        self._cache: Dict[str, Any] = {}
 
-    def _get(self, obj_path: Path, cfg: RenderConfig):
+    def _get(self, obj_path: Path, cfg: RenderConfig) -> Any:
+        """Return a cached ``(renderer, scene)`` pair, creating if needed."""
         key = f"{obj_path.resolve()}|{cfg.width}x{cfg.height}"
         if key in self._cache:
             return self._cache[key]
@@ -160,6 +230,7 @@ class Open3DRenderer(BaseRenderer):
         return r, scene
 
     def render(self, obj_path: Path, T_c2w: np.ndarray, cfg: RenderConfig) -> np.ndarray:
+        """Render using Open3D offscreen renderer."""
         import open3d as o3d  # noqa
         r, _scene = self._get(obj_path, cfg)
 
@@ -178,17 +249,24 @@ class Open3DRenderer(BaseRenderer):
             arr = arr[:, :, :3]
         return arr.astype(np.uint8)
 
+
 class PyrenderRenderer(BaseRenderer):
-    def __init__(self):
+    """Fallback renderer using trimesh + pyrender.
+
+    Caches loaded meshes and the offscreen renderer instance.
+    """
+
+    def __init__(self) -> None:
         import trimesh  # noqa
         import pyrender  # noqa
         self.trimesh = trimesh
         self.pyrender = pyrender
-        self._mesh_cache = {}
-        self._offscreen_renderer = None
-        self._offscreen_cfg_key = None
+        self._mesh_cache: Dict[str, Any] = {}
+        self._offscreen_renderer: Any = None
+        self._offscreen_cfg_key: Any = None
 
-    def _load_mesh(self, obj_path: Path):
+    def _load_mesh(self, obj_path: Path) -> Any:
+        """Load and cache a pyrender mesh from an OBJ file."""
         key = str(obj_path.resolve())
         if key in self._mesh_cache:
             return self._mesh_cache[key]
@@ -208,7 +286,8 @@ class PyrenderRenderer(BaseRenderer):
         self._mesh_cache[key] = pr_mesh
         return pr_mesh
 
-    def _get_offscreen_renderer(self, cfg: RenderConfig):
+    def _get_offscreen_renderer(self, cfg: RenderConfig) -> Any:
+        """Return a cached offscreen renderer, recreating on resolution change."""
         key = (cfg.width, cfg.height)
         if self._offscreen_renderer is None or self._offscreen_cfg_key != key:
             if self._offscreen_renderer is not None:
@@ -220,6 +299,7 @@ class PyrenderRenderer(BaseRenderer):
         return self._offscreen_renderer
 
     def render(self, obj_path: Path, T_c2w: np.ndarray, cfg: RenderConfig) -> np.ndarray:
+        """Render using pyrender offscreen renderer."""
         pyrender = self.pyrender
 
         pr_mesh = self._load_mesh(obj_path)
@@ -238,27 +318,65 @@ class PyrenderRenderer(BaseRenderer):
         return color.astype(np.uint8)
 
 
-# ------------------------- Helpers -------------------------
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 def find_obj(dataset_root: Path, scene_id: str) -> Path:
+    """Locate the OBJ mesh file for a scene.
+
+    Args:
+        dataset_root: Root directory of the dataset.
+        scene_id: Scene identifier.
+
+    Returns:
+        Path to ``mesh.refined.v2.obj``.
+
+    Raises:
+        FileNotFoundError: If the mesh file does not exist.
+    """
     obj = dataset_root / scene_id / "mesh.refined.v2.obj"
     if not obj.exists():
         raise FileNotFoundError(f"Missing OBJ mesh for scene {scene_id}: {obj}")
     return obj
 
+
 def safe_entry_id(entry: Dict[str, Any], idx: int) -> str:
+    """Extract an entry identifier, falling back to a zero-padded index.
+
+    Args:
+        entry: Entry dictionary.
+        idx: Fallback numeric index.
+
+    Returns:
+        String entry ID.
+    """
     for k in ("frame_id", "query_id", "entry_id"):
         v = entry.get(k)
         if v:
             return str(v)
     return f"entry-{idx:06d}"
 
+
 def flatten_T(T: np.ndarray) -> Dict[str, float]:
+    """Flatten a 4x4 matrix into a dictionary with keys ``T00`` … ``T33``.
+
+    Args:
+        T: ``(4, 4)`` matrix.
+
+    Returns:
+        Dictionary with 16 float entries.
+    """
     return {f"T{r}{c}": float(T[r, c]) for r in range(4) for c in range(4)}
 
 
-# ------------------------- Main -------------------------
-def main():
-    ap = argparse.ArgumentParser()
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+def main() -> None:
+    """Parse arguments, render GT images, and write the index parquet."""
+    ap = argparse.ArgumentParser(
+        description="Render GT-view images and generate index.parquet.",
+    )
     ap.add_argument("--candidates_json", required=True)
     ap.add_argument("--dataset_root", required=True)
     ap.add_argument("--out_dir", required=True)
@@ -362,6 +480,7 @@ def main():
     print("\nIf renders look wrong, try:")
     print("  --pose_convention w2c")
     print("  --camera_coords opengl")
+
 
 if __name__ == "__main__":
     main()
