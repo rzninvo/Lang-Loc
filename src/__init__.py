@@ -3,6 +3,7 @@ Source package for the 3D scene dataset creation pipeline.
 
 This package contains modules for:
 - annotation: Generating natural language descriptions of 3D scenes
+- dialogue: Pose-level dialogue system for interactive localization
 - frame_selection: Selecting best views and rendering scene images
 - navigation: Navigating through dataset images
 - state: Session state management for the annotation app
