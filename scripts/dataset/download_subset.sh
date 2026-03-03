@@ -58,14 +58,16 @@ if [ "$DATASET" == "scannet" ]; then
     SENS_FILE="$OUT_DIR/scans/$SCAN_ID/${SCAN_ID}.sens"
     SCAN_OUTPUT_DIR="$OUT_DIR/scans/$SCAN_ID"
     if [ -f "$SENS_FILE" ]; then
-        echo "[INFO] Extracting RGB, depth, poses, and intrinsics from: $SENS_FILE"
+        SENS_WORKERS=${SENS_WORKERS:-0}
+        echo "[INFO] Extracting RGB, depth, poses, and intrinsics from: $SENS_FILE (workers=$SENS_WORKERS)"
         python3 tools/sensor_reader.py \
             --filename "$SENS_FILE" \
             --output_path "$SCAN_OUTPUT_DIR" \
             --export_depth_images \
             --export_color_images \
             --export_poses \
-            --export_intrinsics
+            --export_intrinsics \
+            --num_workers "$SENS_WORKERS"
         echo "[INFO] Extraction complete: $SCAN_OUTPUT_DIR"
     else
         echo "[ERROR] .sens file not found at: $SENS_FILE"

@@ -110,26 +110,47 @@ bash scripts/dataset/setup_sample_data.sh --dataset 3RScan <scene-uuid>
 
 ### Multiple Scenes
 
-Processes multiple scenes in batch. Skips already-downloaded scenes.
+Processes multiple scenes in batch. Skips already-processed scenes.
+
+**Sequential (default):**
 
 ```bash
-# Process 20 ScanNet scenes
+# Process 20 ScanNet scenes one at a time
 bash scripts/dataset/setup_multiple_scenes.sh --dataset scannet 20
 
-# Process 10 3RScan scenes
+# Process 10 3RScan scenes one at a time
 bash scripts/dataset/setup_multiple_scenes.sh --dataset 3RScan 10
+```
 
-# Process all 3RScan scenes from ScanScribe manifest
-bash scripts/dataset/setup_multiple_scenes.sh --dataset 3RScan --source scanscribe
+**Parallel (recommended for multi-core servers):**
 
-# Process all scenes (default source)
+Use `--parallel N` to process N scenes concurrently. Per-scene logs are saved to `outputs/logs/`.
+
+```bash
+# Process 20 ScanNet scenes, 4 at a time
+bash scripts/dataset/setup_multiple_scenes.sh --dataset scannet 20 --parallel 4
+
+# Process all 3RScan scenes from ScanScribe manifest, 8 at a time
+bash scripts/dataset/setup_multiple_scenes.sh --dataset 3RScan --source scanscribe --parallel 8
+```
+
+**Other examples:**
+
+```bash
+# Process all scenes (default source), sequential
 bash scripts/dataset/setup_multiple_scenes.sh --dataset 3RScan
 ```
 
 ### Download Only (no keyframe selection)
 
+The `.sens` extraction step supports parallel frame decompression via the `SENS_WORKERS` environment variable (default: auto-detected, up to 16 cores).
+
 ```bash
 bash scripts/dataset/download_subset.sh --dataset scannet scene0000_00
+
+# Speed up .sens extraction with more workers
+SENS_WORKERS=16 bash scripts/dataset/download_subset.sh --dataset scannet scene0000_00
+
 bash scripts/dataset/download_subset.sh --dataset 3RScan <scene-uuid>
 ```
 
@@ -158,6 +179,17 @@ Common Hydra overrides:
 | `dataset.save_semantic_masks=true` | Export 16-bit semantic masks |
 | `dataset.save_instance_masks=true` | Export 16-bit instance masks |
 | `dataset.target=3RScan` | Target dataset (for description generation) |
+
+### Performance Tuning
+
+GPU batching for IQA scoring and rasterization is configured in `configs/dataset/default.yaml` under each dataset section:
+
+| Parameter | Default | Description |
+| --------- | ------- | ----------- |
+| `iqa_batch_size` | `16` | Batch size for IQA quality scoring (GPU) |
+| `rasterization_batch_size` | `8` | Batch size for PyTorch3D visibility rasterization (GPU) |
+
+Increase batch sizes for faster processing if you have enough GPU memory. Set to `1` to disable batching (sequential mode).
 
 ---
 

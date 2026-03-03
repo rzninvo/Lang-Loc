@@ -7,6 +7,7 @@ and camera pose/intrinsics export.
 """
 import os
 import struct
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from io import BytesIO
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -16,10 +17,67 @@ import imageio.v2 as imageio
 import numpy as np
 import zlib
 from PIL import Image
+from tqdm import tqdm
 
 
 COMPRESSION_TYPE_COLOR = {-1: 'unknown', 0: 'raw', 1: 'png', 2: 'jpeg'}
 COMPRESSION_TYPE_DEPTH = {-1: 'unknown', 0: 'raw_ushort', 1: 'zlib_ushort', 2: 'occi_ushort'}
+
+
+# ---------------------------------------------------------------------------
+# Top-level worker functions (must be module-level for ProcessPoolExecutor)
+# ---------------------------------------------------------------------------
+
+def _export_one_depth(
+    frame_idx: int,
+    depth_data: bytes,
+    compression_type: str,
+    depth_height: int,
+    depth_width: int,
+    output_path: str,
+    image_size: Optional[Tuple[int, int]],
+) -> None:
+    """Decompress, optionally resize, and write one depth frame as 16-bit PNG."""
+    if compression_type == 'zlib_ushort':
+        raw = zlib.decompress(depth_data)
+    else:
+        raise ValueError(f"Unsupported depth compression type: {compression_type}")
+    depth = np.frombuffer(raw, dtype=np.uint16).reshape(depth_height, depth_width)
+    if image_size is not None:
+        depth = cv2.resize(depth, (image_size[1], image_size[0]),
+                           interpolation=cv2.INTER_NEAREST)
+    imageio.imwrite(os.path.join(output_path, f'{frame_idx:06d}.png'),
+                    depth.astype(np.uint16))
+
+
+def _export_one_color(
+    frame_idx: int,
+    color_data: bytes,
+    compression_type: str,
+    output_path: str,
+    image_size: Optional[Tuple[int, int]],
+) -> None:
+    """Decompress, optionally resize, and write one color frame as JPEG."""
+    if compression_type == 'jpeg':
+        color = np.array(Image.open(BytesIO(color_data)))
+    else:
+        raise ValueError(f"Unsupported color compression type: {compression_type}")
+    if image_size is not None:
+        color = cv2.resize(color, (image_size[1], image_size[0]),
+                           interpolation=cv2.INTER_NEAREST)
+    imageio.imwrite(os.path.join(output_path, f'{frame_idx:06d}.jpg'), color)
+
+
+def _export_one_pose(
+    frame_idx: int,
+    camera_to_world: np.ndarray,
+    output_path: str,
+) -> None:
+    """Write one 4x4 camera pose to a text file."""
+    filepath = os.path.join(output_path, f'{frame_idx:06d}.txt')
+    with open(filepath, 'w') as f:
+        for line in camera_to_world:
+            np.savetxt(f, line[np.newaxis], fmt='%.6f')
 
 
 class RGBDFrame:
@@ -181,7 +239,8 @@ class SensorData:
         self,
         output_path: str,
         image_size: Optional[Tuple[int, int]] = None,
-        frame_skip: int = 1
+        frame_skip: int = 1,
+        num_workers: int = 1,
     ) -> None:
         """
         Export depth frames as 16-bit PNG images.
@@ -190,29 +249,44 @@ class SensorData:
             output_path: Directory to save depth images.
             image_size: Optional (height, width) to resize images.
             frame_skip: Export every Nth frame.
+            num_workers: Number of parallel workers (1 = sequential).
         """
         output_path = Path(output_path)
         output_path.mkdir(parents=True, exist_ok=True)
-        print(f'Exporting {len(self.frames) // frame_skip} depth frames to {output_path}')
+        indices = list(range(0, len(self.frames), frame_skip))
+        print(f'Exporting {len(indices)} depth frames to {output_path}'
+              f' (workers={num_workers})')
+        out_str = str(output_path)
 
-        for f in range(0, len(self.frames), frame_skip):
-            depth_data = self.frames[f].decompress_depth(self.depth_compression_type)
-            depth = np.frombuffer(depth_data, dtype=np.uint16).reshape(
-                self.depth_height, self.depth_width
-            )
-            if image_size is not None:
-                depth = cv2.resize(
-                    depth,
-                    (image_size[1], image_size[0]),
-                    interpolation=cv2.INTER_NEAREST
+        if num_workers <= 1:
+            for f in indices:
+                _export_one_depth(
+                    f, self.frames[f].depth_data,
+                    self.depth_compression_type,
+                    self.depth_height, self.depth_width,
+                    out_str, image_size,
                 )
-            imageio.imwrite(output_path / f'{f:06d}.png', depth.astype(np.uint16))
+        else:
+            with ProcessPoolExecutor(max_workers=num_workers) as pool:
+                futures = {
+                    pool.submit(
+                        _export_one_depth, f, self.frames[f].depth_data,
+                        self.depth_compression_type,
+                        self.depth_height, self.depth_width,
+                        out_str, image_size,
+                    ): f
+                    for f in indices
+                }
+                for fut in tqdm(as_completed(futures), total=len(futures),
+                                desc="Depth export"):
+                    fut.result()
 
     def export_color_images(
         self,
         output_path: str,
         image_size: Optional[Tuple[int, int]] = None,
-        frame_skip: int = 1
+        frame_skip: int = 1,
+        num_workers: int = 1,
     ) -> None:
         """
         Export color frames as JPEG images.
@@ -221,20 +295,35 @@ class SensorData:
             output_path: Directory to save color images.
             image_size: Optional (height, width) to resize images.
             frame_skip: Export every Nth frame.
+            num_workers: Number of parallel workers (1 = sequential).
         """
         output_path = Path(output_path)
         output_path.mkdir(parents=True, exist_ok=True)
-        print(f'Exporting {len(self.frames) // frame_skip} color frames to {output_path}')
+        indices = list(range(0, len(self.frames), frame_skip))
+        print(f'Exporting {len(indices)} color frames to {output_path}'
+              f' (workers={num_workers})')
+        out_str = str(output_path)
 
-        for f in range(0, len(self.frames), frame_skip):
-            color = self.frames[f].decompress_color(self.color_compression_type)
-            if image_size is not None:
-                color = cv2.resize(
-                    color,
-                    (image_size[1], image_size[0]),
-                    interpolation=cv2.INTER_NEAREST
+        if num_workers <= 1:
+            for f in indices:
+                _export_one_color(
+                    f, self.frames[f].color_data,
+                    self.color_compression_type,
+                    out_str, image_size,
                 )
-            imageio.imwrite(output_path / f'{f:06d}.jpg', color)
+        else:
+            with ProcessPoolExecutor(max_workers=num_workers) as pool:
+                futures = {
+                    pool.submit(
+                        _export_one_color, f, self.frames[f].color_data,
+                        self.color_compression_type,
+                        out_str, image_size,
+                    ): f
+                    for f in indices
+                }
+                for fut in tqdm(as_completed(futures), total=len(futures),
+                                desc="Color export"):
+                    fut.result()
 
     def save_mat_to_file(self, matrix: np.ndarray, filename: str) -> None:
         """
@@ -248,23 +337,42 @@ class SensorData:
             for line in matrix:
                 np.savetxt(f, line[np.newaxis], fmt='%.6f')
 
-    def export_poses(self, output_path: str, frame_skip: int = 1) -> None:
+    def export_poses(
+        self,
+        output_path: str,
+        frame_skip: int = 1,
+        num_workers: int = 1,
+    ) -> None:
         """
         Export camera poses as 4x4 matrix text files.
 
         Args:
             output_path: Directory to save pose files.
             frame_skip: Export every Nth frame.
+            num_workers: Number of parallel workers (1 = sequential).
         """
         output_path = Path(output_path)
         output_path.mkdir(parents=True, exist_ok=True)
-        print(f'Exporting {len(self.frames) // frame_skip} camera poses to {output_path}')
+        indices = list(range(0, len(self.frames), frame_skip))
+        print(f'Exporting {len(indices)} camera poses to {output_path}'
+              f' (workers={num_workers})')
+        out_str = str(output_path)
 
-        for f in range(0, len(self.frames), frame_skip):
-            self.save_mat_to_file(
-                self.frames[f].camera_to_world,
-                output_path / f'{f:06d}.txt'
-            )
+        if num_workers <= 1:
+            for f in indices:
+                _export_one_pose(f, self.frames[f].camera_to_world, out_str)
+        else:
+            with ProcessPoolExecutor(max_workers=num_workers) as pool:
+                futures = {
+                    pool.submit(
+                        _export_one_pose, f,
+                        self.frames[f].camera_to_world, out_str,
+                    ): f
+                    for f in indices
+                }
+                for fut in tqdm(as_completed(futures), total=len(futures),
+                                desc="Pose export"):
+                    fut.result()
 
     def export_intrinsics(self, output_path: str) -> None:
         """
