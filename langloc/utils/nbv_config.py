@@ -68,6 +68,13 @@ class NBVConfig:
         spatial_size_ratio_threshold: Max size ratio for spatial relations.
         spatial_eps: Min displacement (m) for directional relations.
 
+        # Scene-level graph generation
+        build_scene_graph: Whether to build a 3DSSG-compatible scene graph.
+        scene_graph_max_distance: Max centroid distance (m) for scene graph edges.
+        scene_graph_add_embeddings: Whether to add word2vec/clip embeddings.
+        scene_graph_embedding_type: Embedding type ("word2vec" or "clip").
+        gravity_axis: Scene gravity convention ("y_up" for ScanNet, "z_up" for 3RScan).
+
         # Mask export settings
         mask_downsample_factor: Downsampling factor for mask export.
         semantic_id_key: TSV column for semantic IDs (ScanNet only).
@@ -133,6 +140,13 @@ class NBVConfig:
     spatial_size_ratio_threshold: float = 5.0
     spatial_eps: float = 0.1
     spatial_max_surface_distance: float = 1.5
+
+    # Scene-level graph generation
+    build_scene_graph: bool = True
+    scene_graph_max_distance: float = 2.0
+    scene_graph_add_embeddings: bool = True
+    scene_graph_embedding_type: str = "word2vec"
+    gravity_axis: str = "y_up"
 
     # Mask export settings
     mask_downsample_factor: int = 1
@@ -227,6 +241,13 @@ def extract_nbv_config(cfg: Dict[str, Any], dataset: str = "scannetpp") -> NBVCo
         spatial_size_ratio_threshold=float(section.get("spatial_size_ratio_threshold", 5.0)),
         spatial_eps=float(section.get("spatial_eps", 0.1)),
         spatial_max_surface_distance=float(section.get("spatial_max_surface_distance", 1.5)),
+
+        # Scene-level graph generation
+        build_scene_graph=bool(section.get("build_scene_graph", True)),
+        scene_graph_max_distance=float(section.get("scene_graph_max_distance", 2.0)),
+        scene_graph_add_embeddings=bool(section.get("scene_graph_add_embeddings", True)),
+        scene_graph_embedding_type=str(section.get("scene_graph_embedding_type", "word2vec")),
+        gravity_axis=str(section.get("gravity_axis", "y_up")),
 
         # Mask export settings
         mask_downsample_factor=int(section.get("mask_downsample_factor", 1)),

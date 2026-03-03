@@ -14,6 +14,9 @@ debug: false
 save_semantic_masks: false
 save_instance_masks: false
 auto_clean: false
+allow_partial: false       # Process scenes listed in partial scans blocklist
+viz_first: 3               # Visualize this many initial frames (ScanNet only)
+viz_selected: 0            # Visualize this many top selected frames (ScanNet only)
 
 # ------------------------------------------------------------
 # ScanNet++ NBV configuration
@@ -75,6 +78,14 @@ scannetpp:
   spatial_max_distance: 2.0
   spatial_size_ratio_threshold: 5.0
   spatial_eps: 0.1
+  spatial_max_surface_distance: 2.0
+
+  # Scene-level graph generation
+  build_scene_graph: true
+  scene_graph_max_distance: 2.0
+  scene_graph_add_embeddings: true
+  scene_graph_embedding_type: "word2vec"
+  gravity_axis: "y_up"
 
   # Output and cache directories
   cache_dir: cache
@@ -147,6 +158,13 @@ scannetpp:
   spatial_size_ratio_threshold: 5.0
   spatial_eps: 0.1
   spatial_max_surface_distance: 1.5
+
+  # Scene-level graph generation
+  build_scene_graph: true
+  scene_graph_max_distance: 2.0
+  scene_graph_add_embeddings: true
+  scene_graph_embedding_type: "word2vec"
+  gravity_axis: "z_up"
 
   # Output and cache directories
   cache_dir: cache_rscan

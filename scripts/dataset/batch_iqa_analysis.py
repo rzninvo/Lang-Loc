@@ -254,7 +254,7 @@ def get_scene_ids(
                 print(f"[WARN] 3RScan partial file not found: {partial_file}")
 
         if source == "scanscribe":
-            scanscribe_file = Path("configs/manifests/scanscribe_cleaned.json")
+            scanscribe_file = Path(cfg["paths"].get("scanscribe_manifest", "configs/manifests/scanscribe_cleaned.json"))
             if not scanscribe_file.exists():
                 print(f"[ERROR] ScanScribe file not found: {scanscribe_file}")
                 sys.exit(1)

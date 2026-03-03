@@ -28,8 +28,7 @@ def load_config(config_dir=None):
     cfg_dir = Path(config_dir) if config_dir else _CONFIGS_DIR
     paths = OmegaConf.load(cfg_dir / "paths" / "default.yaml")
     dataset = OmegaConf.load(cfg_dir / "dataset" / "default.yaml")
-    retrieval = OmegaConf.load(cfg_dir / "retrieval" / "default.yaml")
-    cfg = OmegaConf.create({"paths": paths, "dataset": dataset, "retrieval": retrieval})
+    cfg = OmegaConf.create({"paths": paths, "dataset": dataset})
     OmegaConf.resolve(cfg)
     return OmegaConf.to_container(cfg, resolve=True)
 

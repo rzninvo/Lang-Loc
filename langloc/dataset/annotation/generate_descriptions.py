@@ -31,7 +31,7 @@ from langloc.utils.camera_utils import load_camera_poses_json
 
 # Load the environment variables from the project root .env file.
 # This file must contain an OPENAI_API_KEY entry.
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 dotenv_path = PROJECT_ROOT / ".env"
 if dotenv_path.exists():
     load_dotenv(dotenv_path)

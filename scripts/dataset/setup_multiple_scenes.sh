@@ -6,20 +6,20 @@
 # Downloads, extracts, and generates keyframes for multiple ScanNet or 3RScan scenes.
 #
 # Usage:
-#   ./scripts/setup_multiple_scenes.sh --dataset {scannet|3RScan} <config_path> [num_scenes] [--source {default|scanscribe}]
+#   ./scripts/dataset/setup_multiple_scenes.sh --dataset {scannet|3RScan} [num_scenes] [--source {default|scanscribe}]
 #
 # Examples:
-#   ./scripts/setup_multiple_scenes.sh --dataset scannet configs/dataset/default.yaml 20
-#   ./scripts/setup_multiple_scenes.sh --dataset 3RScan configs/dataset/default.yaml 10
-#   ./scripts/setup_multiple_scenes.sh --dataset 3RScan configs/dataset/default.yaml --source scanscribe  # Downloads all scenes from scanscribe
-#   ./scripts/setup_multiple_scenes.sh --dataset 3RScan configs/dataset/default.yaml  # Downloads all scenes from default source
+#   ./scripts/dataset/setup_multiple_scenes.sh --dataset scannet 20
+#   ./scripts/dataset/setup_multiple_scenes.sh --dataset 3RScan 10
+#   ./scripts/dataset/setup_multiple_scenes.sh --dataset 3RScan --source scanscribe
+#   ./scripts/dataset/setup_multiple_scenes.sh --dataset 3RScan
 # ---------------------------------------------------------------------------------
 
 set -e  # Exit immediately if a command fails
 
 # -------- ARGUMENT CHECK --------
 if [ "$#" -lt 2 ]; then
-    echo "Usage: $0 --dataset {scannet|3RScan} <config_path> [num_scenes] [--source {default|scanscribe}]"
+    echo "Usage: $0 --dataset {scannet|3RScan} [num_scenes] [--source {default|scanscribe}]"
     exit 1
 fi
 
@@ -29,12 +29,11 @@ if [ "$1" != "--dataset" ]; then
 fi
 
 DATASET=$2
-CONFIG_PATH=$3
 NUM_SCENES="all"  # Default to "all" scenes
 SOURCE="default"  # Default source
 
 # Parse remaining arguments (can be in any order)
-shift 3  # Remove first 3 arguments (--dataset, DATASET, CONFIG_PATH)
+shift 2
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -43,7 +42,6 @@ while [ "$#" -gt 0 ]; do
             shift 2
             ;;
         *)
-            # If it's not a flag, assume it's num_scenes
             if [[ "$1" =~ ^[0-9]+$ ]] || [ "$1" == "all" ]; then
                 NUM_SCENES=$1
                 shift
@@ -55,52 +53,25 @@ while [ "$#" -gt 0 ]; do
     esac
 done
 
-# -------- LOAD CONFIG VALUES --------
-BASE_DIR=$(python3 - <<PY "$CONFIG_PATH"
-import sys, yaml
-with open(sys.argv[1]) as f:
-    cfg = yaml.safe_load(f)
-print(cfg["paths"]["base_data_dir"])
-PY
-)
+# -------- LOAD CONFIG VALUES VIA OMEGACONF --------
+CONFIG_JSON=$(python3 -c "
+import json
+from langloc.utils.config_loader import load_config
+cfg = load_config()
+print(json.dumps(cfg['paths']))
+")
 
-DATASET_PATH=$(python3 - <<PY "$CONFIG_PATH"
-import sys, yaml
-with open(sys.argv[1]) as f:
-    cfg = yaml.safe_load(f)
-print(cfg["paths"]["scannet_dataset_path"])
-PY
-)
-
-RSCAN_FILE=$(python3 - <<PY "$CONFIG_PATH"
-import sys, yaml
-with open(sys.argv[1]) as f:
-    cfg = yaml.safe_load(f)
-print(cfg["paths"].get("3rscan_release_scans_file", ""))
-PY
-)
-
-RSCAN_PARTIAL_FILE=$(python3 - <<PY "$CONFIG_PATH"
-import sys, yaml
-with open(sys.argv[1]) as f:
-    cfg = yaml.safe_load(f)
-print(cfg["paths"].get("3rscan_partial_scans_file", ""))
-PY
-)
-
-SCANNET_SCENES_FILE=$(python3 - <<PY "$CONFIG_PATH"
-import sys, yaml
-with open(sys.argv[1]) as f:
-    cfg = yaml.safe_load(f)
-print(cfg["paths"].get("scannet_scenes_file", ""))
-PY
-)
+BASE_DIR=$(echo "$CONFIG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['data_root'])")
+SCANNET_PATH=$(echo "$CONFIG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['scannet_root'])")
+RSCAN_FILE=$(echo "$CONFIG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('rscan_release_scans',''))")
+RSCAN_PARTIAL_FILE=$(echo "$CONFIG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('rscan_partial_scans',''))")
+SCANNET_SCENES_FILE=$(echo "$CONFIG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('scannet_scenes',''))")
 
 # -------- LOOP OVER DATASETS --------
 if [ "$DATASET" == "scannet" ]; then
     if [ ! -f "$SCANNET_SCENES_FILE" ]; then
         echo "[ERROR] ScanNet scenes file not found: $SCANNET_SCENES_FILE"
-        echo "[ERROR] Set paths.scannet_scenes_file in your config (e.g. config/scannetv2_all.txt)"
+        echo "[ERROR] Set paths.scannet_scenes in configs/paths/default.yaml"
         exit 1
     fi
 
@@ -113,7 +84,7 @@ if [ "$DATASET" == "scannet" ]; then
     fi
 
     for SCENE_ID in $SCAN_IDS; do
-        SCENE_PATH="${DATASET_PATH}/${SCENE_ID}"
+        SCENE_PATH="${SCANNET_PATH}/${SCENE_ID}"
 
         # Skip if already downloaded
         if [ -d "$SCENE_PATH" ]; then
@@ -125,7 +96,7 @@ if [ "$DATASET" == "scannet" ]; then
         echo "[INFO] Processing $SCENE_ID..."
         echo "============================================"
 
-        bash scripts/setup_sample_data.sh --dataset scannet "$SCENE_ID" "$CONFIG_PATH"
+        bash scripts/dataset/setup_sample_data.sh --dataset scannet "$SCENE_ID"
     done
 
 elif [ "$DATASET" == "3RScan" ]; then
@@ -147,7 +118,7 @@ elif [ "$DATASET" == "3RScan" ]; then
 
     # Determine source of scene IDs
     if [ "$SOURCE" == "scanscribe" ]; then
-        SCANSCRIBE_FILE="configs/manifests/scanscribe_cleaned.json"
+        SCANSCRIBE_FILE=$(echo "$CONFIG_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('scanscribe_manifest',''))")
         if [ ! -f "$SCANSCRIBE_FILE" ]; then
             echo "[ERROR] ScanScribe file not found: $SCANSCRIBE_FILE"
             exit 1
@@ -155,7 +126,6 @@ elif [ "$DATASET" == "3RScan" ]; then
 
         echo "[INFO] Using ScanScribe cleaned dataset: $SCANSCRIBE_FILE"
 
-        # Extract scene IDs (JSON keys) from scanscribe_cleaned.json
         SCAN_IDS=$(python3 - <<PY "$SCANSCRIBE_FILE" "$NUM_SCENES"
 import sys, json
 with open(sys.argv[1]) as f:
@@ -215,7 +185,7 @@ PY
         echo "[INFO] Processing $SCAN_ID..."
         echo "============================================"
 
-        bash scripts/setup_sample_data.sh --dataset 3RScan "$SCAN_ID" "$CONFIG_PATH"
+        bash scripts/dataset/setup_sample_data.sh --dataset 3RScan "$SCAN_ID"
     done
 
 else
@@ -223,4 +193,19 @@ else
     exit 1
 fi
 
+# -------- AGGREGATE SCENE GRAPHS --------
+if [ "$DATASET" == "scannet" ]; then
+    SG_ROOT="$SCANNET_PATH"
+    SG_OUTPUT="${BASE_DIR}/processed_data/generated/scannet_scene_graphs.pt"
+elif [ "$DATASET" == "3RScan" ]; then
+    SG_ROOT="${BASE_DIR}/3RScan"
+    SG_OUTPUT="${BASE_DIR}/processed_data/generated/3rscan_scene_graphs.pt"
+fi
+
+echo "[INFO] Aggregating scene graphs from $SG_ROOT..."
+python3 scripts/dataset/build_scene_graph_pt.py \
+    --root "$SG_ROOT" \
+    --output "$SG_OUTPUT"
+
 echo "[INFO] All requested $DATASET scenes processed."
+echo "[INFO] Aggregated scene graphs saved to: $SG_OUTPUT"
