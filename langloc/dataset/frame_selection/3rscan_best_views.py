@@ -58,6 +58,7 @@ from langloc.dataset.frame_selection.dpp import (
 )
 from langloc.dataset.frame_selection.legacy import greedy_next_best_views, cluster_camera_poses
 from langloc.dataset.frame_selection.masks import pix_to_instance_mask, pix_to_semantic_mask, save_png16
+from langloc.dataset.scene_graph_builder import build_scene_graph, add_embeddings_to_scene_graph, save_scene_graph
 from langloc.utils.camera_utils import (
     invert_se3_to_opencv,
     load_cam2world,
@@ -1271,6 +1272,33 @@ def main(scene_id: str, cfg: DictConfig, device_str=None,
     with open(output_dir / "camera_pose.json", "w") as f:
         json.dump(cam_json, f, indent=2)
 
+    # ----------------------- Scene-level Graph Generation -----------------------
+    if nbv_cfg.build_scene_graph:
+        print("[INFO] Building scene-level graph...")
+        # Extract only list-valued semantic attributes (color, shape, etc.)
+        # from the full metadata cache (which also has scalars like nyu40, ply_color).
+        sg_attrs = None
+        if object_attributes_cache:
+            sg_attrs = {}
+            for oid, attrs in object_attributes_cache.items():
+                sg_attrs[oid] = {
+                    k: v for k, v in attrs.items()
+                    if isinstance(v, list) and all(isinstance(x, str) for x in v)
+                }
+        scene_graph = build_scene_graph(
+            object_geometry_cache, obj_to_label, verts,
+            gravity_axis=nbv_cfg.gravity_axis,
+            max_distance=nbv_cfg.scene_graph_max_distance,
+            object_attributes=sg_attrs,
+        )
+        if nbv_cfg.scene_graph_add_embeddings:
+            print(f"[INFO] Adding {nbv_cfg.scene_graph_embedding_type} embeddings...")
+            add_embeddings_to_scene_graph(scene_graph, nbv_cfg.scene_graph_embedding_type)
+        sg_path = output_dir / f"{scene_id}_scene_graph.json"
+        save_scene_graph(scene_graph, sg_path)
+        print(f"[INFO] Scene graph saved: {len(scene_graph['objects'])} objects, "
+              f"{len(scene_graph['edge_lists']['relation'])} edges → {sg_path}")
+
     # ------------------------- Mask Rendering ----------------------------
     if save_instance_masks or save_semantic_masks:
         print("[INFO] Rendering masks for selected frames...")
@@ -1331,6 +1359,7 @@ def cli(cfg: DictConfig) -> None:
         auto_clean=cfg.dataset.auto_clean,
         save_semantic_masks=cfg.dataset.save_semantic_masks,
         save_instance_masks=cfg.dataset.save_instance_masks,
+        allow_partial=cfg.dataset.allow_partial,
     )
 
 

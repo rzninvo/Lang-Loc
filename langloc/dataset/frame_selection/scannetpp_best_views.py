@@ -83,6 +83,7 @@ from langloc.dataset.frame_selection.dpp import (
 )
 from langloc.dataset.frame_selection.legacy import greedy_next_best_views, cluster_camera_poses
 from langloc.dataset.frame_selection.masks import pix_to_instance_mask, pix_to_semantic_mask, save_png16
+from langloc.dataset.scene_graph_builder import build_scene_graph, add_embeddings_to_scene_graph, save_scene_graph
 from langloc.utils.camera_utils import (
     load_cam2world,
     invert_se3_to_opencv,
@@ -682,6 +683,22 @@ def main(scene_id: str, cfg: DictConfig, device_str: str | None = None,
     with open(output_dir / "camera_pose.json", "w") as f:
         json.dump(camera_pose_json, f, indent=2)
 
+    # ----------------------- Scene-level Graph Generation -----------------------
+    if nbv_cfg.build_scene_graph:
+        print("[INFO] Building scene-level graph...")
+        scene_graph = build_scene_graph(
+            object_geometry_cache, obj_to_label, V,
+            gravity_axis=nbv_cfg.gravity_axis,
+            max_distance=nbv_cfg.scene_graph_max_distance,
+        )
+        if nbv_cfg.scene_graph_add_embeddings:
+            print(f"[INFO] Adding {nbv_cfg.scene_graph_embedding_type} embeddings...")
+            add_embeddings_to_scene_graph(scene_graph, nbv_cfg.scene_graph_embedding_type)
+        sg_path = output_dir / f"{scene_id}_scene_graph.json"
+        save_scene_graph(scene_graph, sg_path)
+        print(f"[INFO] Scene graph saved: {len(scene_graph['objects'])} objects, "
+              f"{len(scene_graph['edge_lists']['relation'])} edges → {sg_path}")
+
     # --------------------------- (Optional) Debug plot ---------------------------
     if debug and not nbv_cfg.dpp_enabled:
         positions = np.stack([pose[:3, 3] for pose in camera_poses], axis=0)
@@ -763,6 +780,8 @@ def cli(cfg: DictConfig) -> None:
         cfg=cfg,
         device_str=cfg.device if cfg.device != "auto" else None,
         debug=cfg.dataset.debug,
+        viz_first=cfg.dataset.viz_first,
+        viz_selected=cfg.dataset.viz_selected,
         auto_clean=cfg.dataset.auto_clean,
         save_semantic_masks=cfg.dataset.save_semantic_masks,
         save_instance_masks=cfg.dataset.save_instance_masks,

@@ -622,9 +622,6 @@ def compute_spatial_relations(
     **Proximity / support** (world-frame):
       close by, standing on, supported by
 
-    **Containment** (world-frame bbox):
-      inside
-
     Camera coordinate frame follows OpenCV: X->right, Y->down, Z->forward.
 
     Args:
@@ -655,7 +652,6 @@ def compute_spatial_relations(
     # Pre-calculate bbox diagonal and volume per object
     sizes = {}
     volumes = {}
-    bboxes = {}
     for oid in visible_ids:
         bbox = visible_objects[oid]["bbox_world"]
         bmin = np.array(bbox[0])
@@ -663,7 +659,6 @@ def compute_spatial_relations(
         dims = np.maximum(bmax - bmin, 1e-8)
         sizes[oid] = float(np.linalg.norm(dims))
         volumes[oid] = float(dims[0] * dims[1] * dims[2])
-        bboxes[oid] = (bmin, bmax)
 
     def _add(subj_label, subj_id, obj_label, obj_id, relation, dist):
         sl = subj_label.lower() if subj_label else f"id_{subj_id}"
@@ -757,16 +752,6 @@ def compute_spatial_relations(
                     else:
                         _add(label_b, id_b, label_a, id_a, "standing on", dist_world)
                         _add(label_a, id_a, label_b, id_b, "supported by", dist_world)
-
-            # ── 5. CONTAINMENT: inside ──
-            # A inside B: A's centroid within B's world bbox (with margin)
-            margin = 0.05
-            bmin_b, bmax_b = bboxes[id_b]
-            if (cw_a >= bmin_b - margin).all() and (cw_a <= bmax_b + margin).all():
-                _add(label_a, id_a, label_b, id_b, "inside", dist_world)
-            bmin_a, bmax_a = bboxes[id_a]
-            if (cw_b >= bmin_a - margin).all() and (cw_b <= bmax_a + margin).all():
-                _add(label_b, id_b, label_a, id_a, "inside", dist_world)
 
     return spatial_relations
 
