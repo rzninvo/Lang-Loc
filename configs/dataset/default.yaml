@@ -87,6 +87,10 @@ scannetpp:
   scene_graph_embedding_type: "word2vec"
   gravity_axis: "y_up"
 
+  # Parallelism / batching
+  iqa_batch_size: 16
+  rasterization_batch_size: 8
+
   # Output and cache directories
   cache_dir: cache
   raster_out_dir: cache
@@ -165,6 +169,10 @@ scannetpp:
   scene_graph_add_embeddings: true
   scene_graph_embedding_type: "word2vec"
   gravity_axis: "z_up"
+
+  # Parallelism / batching
+  iqa_batch_size: 16
+  rasterization_batch_size: 8
 
   # Output and cache directories
   cache_dir: cache_rscan

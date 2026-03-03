@@ -50,6 +50,12 @@ def parse_args() -> argparse.Namespace:
         action='store_true',
         help='Export camera intrinsics (4x4 matrices)'
     )
+    parser.add_argument(
+        '--num_workers',
+        type=int,
+        default=0,
+        help='Parallel workers for frame export (0=auto, 1=sequential)'
+    )
     return parser.parse_args()
 
 
@@ -57,17 +63,31 @@ def main() -> None:
     """Main entry point for the sensor reader CLI."""
     opt = parse_args()
 
+    # Resolve worker count: 0 = auto (cap at 16 per process)
+    num_workers = opt.num_workers
+    if num_workers == 0:
+        num_workers = min(os.cpu_count() or 1, 16)
+
     os.makedirs(opt.output_path, exist_ok=True)
     print(f'Loading: {opt.filename}')
     sd = SensorData(opt.filename)
-    print('Loaded successfully.')
+    print(f'Loaded successfully ({len(sd.frames)} frames). Workers={num_workers}')
 
     if opt.export_depth_images:
-        sd.export_depth_images(os.path.join(opt.output_path, 'depth'))
+        sd.export_depth_images(
+            os.path.join(opt.output_path, 'depth'),
+            num_workers=num_workers,
+        )
     if opt.export_color_images:
-        sd.export_color_images(os.path.join(opt.output_path, 'color'))
+        sd.export_color_images(
+            os.path.join(opt.output_path, 'color'),
+            num_workers=num_workers,
+        )
     if opt.export_poses:
-        sd.export_poses(os.path.join(opt.output_path, 'pose'))
+        sd.export_poses(
+            os.path.join(opt.output_path, 'pose'),
+            num_workers=num_workers,
+        )
     if opt.export_intrinsics:
         sd.export_intrinsics(os.path.join(opt.output_path, 'intrinsic'))
 

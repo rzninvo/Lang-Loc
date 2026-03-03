@@ -65,6 +65,85 @@ def make_p3d_camera_from_opencv(
     return cams
 
 
+def make_p3d_cameras_batched(
+    Rs_cv: list[np.ndarray],
+    ts_cv: list[np.ndarray],
+    fx: float,
+    fy: float,
+    cx: float,
+    cy: float,
+    H: int,
+    W: int,
+    device: torch.device,
+) -> PerspectiveCameras:
+    """
+    Build a batched PyTorch3D PerspectiveCameras from N OpenCV cameras.
+
+    All cameras share the same intrinsics and image size.
+
+    Args:
+        Rs_cv: List of N (3,3) OpenCV world->cam rotation matrices.
+        ts_cv: List of N (3,) OpenCV world->cam translation vectors.
+        fx, fy, cx, cy: Shared intrinsics (pixels).
+        H, W: Image size in pixels.
+        device: CUDA or CPU device.
+
+    Returns:
+        PerspectiveCameras with batch dimension N.
+    """
+    N = len(Rs_cv)
+    K = torch.tensor(
+        [[[fx, 0.0, cx], [0.0, fy, cy], [0.0, 0.0, 1.0]]],
+        dtype=torch.float32, device=device,
+    ).expand(N, -1, -1)  # (N, 3, 3)
+
+    R = torch.from_numpy(np.stack(Rs_cv, axis=0)).float().to(device)  # (N,3,3)
+    t = torch.from_numpy(np.stack(ts_cv, axis=0)).float().to(device)  # (N,3)
+    image_size = torch.tensor(
+        [[H, W]], dtype=torch.float32, device=device,
+    ).expand(N, -1)  # (N,2)
+
+    cams = cameras_from_opencv_projection(
+        R=R, tvec=t, camera_matrix=K, image_size=image_size,
+    )
+    return cams
+
+
+@torch.no_grad()
+def rasterize_visibility_batched(
+    meshes: Meshes,
+    cameras: PerspectiveCameras,
+    rasterizer: MeshRasterizer,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Batched rasterization for N cameras at once.
+
+    Args:
+        meshes: PyTorch3D Meshes (single mesh, extended internally to batch N).
+        cameras: PerspectiveCameras with batch size N.
+        rasterizer: MeshRasterizer configured to the target image size.
+
+    Returns:
+        (pix_to_face, zbuf) tensors with shape (N, H, W).
+    """
+    N = cameras.R.shape[0]
+    meshes_batch = meshes.extend(N)
+    fragments = rasterizer(meshes_world=meshes_batch, cameras=cameras)
+    p2f = fragments.pix_to_face[..., 0].to(torch.int64)  # (N, H, W)
+    zbuf = fragments.zbuf[..., 0]  # (N, H, W)
+
+    # Convert packed face indices to local (per-mesh) indices.
+    # meshes.extend(N) replicates the mesh, so mesh i's faces start at i*F_orig.
+    # Downstream code indexes face_obj_ids with shape (F_orig,), so we must
+    # subtract the per-mesh offset to get local face indices.
+    F_orig = meshes.num_faces_per_mesh()[0].item()
+    for i in range(N):
+        valid = p2f[i] >= 0
+        p2f[i][valid] -= i * F_orig
+
+    return p2f, zbuf
+
+
 def make_rasterizer(
     H: int,
     W: int,

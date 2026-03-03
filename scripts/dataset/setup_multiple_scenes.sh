@@ -6,11 +6,11 @@
 # Downloads, extracts, and generates keyframes for multiple ScanNet or 3RScan scenes.
 #
 # Usage:
-#   ./scripts/dataset/setup_multiple_scenes.sh --dataset {scannet|3RScan} [num_scenes] [--source {default|scanscribe}]
+#   ./scripts/dataset/setup_multiple_scenes.sh --dataset {scannet|3RScan} [num_scenes] [--source {default|scanscribe}] [--parallel N]
 #
 # Examples:
 #   ./scripts/dataset/setup_multiple_scenes.sh --dataset scannet 20
-#   ./scripts/dataset/setup_multiple_scenes.sh --dataset 3RScan 10
+#   ./scripts/dataset/setup_multiple_scenes.sh --dataset 3RScan 10 --parallel 4
 #   ./scripts/dataset/setup_multiple_scenes.sh --dataset 3RScan --source scanscribe
 #   ./scripts/dataset/setup_multiple_scenes.sh --dataset 3RScan
 # ---------------------------------------------------------------------------------
@@ -31,6 +31,7 @@ fi
 DATASET=$2
 NUM_SCENES="all"  # Default to "all" scenes
 SOURCE="default"  # Default source
+PARALLEL=1        # Default: sequential (1 scene at a time)
 
 # Parse remaining arguments (can be in any order)
 shift 2
@@ -39,6 +40,14 @@ while [ "$#" -gt 0 ]; do
     case "$1" in
         --source)
             SOURCE=${2:-default}
+            shift 2
+            ;;
+        --parallel)
+            if [ -z "${2:-}" ] || [[ ! "$2" =~ ^[0-9]+$ ]]; then
+                echo "[ERROR] --parallel requires a positive integer argument"
+                exit 1
+            fi
+            PARALLEL=$2
             shift 2
             ;;
         *)
@@ -83,21 +92,38 @@ if [ "$DATASET" == "scannet" ]; then
         SCAN_IDS=$(head -n "$NUM_SCENES" "$SCANNET_SCENES_FILE")
     fi
 
+    # Collect scenes that need processing
+    SCENES_TO_PROCESS=$(mktemp)
     for SCENE_ID in $SCAN_IDS; do
         SCENE_PATH="${SCANNET_PATH}/${SCENE_ID}"
-
-        # Skip if already downloaded
         if [ -d "$SCENE_PATH" ]; then
             echo "[INFO] Skipping $SCENE_ID — already exists in $SCENE_PATH"
-            continue
+        else
+            echo "$SCENE_ID" >> "$SCENES_TO_PROCESS"
         fi
-
-        echo "============================================"
-        echo "[INFO] Processing $SCENE_ID..."
-        echo "============================================"
-
-        bash scripts/dataset/setup_sample_data.sh --dataset scannet "$SCENE_ID"
     done
+
+    SCENE_COUNT=$(wc -l < "$SCENES_TO_PROCESS")
+    echo "[INFO] $SCENE_COUNT scenes to process (--parallel $PARALLEL)"
+
+    if [ "$PARALLEL" -le 1 ]; then
+        while IFS= read -r SCENE_ID; do
+            echo "============================================"
+            echo "[INFO] Processing $SCENE_ID..."
+            echo "============================================"
+            bash scripts/dataset/setup_sample_data.sh --dataset scannet "$SCENE_ID"
+        done < "$SCENES_TO_PROCESS"
+    else
+        LOG_DIR="outputs/logs/$(date +%Y%m%d_%H%M%S)"
+        mkdir -p "$LOG_DIR"
+        echo "[INFO] Parallel mode: $PARALLEL concurrent scenes. Logs → $LOG_DIR/"
+        cat "$SCENES_TO_PROCESS" | xargs -P "$PARALLEL" -I {} bash -c \
+            'SCENE="$1"; echo "[START] $SCENE" && \
+             bash scripts/dataset/setup_sample_data.sh --dataset scannet "$SCENE" \
+             > "'"$LOG_DIR"'/$SCENE.log" 2>&1 && \
+             echo "[DONE]  $SCENE" || echo "[FAIL]  $SCENE"' _ {}
+    fi
+    rm -f "$SCENES_TO_PROCESS"
 
 elif [ "$DATASET" == "3RScan" ]; then
     # Pre-download 3RScan metadata needed for scene setup
@@ -172,21 +198,38 @@ PY
         echo "[WARN] Partial scans file not found: $RSCAN_PARTIAL_FILE (skipping partial-scan filtering)."
     fi
 
+    # Collect scenes that need processing
+    SCENES_TO_PROCESS=$(mktemp)
     for SCAN_ID in $SCAN_IDS; do
         SCENE_PATH="${BASE_DIR}/3RScan/${SCAN_ID}"
-
-        # Skip if already downloaded
         if [ -d "$SCENE_PATH" ]; then
             echo "[INFO] Skipping $SCAN_ID — already exists in $SCENE_PATH"
-            continue
+        else
+            echo "$SCAN_ID" >> "$SCENES_TO_PROCESS"
         fi
-
-        echo "============================================"
-        echo "[INFO] Processing $SCAN_ID..."
-        echo "============================================"
-
-        bash scripts/dataset/setup_sample_data.sh --dataset 3RScan "$SCAN_ID"
     done
+
+    SCENE_COUNT=$(wc -l < "$SCENES_TO_PROCESS")
+    echo "[INFO] $SCENE_COUNT scenes to process (--parallel $PARALLEL)"
+
+    if [ "$PARALLEL" -le 1 ]; then
+        while IFS= read -r SCAN_ID; do
+            echo "============================================"
+            echo "[INFO] Processing $SCAN_ID..."
+            echo "============================================"
+            bash scripts/dataset/setup_sample_data.sh --dataset 3RScan "$SCAN_ID"
+        done < "$SCENES_TO_PROCESS"
+    else
+        LOG_DIR="outputs/logs/$(date +%Y%m%d_%H%M%S)"
+        mkdir -p "$LOG_DIR"
+        echo "[INFO] Parallel mode: $PARALLEL concurrent scenes. Logs → $LOG_DIR/"
+        cat "$SCENES_TO_PROCESS" | xargs -P "$PARALLEL" -I {} bash -c \
+            'SCENE="$1"; echo "[START] $SCENE" && \
+             bash scripts/dataset/setup_sample_data.sh --dataset 3RScan "$SCENE" \
+             > "'"$LOG_DIR"'/$SCENE.log" 2>&1 && \
+             echo "[DONE]  $SCENE" || echo "[FAIL]  $SCENE"' _ {}
+    fi
+    rm -f "$SCENES_TO_PROCESS"
 
 else
     echo "[ERROR] Unknown dataset: $DATASET (must be 'scannet' or '3RScan')"

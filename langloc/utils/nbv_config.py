@@ -75,6 +75,10 @@ class NBVConfig:
         scene_graph_embedding_type: Embedding type ("word2vec" or "clip").
         gravity_axis: Scene gravity convention ("y_up" for ScanNet, "z_up" for 3RScan).
 
+        # Parallelism / batching
+        iqa_batch_size: Batch size for IQA model inference (1 = sequential).
+        rasterization_batch_size: Batch size for PyTorch3D GPU rasterization (1 = sequential).
+
         # Mask export settings
         mask_downsample_factor: Downsampling factor for mask export.
         semantic_id_key: TSV column for semantic IDs (ScanNet only).
@@ -147,6 +151,10 @@ class NBVConfig:
     scene_graph_add_embeddings: bool = True
     scene_graph_embedding_type: str = "word2vec"
     gravity_axis: str = "y_up"
+
+    # Parallelism / batching
+    iqa_batch_size: int = 1
+    rasterization_batch_size: int = 1
 
     # Mask export settings
     mask_downsample_factor: int = 1
@@ -248,6 +256,10 @@ def extract_nbv_config(cfg: Dict[str, Any], dataset: str = "scannetpp") -> NBVCo
         scene_graph_add_embeddings=bool(section.get("scene_graph_add_embeddings", True)),
         scene_graph_embedding_type=str(section.get("scene_graph_embedding_type", "word2vec")),
         gravity_axis=str(section.get("gravity_axis", "y_up")),
+
+        # Parallelism / batching
+        iqa_batch_size=int(section.get("iqa_batch_size", 1)),
+        rasterization_batch_size=int(section.get("rasterization_batch_size", 1)),
 
         # Mask export settings
         mask_downsample_factor=int(section.get("mask_downsample_factor", 1)),

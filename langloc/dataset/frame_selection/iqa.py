@@ -1,10 +1,12 @@
 """Image Quality Assessment (IQA) filtering using pyiqa."""
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
 import torch
+from torchvision import transforms
 from tqdm import tqdm
 
 
@@ -37,6 +39,15 @@ def load_iqa_model(metric_name: str = "qualiclip", device: str = "cuda"):
     return model, device, higher_better
 
 
+def _load_image_tensor(img_path: Path) -> torch.Tensor:
+    """Load a single image as a normalized float32 CPU tensor."""
+    from PIL import Image
+    with Image.open(img_path) as img:
+        img_rgb = img.convert("RGB")
+    tensor = transforms.ToTensor()(img_rgb)  # (3, H, W), float32 [0, 1]
+    return tensor
+
+
 def filter_quality_images(
     color_dir: Path,
     metric_name: str,
@@ -45,6 +56,7 @@ def filter_quality_images(
     device: str = "cuda",
     min_pass_count: int = 50,
     fallback_top_k: int = 50,
+    batch_size: int = 1,
 ) -> list[str]:
     """
     Filter images by quality using pyiqa metrics (GPU-based).
@@ -60,6 +72,7 @@ def filter_quality_images(
         min_pass_count: Minimum desired number of threshold-passing frames.
             If fewer pass, fallback to score-ranking selection.
         fallback_top_k: Number of highest-quality frames to keep in fallback mode.
+        batch_size: Batch size for IQA inference (1 = legacy sequential).
 
     Returns:
         Ordered list of frame ids (stems) that pass the threshold.
@@ -74,15 +87,47 @@ def filter_quality_images(
     # Load IQA model
     model, device, higher_better = load_iqa_model(metric_name, device)
 
-    # Score all images
+    # Score all images (no_grad: IQA is inference-only, no backprop needed)
     scores = {}
-    for img_path in tqdm(image_files, desc=f"{metric_name.upper()} filtering", dynamic_ncols=True):
-        try:
-            score = model(str(img_path)).item()
-            scores[img_path.stem] = score
-        except Exception as e:
-            print(f"[WARN] Failed to score {img_path.name}: {e}")
-            scores[img_path.stem] = float("nan")
+    with torch.no_grad():
+        if batch_size <= 1:
+            # Legacy: one-at-a-time path scoring
+            for img_path in tqdm(image_files, desc=f"{metric_name.upper()} filtering",
+                                 dynamic_ncols=True):
+                try:
+                    score = model(str(img_path)).item()
+                    scores[img_path.stem] = score
+                except Exception as e:
+                    print(f"[WARN] Failed to score {img_path.name}: {e}")
+                    scores[img_path.stem] = float("nan")
+        else:
+            # Batched inference: parallel image loading + GPU batch scoring
+            io_workers = min(batch_size, 4)
+            for batch_start in tqdm(range(0, len(image_files), batch_size),
+                                    desc=f"{metric_name.upper()} batched (bs={batch_size})",
+                                    dynamic_ncols=True):
+                batch_paths = image_files[batch_start:batch_start + batch_size]
+                try:
+                    with ThreadPoolExecutor(max_workers=io_workers) as tp:
+                        tensors = list(tp.map(
+                            lambda p: _load_image_tensor(p), batch_paths
+                        ))
+                    batch_tensor = torch.stack(tensors, dim=0).to(device)  # (B, 3, H, W)
+                    batch_scores = model(batch_tensor)  # (B,) or (B, 1)
+                    batch_scores = batch_scores.view(-1).cpu().tolist()
+                    for path, score in zip(batch_paths, batch_scores):
+                        scores[path.stem] = score
+                    del tensors, batch_tensor
+                except Exception as e:
+                    # Fallback: score this batch sequentially (e.g. size mismatch)
+                    print(f"[WARN] Batch scoring failed ({e}), falling back to sequential")
+                    for path in batch_paths:
+                        try:
+                            score = model(str(path)).item()
+                            scores[path.stem] = score
+                        except Exception as e2:
+                            print(f"[WARN] Failed to score {path.name}: {e2}")
+                            scores[path.stem] = float("nan")
 
     valid_scored = [
         (p.stem, float(scores.get(p.stem, float("nan"))))

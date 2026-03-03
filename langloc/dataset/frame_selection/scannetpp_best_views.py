@@ -65,10 +65,12 @@ from langloc.dataset.frame_selection.iqa import filter_quality_images
 from langloc.dataset.frame_selection.visibility import (
     VOID_ID,
     make_p3d_camera_from_opencv,
+    make_p3d_cameras_batched,
     make_rasterizer,
     per_face_object_ids,
     precompute_object_geometry,
     rasterize_visibility,
+    rasterize_visibility_batched,
     compute_image_visibility,
     compute_visible_objects,
     compute_spatial_relations,
@@ -341,6 +343,7 @@ def main(scene_id: str, cfg: DictConfig, device_str: str | None = None,
         metric_name=iqa_metric,
         threshold=iqa_threshold,
         device=iqa_device,
+        batch_size=nbv_cfg.iqa_batch_size,
     )
 
     if nbv_cfg.subsample_factor > 1:
@@ -452,102 +455,137 @@ def main(scene_id: str, cfg: DictConfig, device_str: str | None = None,
 
     visibility_masks: List[np.ndarray] = []
 
+    # Precompute object geometry (needed for visibility + scene graph)
+    object_geometry_cache = precompute_object_geometry(V, F, face_obj_ids)
+
     if image_stats is None:
         print(f"[INFO] Computing visibility for {len(frame_ids)} frames at {H_vis}x{W_vis}...")
         image_stats: List[Dict] = []
-        object_geometry_cache = precompute_object_geometry(V, F, face_obj_ids)
 
-        for idx, fid in enumerate(tqdm(frame_ids)):
-            pose = load_cam2world(pose_dir / f"{fid}.txt")
-            R_cv, t_cv = invert_se3_to_opencv(pose)
+        rast_bs = max(1, nbv_cfg.rasterization_batch_size)
+        global_idx = 0
+        for batch_start in tqdm(range(0, len(frame_ids), rast_bs),
+                                desc=f"Visibility (bs={rast_bs})"):
+            batch_fids = frame_ids[batch_start:batch_start + rast_bs]
+            actual_bs = len(batch_fids)
 
-            cams_vis = make_p3d_camera_from_opencv(
-                R_cv, t_cv, fx_vis, fy_vis, cx_vis, cy_vis, H_vis, W_vis, device
-            )
-            pix_to_face, zbuf = rasterize_visibility(meshes, cams_vis, rasterizer_vis)
-            obj_px, total_px = compute_image_visibility(pix_to_face, face_obj_ids)
+            # 1. Load poses and convert to OpenCV
+            batch_poses, batch_Rs, batch_ts = [], [], []
+            for fid in batch_fids:
+                pose = load_cam2world(pose_dir / f"{fid}.txt")
+                R_cv, t_cv = invert_se3_to_opencv(pose)
+                batch_poses.append(pose)
+                batch_Rs.append(R_cv)
+                batch_ts.append(t_cv)
 
-            # Depth-aware visibility (optional)
-            dc_counts = None
-            if nbv_cfg.depth_visibility_enabled:
-                depth_path = depth_dir / f"{fid}.png"
-                if depth_path.exists():
-                    sensor_img = Image.open(depth_path)
-                    if (sensor_img.height, sensor_img.width) != (H_vis, W_vis):
-                        sensor_img = sensor_img.resize((W_vis, H_vis), Image.NEAREST)
-                    sensor_depth_m = np.array(sensor_img).astype(np.float32) / 1000.0
-                    d_mask = depth_consistency_mask(
-                        zbuf, sensor_depth_m,
-                        vis_thres=nbv_cfg.depth_vis_threshold,
-                    )
-                    dc_counts = compute_depth_consistent_counts(
-                        pix_to_face, face_obj_ids, d_mask,
-                    )
+            # 2. Batched GPU rasterization
+            if actual_bs == 1:
+                cams_vis = make_p3d_camera_from_opencv(
+                    batch_Rs[0], batch_ts[0],
+                    fx_vis, fy_vis, cx_vis, cy_vis, H_vis, W_vis, device,
+                )
+                p2f_single, zbuf_single = rasterize_visibility(meshes, cams_vis, rasterizer_vis)
+                p2f_batch = p2f_single.unsqueeze(0)
+                zbuf_batch = zbuf_single.unsqueeze(0)
+            else:
+                cams_vis = make_p3d_cameras_batched(
+                    batch_Rs, batch_ts,
+                    fx_vis, fy_vis, cx_vis, cy_vis, H_vis, W_vis, device,
+                )
+                p2f_batch, zbuf_batch = rasterize_visibility_batched(meshes, cams_vis, rasterizer_vis)
 
-            filter_reasons: Dict[int, str] = {}
-            visible_objects = compute_visible_objects(
-                V, F, vert_seg, seg_to_obj, obj_to_label,
-                obj_px, face_obj_ids, pix_to_face,
-                pose, R_cv, t_cv,
-                fx_vis, fy_vis, cx_vis, cy_vis,
-                W_vis, H_vis,
-                fov_depth_clip=nbv_cfg.fov_depth_clip,
-                coverage_threshold=nbv_cfg.coverage_threshold,
-                min_pixel_count=nbv_cfg.min_pixel_count,
-                full_object_geometry=object_geometry_cache,
-                depth_consistent_counts=dc_counts,
-                depth_consistent_ratio_threshold=nbv_cfg.depth_consistent_ratio_threshold,
-                min_depth_consistent_pixels=nbv_cfg.min_depth_consistent_pixels,
-                filtered_reasons=filter_reasons,
-            )
-            spatial_relations = compute_spatial_relations(
-                visible_objects,
-                max_distance=nbv_cfg.spatial_max_distance,
-                size_ratio_threshold=nbv_cfg.spatial_size_ratio_threshold,
-                eps=nbv_cfg.spatial_eps,
-            )
+            # 3. Per-frame CPU post-processing (unchanged logic)
+            for i, fid in enumerate(batch_fids):
+                pix_to_face = p2f_batch[i]   # (H, W)
+                zbuf = zbuf_batch[i]          # (H, W)
+                pose = batch_poses[i]
+                R_cv = batch_Rs[i]
+                t_cv = batch_ts[i]
 
-            # Extract unique visible face indices for DPP normal/novelty computation
-            p2f_np = pix_to_face.cpu().numpy()
-            visible_face_ids = np.unique(p2f_np[p2f_np >= 0]).tolist()
+                obj_px, total_px = compute_image_visibility(pix_to_face, face_obj_ids)
 
-            # Build labeled-object binary mask for pixel IoU (DPP Stage 2)
-            mask = np.zeros(p2f_np.shape, dtype=np.uint8)
-            valid = p2f_np >= 0
-            mask[valid] = (face_obj_ids[p2f_np[valid]] >= 0).astype(np.uint8)
-            visibility_masks.append(mask)
+                # Depth-aware visibility (optional)
+                dc_counts = None
+                if nbv_cfg.depth_visibility_enabled:
+                    depth_path = depth_dir / f"{fid}.png"
+                    if depth_path.exists():
+                        sensor_img = Image.open(depth_path)
+                        if (sensor_img.height, sensor_img.width) != (H_vis, W_vis):
+                            sensor_img = sensor_img.resize((W_vis, H_vis), Image.NEAREST)
+                        sensor_depth_m = np.array(sensor_img).astype(np.float32) / 1000.0
+                        d_mask = depth_consistency_mask(
+                            zbuf, sensor_depth_m,
+                            vis_thres=nbv_cfg.depth_vis_threshold,
+                        )
+                        dc_counts = compute_depth_consistent_counts(
+                            pix_to_face, face_obj_ids, d_mask,
+                        )
 
-            image_entry = {
-                "fid": fid,
-                "obj_pixels": obj_px,
-                "total_labeled_px": int(total_px),
-                "visible_objects": visible_objects,
-                "spatial_relations": spatial_relations,
-                "visible_face_ids": visible_face_ids,
-            }
-            image_stats.append(image_entry)
+                filter_reasons: Dict[int, str] = {}
+                visible_objects = compute_visible_objects(
+                    V, F, vert_seg, seg_to_obj, obj_to_label,
+                    obj_px, face_obj_ids, pix_to_face,
+                    pose, R_cv, t_cv,
+                    fx_vis, fy_vis, cx_vis, cy_vis,
+                    W_vis, H_vis,
+                    fov_depth_clip=nbv_cfg.fov_depth_clip,
+                    coverage_threshold=nbv_cfg.coverage_threshold,
+                    min_pixel_count=nbv_cfg.min_pixel_count,
+                    full_object_geometry=object_geometry_cache,
+                    depth_consistent_counts=dc_counts,
+                    depth_consistent_ratio_threshold=nbv_cfg.depth_consistent_ratio_threshold,
+                    min_depth_consistent_pixels=nbv_cfg.min_depth_consistent_pixels,
+                    filtered_reasons=filter_reasons,
+                )
+                spatial_relations = compute_spatial_relations(
+                    visible_objects,
+                    max_distance=nbv_cfg.spatial_max_distance,
+                    size_ratio_threshold=nbv_cfg.spatial_size_ratio_threshold,
+                    eps=nbv_cfg.spatial_eps,
+                )
 
-            if idx < 5 and debug:
-                print(f"[DEBUG] Frame {fid}: {len(visible_objects)} objs, {len(spatial_relations)} relations")
-                if dc_counts is not None:
-                    debug_dir = output_dir / "debug"
-                    debug_dir.mkdir(parents=True, exist_ok=True)
-                    save_depth_debug_panel(
-                        rgb_path=color_dir / f"{fid}.jpg",
-                        sensor_depth=sensor_depth_m,
-                        zbuf=zbuf,
-                        depth_mask=d_mask,
-                        pix_to_face=pix_to_face,
-                        face_obj_ids=face_obj_ids,
-                        visible_objects=visible_objects,
-                        out_path=debug_dir / f"{fid}_depth_debug.png",
-                        fid=fid,
-                        vis_thres=nbv_cfg.depth_vis_threshold,
-                        obj_px=obj_px,
-                        obj_to_label=obj_to_label,
-                        filtered_reasons=filter_reasons,
-                    )
-                    print(f"[DEBUG] Saved depth panel: {debug_dir / f'{fid}_depth_debug.png'}")
+                # Extract unique visible face indices for DPP normal/novelty computation
+                p2f_np = pix_to_face.cpu().numpy()
+                visible_face_ids = np.unique(p2f_np[p2f_np >= 0]).tolist()
+
+                # Build labeled-object binary mask for pixel IoU (DPP Stage 2)
+                mask = np.zeros(p2f_np.shape, dtype=np.uint8)
+                valid = p2f_np >= 0
+                mask[valid] = (face_obj_ids[p2f_np[valid]] >= 0).astype(np.uint8)
+                visibility_masks.append(mask)
+
+                image_entry = {
+                    "fid": fid,
+                    "obj_pixels": obj_px,
+                    "total_labeled_px": int(total_px),
+                    "visible_objects": visible_objects,
+                    "spatial_relations": spatial_relations,
+                    "visible_face_ids": visible_face_ids,
+                }
+                image_stats.append(image_entry)
+
+                if global_idx < 5 and debug:
+                    print(f"[DEBUG] Frame {fid}: {len(visible_objects)} objs, {len(spatial_relations)} relations")
+                    if dc_counts is not None:
+                        debug_dir = output_dir / "debug"
+                        debug_dir.mkdir(parents=True, exist_ok=True)
+                        save_depth_debug_panel(
+                            rgb_path=color_dir / f"{fid}.jpg",
+                            sensor_depth=sensor_depth_m,
+                            zbuf=zbuf,
+                            depth_mask=d_mask,
+                            pix_to_face=pix_to_face,
+                            face_obj_ids=face_obj_ids,
+                            visible_objects=visible_objects,
+                            out_path=debug_dir / f"{fid}_depth_debug.png",
+                            fid=fid,
+                            vis_thres=nbv_cfg.depth_vis_threshold,
+                            obj_px=obj_px,
+                            obj_to_label=obj_to_label,
+                            filtered_reasons=filter_reasons,
+                        )
+                        print(f"[DEBUG] Saved depth panel: {debug_dir / f'{fid}_depth_debug.png'}")
+                global_idx += 1
 
         cache_json.write_text(json.dumps(image_stats, indent=2))
         print(f"[INFO] Saved visibility cache: {cache_json}")
@@ -746,21 +784,52 @@ def main(scene_id: str, cfg: DictConfig, device_str: str | None = None,
         # numpy copy of face->object ids for fast indexing
         face_obj_ids_np = np.asarray(face_obj_ids, dtype=np.int32)
 
-        for fid in tqdm(cluster_representatives, desc="Masks", dynamic_ncols=True):
-            pose = load_cam2world(pose_dir / f"{fid}.txt")
-            R_cv, t_cv = invert_se3_to_opencv(pose)
+        from concurrent.futures import ThreadPoolExecutor
 
-            cams_mask = make_p3d_camera_from_opencv(R_cv, t_cv, fx_m, fy_m, cx_m, cy_m, Hm, Wm, device)
-            pix_to_face, _ = rasterize_visibility(meshes, cams_mask, rasterizer_mask)
-            p2f_np = pix_to_face.cpu().numpy()
+        mask_rast_bs = max(1, nbv_cfg.rasterization_batch_size)
+        write_futures = []
+        with ThreadPoolExecutor(max_workers=2) as io_pool:
+            for batch_start in tqdm(range(0, len(cluster_representatives), mask_rast_bs),
+                                    desc=f"Masks (bs={mask_rast_bs})", dynamic_ncols=True):
+                batch_fids = cluster_representatives[batch_start:batch_start + mask_rast_bs]
+                actual_bs = len(batch_fids)
 
-            if save_instance_masks:
-                inst = pix_to_instance_mask(p2f_np, face_obj_ids_np, void_val=VOID_ID)
-                save_png16(inst_dir / f"{fid}.png", inst)
+                # Load poses
+                batch_Rs, batch_ts = [], []
+                for fid in batch_fids:
+                    pose = load_cam2world(pose_dir / f"{fid}.txt")
+                    R_cv, t_cv = invert_se3_to_opencv(pose)
+                    batch_Rs.append(R_cv)
+                    batch_ts.append(t_cv)
 
-            if save_semantic_masks:
-                sem = pix_to_semantic_mask(p2f_np, face_obj_ids_np, obj_to_sem_id, void_val=VOID_ID)
-                save_png16(sem_dir / f"{fid}.png", sem)
+                # Batched rasterization
+                if actual_bs == 1:
+                    cams_mask = make_p3d_camera_from_opencv(
+                        batch_Rs[0], batch_ts[0], fx_m, fy_m, cx_m, cy_m, Hm, Wm, device,
+                    )
+                    p2f_single, _ = rasterize_visibility(meshes, cams_mask, rasterizer_mask)
+                    p2f_all = p2f_single.unsqueeze(0)
+                else:
+                    cams_mask = make_p3d_cameras_batched(
+                        batch_Rs, batch_ts, fx_m, fy_m, cx_m, cy_m, Hm, Wm, device,
+                    )
+                    p2f_all, _ = rasterize_visibility_batched(meshes, cams_mask, rasterizer_mask)
+
+                # Per-frame mask computation + async PNG writes
+                for i, fid in enumerate(batch_fids):
+                    p2f_np = p2f_all[i].cpu().numpy()
+
+                    if save_instance_masks:
+                        inst = pix_to_instance_mask(p2f_np, face_obj_ids_np, void_val=VOID_ID)
+                        write_futures.append(io_pool.submit(save_png16, inst_dir / f"{fid}.png", inst))
+
+                    if save_semantic_masks:
+                        sem = pix_to_semantic_mask(p2f_np, face_obj_ids_np, obj_to_sem_id, void_val=VOID_ID)
+                        write_futures.append(io_pool.submit(save_png16, sem_dir / f"{fid}.png", sem))
+
+            # Wait for all PNG writes to complete
+            for fut in write_futures:
+                fut.result()
 
     # Auto-clean if enabled
     if auto_clean:
