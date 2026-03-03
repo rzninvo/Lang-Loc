@@ -37,7 +37,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
-import yaml
+from langloc.utils.config_loader import load_config
 from tqdm import tqdm
 
 
@@ -222,12 +222,9 @@ def get_scene_ids(
     dataset: str,
     source: str,
     num_scenes: int | str,
-    config_path: str,
+    cfg: dict,
 ) -> List[str]:
     """Get list of scene IDs to process."""
-    with open(config_path) as f:
-        cfg = yaml.safe_load(f)
-
     scene_ids = []
 
     if dataset == "scannet":
@@ -239,7 +236,7 @@ def get_scene_ids(
             scene_ids.append(f"scene{i:04d}_00")
 
     elif dataset == "3RScan":
-        partial_file_raw = cfg["paths"].get("3rscan_partial_scans_file", "")
+        partial_file_raw = cfg["paths"].get("rscan_partial_scans", "")
         partial_file = Path(partial_file_raw) if partial_file_raw else None
         partial_ids = set()
         if partial_file is not None:
@@ -257,7 +254,7 @@ def get_scene_ids(
                 print(f"[WARN] 3RScan partial file not found: {partial_file}")
 
         if source == "scanscribe":
-            scanscribe_file = Path("config/scanscribe_cleaned.json")
+            scanscribe_file = Path("configs/manifests/scanscribe_cleaned.json")
             if not scanscribe_file.exists():
                 print(f"[ERROR] ScanScribe file not found: {scanscribe_file}")
                 sys.exit(1)
@@ -275,7 +272,7 @@ def get_scene_ids(
                 scene_ids = all_ids[:int(num_scenes)]
             print(f"[INFO] Using ScanScribe dataset: {len(scene_ids)} scenes")
         else:
-            rscan_file = Path(cfg["paths"].get("3rscan_release_scans_file", ""))
+            rscan_file = Path(cfg["paths"].get("rscan_release_scans", ""))
             if not rscan_file.exists():
                 print(f"[ERROR] 3RScan release file not found: {rscan_file}")
                 sys.exit(1)
@@ -295,17 +292,12 @@ def get_scene_ids(
     return scene_ids
 
 
-def get_image_directory(dataset: str, scene_id: str, config_path: str) -> Path:
+def get_image_directory(dataset: str, scene_id: str, cfg: dict) -> Path:
     """Get the image directory for a scene."""
-    with open(config_path) as f:
-        cfg = yaml.safe_load(f)
-
     if dataset == "scannet":
-        base = Path(cfg["paths"]["scannet_dataset_path"])
-        return base / scene_id / "color"
+        return Path(cfg["paths"]["scannet_root"]) / scene_id / "color"
     else:  # 3RScan
-        base = Path(cfg["paths"]["3rscan_dataset_path"])
-        return base / scene_id
+        return Path(cfg["paths"]["rscan_root"]) / scene_id
 
 
 def get_image_pattern(dataset: str) -> str:
@@ -338,26 +330,21 @@ def download_scene(dataset: str, scene_id: str) -> bool:
         return False
 
 
-def delete_scene(dataset: str, scene_id: str, config_path: str):
+def delete_scene(dataset: str, scene_id: str, cfg: dict):
     """Delete a scene's data directory."""
-    with open(config_path) as f:
-        cfg = yaml.safe_load(f)
-
     if dataset == "scannet":
-        base = Path(cfg["paths"]["scannet_dataset_path"])
-        scene_dir = base / scene_id
+        scene_dir = Path(cfg["paths"]["scannet_root"]) / scene_id
     else:
-        base = Path(cfg["paths"]["3rscan_dataset_path"])
-        scene_dir = base / scene_id
+        scene_dir = Path(cfg["paths"]["rscan_root"]) / scene_id
 
     if scene_dir.exists():
         print(f"[INFO] Deleting scene data: {scene_dir}")
         shutil.rmtree(scene_dir)
 
 
-def scene_exists(dataset: str, scene_id: str, config_path: str) -> bool:
+def scene_exists(dataset: str, scene_id: str, cfg: dict) -> bool:
     """Check if a scene's data already exists."""
-    image_dir = get_image_directory(dataset, scene_id, config_path)
+    image_dir = get_image_directory(dataset, scene_id, cfg)
     return image_dir.exists()
 
 
@@ -573,12 +560,6 @@ Examples:
         help="Keep scene data after processing (default: delete to save space).",
     )
     parser.add_argument(
-        "--config",
-        type=str,
-        default="config/default.yaml",
-        help="Path to config file.",
-    )
-    parser.add_argument(
         "--output-dir",
         type=str,
         default="results/iqa_analysis",
@@ -608,16 +589,14 @@ Examples:
 
     args = parser.parse_args()
 
-    # Validate config exists
-    if not Path(args.config).exists():
-        print(f"[ERROR] Config file not found: {args.config}")
-        sys.exit(1)
+    # Load project config from Hydra config tree
+    cfg = load_config()
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Get scene IDs
-    scene_ids = get_scene_ids(args.dataset, args.source, args.num_scenes, args.config)
+    scene_ids = get_scene_ids(args.dataset, args.source, args.num_scenes, cfg)
     print(f"[INFO] Will process {len(scene_ids)} scenes from {args.dataset}")
 
     # Check for resume
@@ -648,14 +627,14 @@ Examples:
 
         # Download if needed
         if not args.skip_download:
-            if not scene_exists(args.dataset, scene_id, args.config):
+            if not scene_exists(args.dataset, scene_id, cfg):
                 success = download_scene(args.dataset, scene_id)
                 if not success:
                     failed_scenes.append(scene_id)
                     continue
 
         # Get image directory
-        image_dir = get_image_directory(args.dataset, scene_id, args.config)
+        image_dir = get_image_directory(args.dataset, scene_id, cfg)
         if not image_dir.exists():
             print(f"[WARN] Image directory not found: {image_dir}")
             failed_scenes.append(scene_id)
@@ -686,7 +665,7 @@ Examples:
 
         # Delete scene data if requested
         if not args.keep_data and not args.skip_download:
-            delete_scene(args.dataset, scene_id, args.config)
+            delete_scene(args.dataset, scene_id, cfg)
 
     # Compute aggregate stats
     if scene_stats_list:

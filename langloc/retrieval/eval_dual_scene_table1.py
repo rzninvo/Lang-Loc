@@ -14,9 +14,11 @@ Results:
 
 
 import time
-import argparse
 import sys
 import torch
+
+import hydra
+from omegaconf import DictConfig
 import torch.nn.functional as F
 from tqdm import tqdm
 import numpy as np
@@ -24,8 +26,8 @@ import random
 import clip
 from pathlib import Path
 
-from langloc.retrieval.scene_graph import SceneGraph
-from langloc.retrieval.helper import get_matching_subgraph
+from langloc.graphs.scene_graph import SceneGraph
+from langloc.graphs.subgraph_matching import get_matching_subgraph
 from langloc.retrieval.models.dual_scene_aligner import DualSceneAligner
 import torch.nn as nn
 
@@ -542,63 +544,54 @@ def eval_acc_dual_aligner(model, database_3dssg, query_dataset, pool_dataset,
 # Main
 # ============================================================
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--checkpoint', type=str, required=True)
-    parser.add_argument('--graphs_3dssg', type=str, required=True, help='Path to 3DSSG graphs .pt file')
-    parser.add_argument('--graphs_scanscribe_test', type=str, required=True, help='Path to ScanScribe 55-scene test .pt file')
-    parser.add_argument('--graphs_scanscribe_pool', type=str, required=True, help='Path to ScanScribe 218-scene pool .pt file')
-    parser.add_argument('--num_relations', type=int, default=9)
-    parser.add_argument('--max_dist', type=float, default=1.0)
-    parser.add_argument('--embedding_type', type=str, default='word2vec')
-    args = parser.parse_args()
-    
-    print(f"\nCheckpoint: {args.checkpoint}\n")
-    
+def run_eval_table1(cfg):
+    """Run Table 1 evaluation with Hydra config."""
+    print(f"\nCheckpoint: {cfg.checkpoint}\n")
+
     # Load checkpoint
     print("Loading checkpoint...")
-    checkpoint = torch.load(args.checkpoint, map_location=device, weights_only=False)
+    checkpoint = torch.load(cfg.checkpoint, map_location=device, weights_only=False)
     print(f"Checkpoint keys: {checkpoint.keys()}")
-    
+
     # Create dummy relation embeddings
-    dummy_rel_emb = nn.Embedding(args.num_relations, 64).to(device)
+    dummy_rel_emb = nn.Embedding(cfg.num_relations, 64).to(device)
     nn.init.normal_(dummy_rel_emb.weight, mean=0, std=0.1)
-    
+
     # Create base model
     base_model = DualSceneAligner(
-        node_input_dim=518,
-        relation_dim=64,
-        hidden_dim=256,
+        node_input_dim=cfg.node_input_dim,
+        relation_dim=cfg.relation_dim,
+        hidden_dim=cfg.hidden_dim,
         rel_clip_matrix=dummy_rel_emb.weight,
-        dropout=0.0
+        dropout=cfg.dropout
     ).to(device)
-    
+
     # Wrap with SimpleGraphMatcher
     model = SimpleGraphMatcher(
         base_model=base_model,
-        scene_clip_dim=512,
-        hidden_dim=256
+        scene_clip_dim=cfg.scene_clip_dim,
+        hidden_dim=cfg.hidden_dim
     ).to(device)
-    
+
     # Load model weights
     model.load_state_dict(checkpoint['model_state_dict'])
-    
+
     print(f"✓ Model loaded: {sum(p.numel() for p in model.parameters()):,} parameters\n")
 
     # Load data
     print("Loading 3DSSG database...")
-    _3dssg_scenes = torch.load(args.graphs_3dssg, weights_only=False, map_location='cpu')
+    _3dssg_scenes = torch.load(cfg.graphs_3dssg, weights_only=False, map_location='cpu')
     _3dssg_graphs = {}
     for sid in tqdm(_3dssg_scenes, desc="3DSSG"):
         _3dssg_graphs[sid] = SceneGraph(sid, graph_type='3dssg', graph=_3dssg_scenes[sid],
-                                       max_dist=args.max_dist, embedding_type=args.embedding_type,
+                                       max_dist=cfg.max_dist, embedding_type=cfg.embedding_type,
                                        use_attributes=True)
 
     print(f"✓ Loaded {len(_3dssg_graphs)} 3DSSG scenes")
 
     # Queries: 55-scene test set
     print("Loading ScanScribe 55-scene test...")
-    scanscribe_test_55 = torch.load(args.graphs_scanscribe_test, weights_only=False, map_location='cpu')
+    scanscribe_test_55 = torch.load(cfg.graphs_scanscribe_test, weights_only=False, map_location='cpu')
     query_graphs = {}
     for sid in tqdm(scanscribe_test_55, desc="ScanScribe 55"):
         for tid in scanscribe_test_55[sid].keys():
@@ -611,9 +604,10 @@ if __name__ == '__main__':
     node_counts = [len(g.nodes) for g in query_graphs.values()]
     print(f"Mean nodes: {np.mean(node_counts):.1f}")
     print(f"Min: {min(node_counts)}, Max: {max(node_counts)}")
+
     # Candidate pool: 218-scene pool
     print("Loading ScanScribe 218-scene pool...")
-    scanscribe_218 = torch.load(args.graphs_scanscribe_pool, weights_only=False, map_location='cpu')
+    scanscribe_218 = torch.load(cfg.graphs_scanscribe_pool, weights_only=False, map_location='cpu')
     pool_graphs = {}
     for sid in tqdm(scanscribe_218, desc="ScanScribe 218"):
         for tid in scanscribe_218[sid].keys():
@@ -623,31 +617,21 @@ if __name__ == '__main__':
                                         embedding_type='word2vec', use_attributes=True)
     pool_graphs = {k: v for k, v in pool_graphs.items() if len(v.edge_idx[0]) >= 1}
     print(f"✓ Loaded {len(pool_graphs)} pool graphs from 218 scenes")
-        # Grid search best fusion weights
-    # best_weights = grid_search_weights(
-    #     model,
-    #     _3dssg_graphs,
-    #     list(scanscribe_graphs.values()),
-    #     clip_model,
-    #     device
-    # )
 
-    # Unpack the best weights
-    # w_emb, w_scene, w_jac = best_weights
-    w_emb, w_scene, w_jac = 0.33, 0.33, 0.34
-    print(f"\n✅ Using best weights: emb={w_emb:.2f}, scene={w_scene:.2f}, jac={w_jac:.2f}\n")
-    
-    # Evaluate with best weights
+    w_emb, w_scene, w_jac = cfg.w_emb, cfg.w_scene, cfg.w_jac
+    print(f"\nUsing weights: emb={w_emb:.2f}, scene={w_scene:.2f}, jac={w_jac:.2f}\n")
+
+    # Evaluate
     scanscribe_acc = eval_acc_dual_aligner(
         model,
         _3dssg_graphs,
-        query_dataset=list(query_graphs.values()),   # 55 scenes
-        pool_dataset=list(pool_graphs.values()),      # 218 scenes
+        query_dataset=list(query_graphs.values()),
+        pool_dataset=list(pool_graphs.values()),
         clip_model=clip_model,
         mode='scanscribe_table1',
         valid_top_k=[1, 2, 3, 5],
         out_of=10,
-        w_emb=0.33, w_scene=0.33, w_jac=0.34
+        w_emb=w_emb, w_scene=w_scene, w_jac=w_jac
     )
     print(f"\n{'='*70}")
     print("FINAL RESULTS - ScanScribe")
@@ -656,3 +640,12 @@ if __name__ == '__main__':
         mean, std = scanscribe_acc[k]
         print(f"  Top-{k}: {mean*100:.2f}% ± {std*100:.2f}%")
     print(f"{'='*70}\n")
+
+
+@hydra.main(version_base=None, config_path="../../configs", config_name="config")
+def main(cfg: DictConfig) -> None:
+    run_eval_table1(cfg.retrieval)
+
+
+if __name__ == "__main__":
+    main()

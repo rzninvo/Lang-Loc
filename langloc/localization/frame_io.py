@@ -16,8 +16,8 @@ from typing import Dict, Iterable, List, Optional, Tuple
 import numpy as np
 import torch
 
-from langloc.data_processing.scene_graph import SceneGraph
-from langloc.data_processing.create_text_embeddings import create_embedding_nlp
+from langloc.graphs.scene_graph import SceneGraph
+from langloc.graphs.create_text_embeddings import create_embedding_nlp
 
 
 @dataclass

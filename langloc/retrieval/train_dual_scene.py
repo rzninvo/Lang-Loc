@@ -11,8 +11,10 @@ from torch.utils.data import DataLoader
 import torch.nn.functional as F
 import numpy as np
 import os
-import argparse
 import json
+
+import hydra
+from omegaconf import DictConfig
 
 from langloc.retrieval.datasets.dual_scene_graph_dataset import DualSceneGraphDataset
 from langloc.retrieval.models.dual_scene_aligner import DualSceneAligner
@@ -235,14 +237,14 @@ def collate_graph_batch_with_scene_clip(batch_list):
 # Training
 # ============================================================
 
-def train(args):
+def train(cfg):
     device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
     print(f"Using device: {device}")
     
     # Load dataset
     dataset = DualSceneGraphDataset(
-        dataset_dir=args.dataset_dir,
-        metadata_path=args.metadata_path,
+        dataset_dir=cfg.dataset_dir,
+        metadata_path=cfg.metadata_path,
         augment_ratio=0.0
     )
     
@@ -257,7 +259,7 @@ def train(args):
     
     dataloader = DataLoader(
         dataset,
-        batch_size=args.batch_size,
+        batch_size=cfg.batch_size,
         shuffle=True,
         drop_last=True,
         num_workers=0,
@@ -302,17 +304,17 @@ def train(args):
     # Optimize both GNN and relation embeddings
     optimizer = torch.optim.AdamW(
         list(model.parameters()) + list(rel_embeddings.parameters()),
-        lr=args.lr * 0.5,  # Lower LR to prevent collapse
+        lr=cfg.lr * 0.5,  # Lower LR to prevent collapse
         weight_decay=1e-3   # Stronger regularization
     )
     
-    scheduler = LambdaLR(optimizer, lr_lambda=lambda step: max(0.1, 1.0 - step / (args.epochs * len(dataloader))))
+    scheduler = LambdaLR(optimizer, lr_lambda=lambda step: max(0.1, 1.0 - step / (cfg.epochs * len(dataloader))))
     
     # Training loop
     print("Starting training...\n")
     global_step = 0
     
-    for epoch in range(args.epochs):
+    for epoch in range(cfg.epochs):
         model.train()
         epoch_loss = 0
         
@@ -398,7 +400,7 @@ def train(args):
             global_step += 1
             
             # Logging
-            if global_step % args.log_every == 0:
+            if global_step % cfg.log_every == 0:
                 with torch.no_grad():
                     # DEBUG: Check if src and ref scenes are actually different
                     scene_clip_src_norm = batch['scene_clip_src']
@@ -540,8 +542,8 @@ def train(args):
         
         
         # Save checkpoint
-        if epoch % 10 == 0 or epoch == args.epochs - 1:
-            os.makedirs(args.save_dir, exist_ok=True)
+        if epoch % 10 == 0 or epoch == cfg.epochs - 1:
+            os.makedirs(cfg.save_dir, exist_ok=True)
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': base_model.state_dict(),
@@ -549,21 +551,16 @@ def train(args):
                 'rel_embeddings': rel_embeddings.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': epoch_loss/len(dataloader)
-            }, f"{args.save_dir}/model_epoch_{epoch}.pth")
+            }, f"{cfg.save_dir}/model_epoch_{epoch}.pth")
             print(f"✓ Saved checkpoint: epoch_{epoch}.pth\n")
     
     print("Training complete!")
 
 
+@hydra.main(version_base=None, config_path="../../configs", config_name="config")
+def main(cfg: DictConfig) -> None:
+    train(cfg.retrieval)
+
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset_dir", required=True)
-    parser.add_argument("--metadata_path", required=True)
-    parser.add_argument("--save_dir", default="checkpoints_518d_fusion")
-    parser.add_argument("--batch_size", type=int, default=16)
-    parser.add_argument("--epochs", type=int, default=100)
-    parser.add_argument("--lr", type=float, default=1e-3)
-    parser.add_argument("--log_every", type=int, default=10)
-    
-    args = parser.parse_args()
-    train(args)
+    main()

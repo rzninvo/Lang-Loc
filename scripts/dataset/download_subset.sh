@@ -29,7 +29,7 @@ DATASET=$2
 SCAN_ID=$3
 
 # -------- LOAD CONFIG FROM PYTHON --------
-CONFIG_JSON=$(python3 src/utils/config_loader.py)
+CONFIG_JSON=$(python3 -m langloc.utils.config_loader)
 OUT_DIR=$(echo "$CONFIG_JSON" | python3 -c "import sys, json; print(json.load(sys.stdin)['base_dir'])")
 LABEL_MAP_FILE=$(echo "$CONFIG_JSON" | python3 -c "import sys, json; print(json.load(sys.stdin).get('label_map', ''))")
 FILES_TO_DOWNLOAD=($(echo "$CONFIG_JSON" | python3 -c "import sys, json; print(' '.join(json.load(sys.stdin).get('file_types', [])))"))
@@ -44,14 +44,14 @@ if [ "$DATASET" == "scannet" ]; then
             echo "[INFO] Label map already exists at $LABEL_MAP_FILE. Skipping download."
         else
             echo "[INFO] Downloading label map..."
-            python3 src/utils/download_scannet.py -o "$OUT_DIR" --label_map
+            python3 tools/download_scannet.py -o "$OUT_DIR" --label_map
         fi
     fi
 
     # Download required files
     for file_type in "${FILES_TO_DOWNLOAD[@]}"; do
         echo "[INFO] Downloading: $file_type"
-        python3 src/utils/download_scannet.py -o "$OUT_DIR" --id "$SCAN_ID" --type "$file_type"
+        python3 tools/download_scannet.py -o "$OUT_DIR" --id "$SCAN_ID" --type "$file_type"
     done
 
     # Extract from .sens
@@ -59,7 +59,7 @@ if [ "$DATASET" == "scannet" ]; then
     SCAN_OUTPUT_DIR="$OUT_DIR/scans/$SCAN_ID"
     if [ -f "$SENS_FILE" ]; then
         echo "[INFO] Extracting RGB, depth, poses, and intrinsics from: $SENS_FILE"
-        python3 -m src.utils.sensor_reader \
+        python3 tools/sensor_reader.py \
             --filename "$SENS_FILE" \
             --output_path "$SCAN_OUTPUT_DIR" \
             --export_depth_images \
@@ -78,7 +78,7 @@ elif [ "$DATASET" == "3RScan" ]; then
     fi
     OUT_DIR="$OUT_DIR/3RScan"
     echo "[INFO] Downloading 3RScan scan: $SCAN_ID"
-    python3 -m src.utils.download_3rscan --id "$SCAN_ID" -o "$OUT_DIR"
+    python3 tools/download_3rscan.py --id "$SCAN_ID" -o "$OUT_DIR"
     echo "[INFO] Download complete for 3RScan scan: $SCAN_ID"
 
     SCAN_DIR="$OUT_DIR/$SCAN_ID"

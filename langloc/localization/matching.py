@@ -12,7 +12,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from langloc.data_processing.scene_graph import SceneGraph
+from langloc.graphs.scene_graph import SceneGraph
 
 
 def topk_matched_objects(qg: SceneGraph, sg: SceneGraph, k: int = 5) -> List:

@@ -2,7 +2,7 @@
 # Localization settings — controls the pose estimation pipeline.
 #
 # Run localization:
-#   python -m whereami.localization.cli localization.mode=standard
+#   python -m langloc.localization.cli localization.mode=standard
 #
 # Modes:
 #   standard        — grid-based scoring over all poses

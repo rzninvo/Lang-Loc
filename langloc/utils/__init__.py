@@ -1,14 +1,9 @@
-"""
-Utility modules for the dataset creation pipeline.
+"""Shared utilities for the LangLoc pipeline.
 
-This package provides:
-- camera_utils: Shared camera pose and intrinsics utilities
+- camera_utils: Camera pose and intrinsics helpers
 - config_loader: YAML configuration file loading
-- download_3rscan: Download utility for 3RScan dataset
-- download_scannet: Download utility for ScanNet dataset
-- io_utils: File I/O helpers for annotations and JSON
-- sensor_data: ScanNet .sens file parser
-- sensor_reader: CLI tool for extracting data from .sens files
+- nbv_config: NBV dataclass and config extraction
+- utils: spaCy NLP helpers and text-to-JSON conversion
 """
 
 from langloc.utils.camera_utils import (
@@ -20,7 +15,6 @@ from langloc.utils.camera_utils import (
     is_pose_too_similar,
 )
 from langloc.utils.config_loader import load_config
-from langloc.utils.sensor_data import SensorData, RGBDFrame
 
 __all__ = [
     "load_cam2world",
@@ -30,6 +24,4 @@ __all__ = [
     "compute_pose_distance",
     "is_pose_too_similar",
     "load_config",
-    "SensorData",
-    "RGBDFrame",
 ]

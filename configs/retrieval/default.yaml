@@ -15,8 +15,24 @@ batch_size: 32
 epochs: 100
 temperature: 0.15         # Supervised contrastive loss temperature
 augment_prob: 0.5         # Subgraph augmentation probability
+log_every: 10             # Print loss every N batches
 
 # Scoring weights (embedding, scene-CLIP, lexical F1)
 w_emb: 0.33
 w_scene: 0.33
 w_jac: 0.34
+
+# Data paths (override via CLI)
+dataset_dir: null          # Training data directory
+metadata_path: null        # Path to metadata JSON
+save_dir: checkpoints      # Checkpoint output directory
+
+# Evaluation paths
+checkpoint: null           # Model checkpoint for evaluation
+graphs_3dssg: null         # Path to 3DSSG graphs .pt file
+graphs_scanscribe_test: null   # Path to ScanScribe test graphs .pt
+graphs_scanscribe_pool: null   # Path to ScanScribe 218-scene pool .pt
+
+# Evaluation params
+max_dist: 1.0              # Max distance for 3DSSG edge filtering
+embedding_type: word2vec   # Embedding type (word2vec / ada)

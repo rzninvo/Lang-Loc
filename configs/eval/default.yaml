@@ -2,7 +2,7 @@
 # Evaluation settings — controls the top-k retrieval accuracy evaluation.
 #
 # Run evaluation:
-#   python -m whereami.models.eval eval.model_name=my_model eval.eval_iters=200
+#   python -m langloc.graph_matching.eval eval.model_name=my_model eval.eval_iters=200
 # =============================================================================
 
 # Number of outer evaluation iterations (each produces one accuracy estimate).

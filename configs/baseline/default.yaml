@@ -2,7 +2,7 @@
 # Midpoint baseline settings — controls the naive baseline evaluator.
 #
 # Run:
-#   python -m whereami.localization.baseline_midpoint
+#   python -m langloc.localization.baseline_midpoint
 # =============================================================================
 
 # Maximum pitch angle (degrees) for random viewing direction.

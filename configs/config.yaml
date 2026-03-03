@@ -15,6 +15,7 @@ defaults:
   - baseline: default
   - retrieval: default
   - dialogue: default
+  - dataset: default
   - _self_
 
 # Weights & Biases logging mode.
