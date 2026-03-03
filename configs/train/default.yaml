@@ -2,7 +2,7 @@
 # Training hyperparameters — controls the BigGNN training loop.
 #
 # Run training:
-#   python -m whereami.models.train train.model_name=my_model train.epoch=50
+#   python -m langloc.graph_matching.train train.model_name=my_model train.epoch=50
 # =============================================================================
 
 # Number of training epochs.

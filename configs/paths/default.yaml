@@ -14,7 +14,8 @@
 #   ├── model_checkpoints/
 #   │   └── graph2graph/    — trained BigGNN checkpoints
 #   ├── eval_outputs/       — evaluation result files
-#   └── 3rscan/             — 3RScan dataset (meshes, needed for viz/localization)
+#   ├── scans/              — ScanNet scenes (meshes, sensor data)
+#   └── 3RScan/             — 3RScan scenes (meshes, segmentations)
 #
 # Place your data following this structure. Override data_root via CLI if needed:
 #   paths.data_root=/other/path
@@ -31,7 +32,10 @@ checkpoint_dir: ${paths.data_root}/model_checkpoints/graph2graph
 
 # Root of the 3RScan dataset (mesh files, etc.).
 # Required for visualization and localization scripts; not needed for training/eval.
-rscan_root: ${paths.data_root}/3rscan
+rscan_root: ${paths.data_root}/3RScan
+
+# Root of the ScanNet dataset (meshes, sensor data).
+scannet_root: ${paths.data_root}/scans
 
 # --- Pre-processed graph data files ---
 
@@ -61,3 +65,16 @@ query_root: null
 
 # Directory where evaluation result files (.txt) are written.
 eval_output_dir: ${paths.data_root}/eval_outputs
+
+# --- Manifest files (scene lists, dataset metadata) ---
+
+manifests_dir: configs/manifests
+rscan_release_scans: ${paths.manifests_dir}/3RScan_release_scans.txt
+rscan_partial_scans: ${paths.manifests_dir}/3RScan_partial.txt
+scannet_scenes: ${paths.manifests_dir}/scannetv2_all.txt
+scanscribe_manifest: ${paths.manifests_dir}/scanscribe_cleaned.json
+
+# --- Annotation output files ---
+
+annotations_scannet: results/annotations_scannet.json
+annotations_3rscan: results/annotations_3rscan.json

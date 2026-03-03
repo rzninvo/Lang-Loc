@@ -1,19 +1,47 @@
-import yaml
-import os
-import json
+"""Load the LangLoc Hydra configuration tree as a plain dict.
 
-def load_config(config_path="config/default.yaml"):
-    if not os.path.exists(config_path):
-        raise FileNotFoundError(f"Config file not found at: {config_path}")
-    with open(config_path, "r") as f:
-        return yaml.safe_load(f)
-    
+Entry-point scripts that use ``@hydra.main`` receive the config
+automatically.  This helper exists for standalone scripts (e.g. in
+``scripts/``) that still need programmatic access to resolved paths
+and dataset parameters without running inside Hydra.
+"""
+
+import json
+import os
+from pathlib import Path
+
+from omegaconf import OmegaConf
+
+
+_CONFIGS_DIR = Path(__file__).resolve().parents[2] / "configs"
+
+
+def load_config(config_dir=None):
+    """Compose and resolve the Hydra config tree, returning a plain dict.
+
+    Parameters
+    ----------
+    config_dir : str | Path | None
+        Override for the ``configs/`` directory.  Defaults to the repo's
+        ``configs/`` relative to this file's location.
+    """
+    cfg_dir = Path(config_dir) if config_dir else _CONFIGS_DIR
+    paths = OmegaConf.load(cfg_dir / "paths" / "default.yaml")
+    dataset = OmegaConf.load(cfg_dir / "dataset" / "default.yaml")
+    retrieval = OmegaConf.load(cfg_dir / "retrieval" / "default.yaml")
+    cfg = OmegaConf.create({"paths": paths, "dataset": dataset, "retrieval": retrieval})
+    OmegaConf.resolve(cfg)
+    return OmegaConf.to_container(cfg, resolve=True)
+
+
 def get_download_config():
-    config = load_config()
-    base_dir = config['paths']['base_data_dir']
-    label_map = os.path.join(base_dir, config['download']['label_map_filename'])
-    files = config['download']['file_types']
+    """Return (base_dir, label_map_path, file_types) for ScanNet downloads."""
+    cfg = load_config()
+    base_dir = str(cfg["paths"]["data_root"])
+    label_map = os.path.join(base_dir, cfg["dataset"]["download"]["label_map_filename"])
+    files = cfg["dataset"]["download"]["file_types"]
     return base_dir, label_map, files
+
 
 if __name__ == "__main__":
     try:

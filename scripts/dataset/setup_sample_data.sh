@@ -15,8 +15,8 @@
 #     ./scripts/setup_sample_data.sh --dataset 3RScan <scan_uuid> <config_path>
 #
 # Example:
-#     ./scripts/setup_sample_data.sh --dataset scannet scene0000_00 config/default.yaml
-#     ./scripts/setup_sample_data.sh --dataset 3RScan 7272e161-a01b-20f6-8b5a-0b97efeb6545 config/default.yaml
+#     ./scripts/setup_sample_data.sh --dataset scannet scene0000_00 configs/dataset/default.yaml
+#     ./scripts/setup_sample_data.sh --dataset 3RScan 7272e161-a01b-20f6-8b5a-0b97efeb6545 configs/dataset/default.yaml
 # ---------------------------------------------------------------------------------
 
 set -e  # Exit immediately if a command fails
@@ -45,12 +45,12 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 echo "[INFO] Step 2/3: Running keyframe generation for $SCAN_ID (dataset=$DATASET)..."
 
 if [ "$DATASET" == "scannet" ]; then
-    python3 -m src.frame_selection.scannetpp_best_views \
+    python3 -m langloc.dataset.frame_selection.scannetpp_best_views \
         "$SCAN_ID" \
         --config "$CONFIG_PATH" \
         --auto_clean
 elif [ "$DATASET" == "3RScan" ]; then
-    python3 -m src.frame_selection.3rscan_best_views \
+    python3 -m langloc.dataset.frame_selection.3rscan_best_views \
         "$SCAN_ID" \
         --config "$CONFIG_PATH" \
         --auto_clean \
@@ -63,7 +63,7 @@ fi
 # -------- RUN DESCRIPTION GENERATION --------
 echo "[INFO] Step 3/3: Generating automatic keyframe descriptions for $SCAN_ID..."
 
-python3 -m src.annotation.generate_descriptions \
+python3 -m langloc.dataset.annotation.generate_descriptions \
     "$SCAN_ID" \
     --dataset "$DATASET" \
     --config "$CONFIG_PATH"

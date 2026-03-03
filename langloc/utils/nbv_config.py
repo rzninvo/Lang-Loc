@@ -165,7 +165,7 @@ def extract_nbv_config(cfg: Dict[str, Any], dataset: str = "scannetpp") -> NBVCo
         NBVConfig dataclass with all extracted parameters.
 
     Example:
-        >>> cfg = load_config('config/default.yaml')
+        >>> cfg = load_config('configs/dataset/default.yaml')
         >>> nbv_cfg = extract_nbv_config(cfg, dataset='scannetpp')
         >>> print(nbv_cfg.iqa_metric, nbv_cfg.iqa_threshold)
         qualiclip 0.35

@@ -171,7 +171,7 @@ def parse_args():
     """Parse command-line arguments for the visualization script."""
     parser = argparse.ArgumentParser(description="Visualize 3RScan instance labels in 3D.")
     parser.add_argument("--scene", required=True, help="3RScan scene folder name.")
-    parser.add_argument("--config", default="config/default.yaml", help="Project config path.")
+    parser.add_argument("--config", default="configs/dataset/default.yaml", help="Project config path.")
     parser.add_argument("--seed", type=int, default=7, help="Random seed for colors.")
     parser.add_argument(
         "--only-ids", type=int, nargs="*", help="Optional list of object IDs to annotate."

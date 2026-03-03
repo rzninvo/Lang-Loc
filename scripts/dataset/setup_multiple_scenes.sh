@@ -9,10 +9,10 @@
 #   ./scripts/setup_multiple_scenes.sh --dataset {scannet|3RScan} <config_path> [num_scenes] [--source {default|scanscribe}]
 #
 # Examples:
-#   ./scripts/setup_multiple_scenes.sh --dataset scannet config/default.yaml 20
-#   ./scripts/setup_multiple_scenes.sh --dataset 3RScan config/default.yaml 10
-#   ./scripts/setup_multiple_scenes.sh --dataset 3RScan config/default.yaml --source scanscribe  # Downloads all scenes from scanscribe
-#   ./scripts/setup_multiple_scenes.sh --dataset 3RScan config/default.yaml  # Downloads all scenes from default source
+#   ./scripts/setup_multiple_scenes.sh --dataset scannet configs/dataset/default.yaml 20
+#   ./scripts/setup_multiple_scenes.sh --dataset 3RScan configs/dataset/default.yaml 10
+#   ./scripts/setup_multiple_scenes.sh --dataset 3RScan configs/dataset/default.yaml --source scanscribe  # Downloads all scenes from scanscribe
+#   ./scripts/setup_multiple_scenes.sh --dataset 3RScan configs/dataset/default.yaml  # Downloads all scenes from default source
 # ---------------------------------------------------------------------------------
 
 set -e  # Exit immediately if a command fails
@@ -147,7 +147,7 @@ elif [ "$DATASET" == "3RScan" ]; then
 
     # Determine source of scene IDs
     if [ "$SOURCE" == "scanscribe" ]; then
-        SCANSCRIBE_FILE="config/scanscribe_cleaned.json"
+        SCANSCRIBE_FILE="configs/manifests/scanscribe_cleaned.json"
         if [ ! -f "$SCANSCRIBE_FILE" ]; then
             echo "[ERROR] ScanScribe file not found: $SCANSCRIBE_FILE"
             exit 1

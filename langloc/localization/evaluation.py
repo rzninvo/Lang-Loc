@@ -569,7 +569,7 @@ def _show_3d_scene(scene_id, scene_dir, mesh, obj2faces, obj_ids,
     frustum_scale = max(grid_step * 3.0, 0.6)
 
     try:
-        from langloc.visualization.visualize_3rscan_segments import build_segmented_mesh
+        from langloc.utils.mesh_segmentation import build_segmented_mesh
         mesh_vis, obj_stats = build_segmented_mesh(scene_dir, seed=42)
         colours = np.asarray(mesh_vis.vertex_colors)
         highlight = np.array([1.0, 0.3, 0.3], dtype=np.float64)
