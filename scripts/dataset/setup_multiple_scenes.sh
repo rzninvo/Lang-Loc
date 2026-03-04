@@ -17,6 +17,18 @@
 
 set -e  # Exit immediately if a command fails
 
+# Ensure Ctrl+C kills all child processes (xargs workers, Python subprocesses, etc.)
+_TMPFILES=()
+cleanup() {
+    echo ""
+    echo "[INFO] Caught interrupt — killing all child processes..."
+    trap - INT TERM  # Prevent re-entry
+    kill 0 2>/dev/null || true  # Kill entire process group
+    for f in "${_TMPFILES[@]}"; do rm -f "$f" 2>/dev/null; done
+    exit 130
+}
+trap cleanup INT TERM
+
 # -------- ARGUMENT CHECK --------
 if [ "$#" -lt 2 ]; then
     echo "Usage: $0 --dataset {scannet|3RScan} [num_scenes] [--source {default|scanscribe}]"
@@ -93,7 +105,7 @@ if [ "$DATASET" == "scannet" ]; then
     fi
 
     # Collect scenes that need processing
-    SCENES_TO_PROCESS=$(mktemp)
+    SCENES_TO_PROCESS=$(mktemp); _TMPFILES+=("$SCENES_TO_PROCESS")
     for SCENE_ID in $SCAN_IDS; do
         SCENE_PATH="${SCANNET_PATH}/${SCENE_ID}"
         if [ -d "$SCENE_PATH" ]; then
@@ -187,7 +199,7 @@ PY
     # Filter known partial/incomplete scans.
     if [ -n "$RSCAN_PARTIAL_FILE" ] && [ -f "$RSCAN_PARTIAL_FILE" ]; then
         BEFORE_FILTER=$(echo "$SCAN_IDS" | sed '/^\s*$/d' | wc -l)
-        CLEAN_PARTIAL_IDS=$(mktemp)
+        CLEAN_PARTIAL_IDS=$(mktemp); _TMPFILES+=("$CLEAN_PARTIAL_IDS")
         sed -e 's/#.*$//' -e '/^[[:space:]]*$/d' "$RSCAN_PARTIAL_FILE" > "$CLEAN_PARTIAL_IDS"
         SCAN_IDS=$(echo "$SCAN_IDS" | grep -vxF -f "$CLEAN_PARTIAL_IDS" || true)
         rm -f "$CLEAN_PARTIAL_IDS"
@@ -199,7 +211,7 @@ PY
     fi
 
     # Collect scenes that need processing
-    SCENES_TO_PROCESS=$(mktemp)
+    SCENES_TO_PROCESS=$(mktemp); _TMPFILES+=("$SCENES_TO_PROCESS")
     for SCAN_ID in $SCAN_IDS; do
         SCENE_PATH="${BASE_DIR}/3RScan/${SCAN_ID}"
         if [ -d "$SCENE_PATH" ]; then
