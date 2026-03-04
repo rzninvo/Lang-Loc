@@ -2,12 +2,10 @@
 
 from typing import List
 
-import openai
 import numpy as np
 import torch
 import json
 import os
-import tiktoken
 import tqdm
 
 from langloc.utils.utils import load_text_dataset, _get_nlp
@@ -37,6 +35,7 @@ def num_tokens_from_string(string: str, encoding_name: str) -> int:
     Returns:
         Token count.
     """
+    import tiktoken
     encoding = tiktoken.get_encoding(encoding_name)
     num_tokens = len(encoding.encode(string))
     return num_tokens
@@ -135,6 +134,7 @@ def create_embedding(text):
     Returns:
         List of floats (1536-dim embedding).
     """
+    import openai
     response = openai.Embedding.create(
         input=text,
         model="text-embedding-ada-002"

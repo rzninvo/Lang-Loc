@@ -13,7 +13,7 @@ target: 3RScan             # Dataset to process: "scannet" or "3RScan"
 debug: false
 save_semantic_masks: false
 save_instance_masks: false
-auto_clean: false
+auto_clean: true
 allow_partial: false       # Process scenes listed in partial scans blocklist
 viz_first: 3               # Visualize this many initial frames (ScanNet only)
 viz_selected: 0            # Visualize this many top selected frames (ScanNet only)
@@ -88,8 +88,8 @@ scannetpp:
   gravity_axis: "y_up"
 
   # Parallelism / batching
-  iqa_batch_size: 16
-  rasterization_batch_size: 8
+  iqa_batch_size: 2
+  rasterization_batch_size: 2
 
   # Output and cache directories
   cache_dir: cache
@@ -171,8 +171,8 @@ scannetpp:
   gravity_axis: "z_up"
 
   # Parallelism / batching
-  iqa_batch_size: 16
-  rasterization_batch_size: 8
+  iqa_batch_size: 2
+  rasterization_batch_size: 2
 
   # Output and cache directories
   cache_dir: cache_rscan

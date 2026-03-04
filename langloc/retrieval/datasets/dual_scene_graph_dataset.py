@@ -1,14 +1,11 @@
 """
-Clean 518D Dataset - Uses existing scene graphs correctly!
+Scene graph dataset for dual-branch retrieval (518D node features).
 
-Your scene graphs already have the right structure:
-- scene_clip_emb at root (not per node)
-- nodes have centroid + color + clip_text_emb
-
-This dataset:
-- Returns 518D node features (no scene CLIP in nodes)
-- Returns scene_clip_emb separately for fusion layer
-- Supports subgraph augmentation
+Loads scene graphs with:
+- 518D node features (centroid + color + node_CLIP)
+- Scene-level CLIP embedding (separate, for fusion after GNN)
+- Relation vocabulary → CLIP embedding matrix for the model
+- Subgraph augmentation support
 """
 
 import os
@@ -17,6 +14,57 @@ import torch
 import random
 import numpy as np
 from torch.utils.data import Dataset
+import clip
+
+
+def build_rel_clip_matrix(rel2id, device="cpu"):
+    """
+    Build a (num_relations, 512) CLIP embedding matrix from relation strings.
+
+    Each relation string (e.g. "above", "near") is encoded with CLIP ViT-B/32.
+    The "unknown" relation (ID 0) gets a zero vector.
+
+    Args:
+        rel2id: dict mapping relation string → integer ID
+        device: device for CLIP inference
+
+    Returns:
+        (num_relations, 512) float32 tensor on CPU
+    """
+    import clip
+
+    num_relations = max(rel2id.values()) + 1
+    matrix = torch.zeros(num_relations, 512, dtype=torch.float32)
+
+    # Collect non-unknown relations
+    rel_strings = []
+    rel_indices = []
+    for rel_str, rel_id in rel2id.items():
+        if rel_str == "unknown":
+            continue  # leave as zeros
+        rel_strings.append(rel_str)
+        rel_indices.append(rel_id)
+
+    if not rel_strings:
+        return matrix
+
+    # CLIP-encode all relation strings at once
+    clip_model, _ = clip.load("ViT-B/32", device=device)
+    with torch.no_grad():
+        tokens = clip.tokenize(rel_strings).to(device)
+        embs = clip_model.encode_text(tokens)  # (N, 512)
+        embs = embs / embs.norm(dim=-1, keepdim=True)  # L2 normalize
+        embs = embs.cpu().float()
+
+    for i, rel_id in enumerate(rel_indices):
+        matrix[rel_id] = embs[i]
+
+    # Free CLIP model
+    del clip_model
+    if device != "cpu" and torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    return matrix
 
 
 def build_node_features(node_dict):
@@ -89,40 +137,44 @@ def build_geometric_edges_knn(nodes, k=5):
     )
 
 
-def build_text_edges(relations, rel2id, id_to_idx):
-    """Build text edges with relation IDs (learned embeddings)."""
-    
+def build_text_edges(relations, rel2id, id_to_idx, rel_clip_cache=None):
+    """Build text edges with CLIP embeddings (512D) instead of relation IDs."""
+
     if len(relations) > 1000:
         relations = relations[:500]
-    
+
     edge_index = []
-    rel_ids = []
-    
+    rel_embs = []
+
     for r in relations:
         subj = str(r.get("subject", ""))
         obj = str(r.get("object", ""))
         rel_name = r.get("relation", "unknown")
-        
+
         s = id_to_idx.get(subj)
         o = id_to_idx.get(obj)
-        
+
         if s is None or o is None:
             continue
-        
-        rel_id = rel2id.get(rel_name, 0)
-        
+
+        # Get CLIP embedding for relation
+        if rel_clip_cache is not None and rel_name in rel_clip_cache:
+            rel_emb = rel_clip_cache[rel_name]  # (512,)
+        else:
+            rel_emb = np.zeros(512, dtype=np.float32)
+
         edge_index.append([s, o])
-        rel_ids.append(rel_id)
-    
+        rel_embs.append(rel_emb)
+
     if not edge_index:
         return (
             torch.zeros((2, 0), dtype=torch.long),
-            torch.zeros((0, 1), dtype=torch.long)
+            torch.zeros((0, 512), dtype=torch.float32)
         )
-    
+
     return (
         torch.tensor(edge_index, dtype=torch.long).t(),
-        torch.tensor(rel_ids, dtype=torch.long).unsqueeze(-1)
+        torch.tensor(np.array(rel_embs), dtype=torch.float32)
     )
 
 
@@ -136,9 +188,12 @@ class DualSceneGraphDataset(Dataset):
     - Supports subgraph augmentation
     """
     
-    def __init__(self, dataset_dir, metadata_path, augment_ratio=0.0):
+    def __init__(self, dataset_dir, metadata_path, augment_ratio=0.0, negative_ratio=0.5, clip_model=None, device='cpu'):
         self.dataset_dir = dataset_dir
         self.augment_ratio = augment_ratio
+        self.negative_ratio = negative_ratio
+        self.device = device
+        self.clip_model = clip_model
         
         # Load scene files
         self.scene_files = sorted([
@@ -199,10 +254,35 @@ class DualSceneGraphDataset(Dataset):
                         self.rel2id[rel] = rel_idx
                         rel_idx += 1
         
+        # Build CLIP relation embedding matrix (legacy, kept for v1 model)
+        self.rel_clip_matrix = build_rel_clip_matrix(self.rel2id)
+
+        # Pre-compute per-relation CLIP embeddings for v2 (512D per edge)
+        self.rel_clip_cache = {}
+        if self.clip_model is not None:
+            for rel_name in self.rel2id.keys():
+                self.rel_clip_cache[rel_name] = self._get_clip_embedding(rel_name)
+        else:
+            for rel_name in self.rel2id.keys():
+                self.rel_clip_cache[rel_name] = np.zeros(512, dtype=np.float32)
+
         print(f"✓ Loaded {len(self.scene_files)} scenes")
         print(f"✓ {len(self.group_to_scenes)} unique rooms")
         print(f"✓ {len(self.rel2id)} relation types")
+        print(f"✓ Built rel_clip_matrix: {self.rel_clip_matrix.shape}")
+        print(f"✓ Cached {len(self.rel_clip_cache)} relation CLIP embeddings")
     
+    def _get_clip_embedding(self, text):
+        """Get CLIP embedding for relation text."""
+        if self.clip_model is None:
+            return np.zeros(512, dtype=np.float32)
+
+        with torch.no_grad():
+            tokens = clip.tokenize([text]).to(self.device)
+            emb = self.clip_model.encode_text(tokens)
+            emb = emb / emb.norm(dim=-1, keepdim=True)
+        return emb[0].cpu().numpy().astype(np.float32)
+
     def _load_scene_from_data(self, data):
         """Load scene from data dict."""
         nodes = data["nodes"]
@@ -221,7 +301,7 @@ class DualSceneGraphDataset(Dataset):
         
         # Build edges
         geom_edges, geom_attr = build_geometric_edges_knn(nodes)
-        text_edges, text_attr = build_text_edges(text_relations, self.rel2id, id_to_idx)
+        text_edges, text_attr = build_text_edges(text_relations, self.rel2id, id_to_idx, self.rel_clip_cache)
         
         return node_feats, geom_edges, geom_attr, text_edges, text_attr
     
