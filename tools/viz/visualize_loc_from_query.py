@@ -19,6 +19,12 @@ import os
 from pathlib import Path
 
 import torch
+from dotenv import load_dotenv
+
+# Load .env from project root
+_dotenv_path = Path(__file__).resolve().parents[2] / ".env"
+if _dotenv_path.exists():
+    load_dotenv(_dotenv_path)
 
 import hydra
 from omegaconf import DictConfig
