@@ -115,16 +115,22 @@ def extract_floor_bbox(scan_dir: Path,
     }
 
 
-def sample_grid(verts: np.ndarray, step: float, z_eye: float = 1.6):
+def sample_grid(verts: np.ndarray, step: float, z_eye: float = 1.6,
+                mesh: Optional[o3d.geometry.TriangleMesh] = None):
     """Sample a regular XY grid of candidate camera positions over the mesh.
 
     The grid covers the axis-aligned bounding box of the mesh vertices in
     X and Y, with all cameras placed at ``z_min + z_eye``.
 
+    When *mesh* is provided, grid points that fall outside the scene geometry
+    are pruned: a downward ray is cast from each candidate and only points
+    whose ray hits the mesh floor are kept.
+
     Args:
         verts: Vertex positions array of shape ``(V, 3)``.
         step: Grid spacing in metres.
         z_eye: Height above the mesh floor (minimum Z) for camera placement.
+        mesh: Optional mesh used for inside-scene filtering.
 
     Returns:
         Camera positions as an ``(N, 3)`` float array.
@@ -136,6 +142,19 @@ def sample_grid(verts: np.ndarray, step: float, z_eye: float = 1.6):
     n = xv.size
     cams = np.stack([xv.ravel(), yv.ravel(), np.full(n, zs.min() + z_eye)],
                     axis=1)
+
+    if mesh is not None:
+        rc = o3d.t.geometry.RaycastingScene()
+        rc.add_triangles(o3d.t.geometry.TriangleMesh.from_legacy(mesh))
+        # Cast rays downward (-Z) from each camera
+        dirs = np.zeros((n, 3), dtype=np.float32)
+        dirs[:, 2] = -1.0
+        rays = np.hstack([cams.astype(np.float32), dirs])
+        hits = rc.cast_rays(o3c.Tensor(rays))
+        t_hit = hits["t_hit"].numpy()
+        inside = np.isfinite(t_hit) & (t_hit > 0) & (t_hit < z_eye + 1.0)
+        cams = cams[inside]
+
     return cams
 
 

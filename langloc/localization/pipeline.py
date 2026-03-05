@@ -66,7 +66,7 @@ def run_loc_pipeline(
     rc.add_triangles(o3d.t.geometry.TriangleMesh.from_legacy(mesh))
 
     verts = np.asarray(mesh.vertices)
-    cams = sample_grid(verts, step=grid_step)
+    cams = sample_grid(verts, step=grid_step, mesh=mesh)
 
     xs, ys = verts[:, 0], verts[:, 1]
     gx = np.arange(xs.min(), xs.max() + 1e-4, grid_step)

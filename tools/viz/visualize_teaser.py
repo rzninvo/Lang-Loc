@@ -448,10 +448,14 @@ def render_topdown(mesh: o3d.geometry.TriangleMesh,
 # ---------------------------------------------------------------------------
 
 def _sample_grid_any_axis(verts: np.ndarray, step: float,
-                          up_axis: str, eye_height: float = 1.6) -> np.ndarray:
+                          up_axis: str, eye_height: float = 1.6,
+                          mesh: o3d.geometry.TriangleMesh | None = None,
+                          ) -> np.ndarray:
     """Sample a dense floor grid with cameras at eye_height above the floor.
 
     Unlike grid.sample_grid (which assumes z_up), this supports any up axis.
+    When *mesh* is provided, grid points that fall outside the scene geometry
+    are pruned via downward raycasting.
     """
     up_idx = {"x_up": 0, "y_up": 1, "z_up": 2}[up_axis]
     floor_axes = [i for i in range(3) if i != up_idx]
@@ -467,6 +471,27 @@ def _sample_grid_any_axis(verts: np.ndarray, step: float,
     cams[:, a0] = v0.ravel()
     cams[:, a1] = v1.ravel()
     cams[:, up_idx] = height
+
+    # Filter: keep only grid points inside the scene mesh
+    if mesh is not None:
+        rc = o3d.t.geometry.RaycastingScene()
+        rc.add_triangles(o3d.t.geometry.TriangleMesh.from_legacy(mesh))
+
+        # Cast a ray downward from each camera position
+        down = np.zeros(3, dtype=np.float32)
+        down[up_idx] = -1.0
+        dirs = np.tile(down, (n, 1))
+        rays = np.hstack([cams.astype(np.float32), dirs])
+        hits = rc.cast_rays(o3d.core.Tensor(rays))
+        t_hit = hits["t_hit"].numpy()
+
+        # A point is inside the scene if the downward ray hits something
+        # within a reasonable distance (eye_height + margin)
+        inside = np.isfinite(t_hit) & (t_hit > 0) & (t_hit < eye_height + 1.0)
+        cams = cams[inside]
+        print(f"  Grid: {n} total → {len(cams)} inside scene "
+              f"({len(cams)/n*100:.0f}%)")
+
     return cams
 
 
@@ -703,7 +728,8 @@ def run_localization(mesh: o3d.geometry.TriangleMesh,
     rc.add_triangles(o3d.t.geometry.TriangleMesh.from_legacy(mesh))
 
     verts = np.asarray(mesh.vertices)
-    cams = _sample_grid_any_axis(verts, step=grid_step, up_axis=up_axis)
+    cams = _sample_grid_any_axis(verts, step=grid_step, up_axis=up_axis,
+                                  mesh=mesh)
 
     tris = np.asarray(mesh.triangles)
     centroids: Dict[int, np.ndarray] = {}
@@ -716,8 +742,20 @@ def run_localization(mesh: o3d.geometry.TriangleMesh,
         print("  No centroids for matched objects")
         return cams, np.zeros(len(cams)), obj_ids, None, None, np.zeros((len(cams), 3))
 
-    # Visibility tally
+    # Weight objects by distinctiveness: generic labels (wall, floor,
+    # ceiling) are visible from almost anywhere and don't help localize.
+    # Each object contributes its weight to the score instead of a flat 1.
+    _GENERIC_LOC_LABELS = frozenset({
+        "wall", "floor", "ceiling", "object", "doorframe", "door"})
+    oid_label = {oid: sg.nodes[oid].label for oid in obj_ids if oid in sg.nodes}
+    oid_weight: Dict[int, float] = {}
+    for oid in centroids:
+        lbl = oid_label.get(oid, "").lower().strip()
+        oid_weight[oid] = 0.1 if lbl in _GENERIC_LOC_LABELS else 1.0
+
+    # Visibility tally — weighted by object distinctiveness
     visible_dirs: List[List[np.ndarray]] = [[] for _ in range(len(cams))]
+    visible_weights: List[List[float]] = [[] for _ in range(len(cams))]
     for idx, cam in enumerate(cams):
         for oid, cen in centroids.items():
             if first_hit_is_object(cam, cen, oid, rc, tri2obj):
@@ -725,28 +763,58 @@ def run_localization(mesh: o3d.geometry.TriangleMesh,
                 ln = np.linalg.norm(d)
                 if ln > 1e-6:
                     visible_dirs[idx].append(d / ln)
+                    visible_weights[idx].append(oid_weight[oid])
 
     counts = np.array([len(v) for v in visible_dirs], dtype=np.int32)
     if counts.sum() == 0:
         print("  Matched objects not visible from any grid camera")
         return cams, np.zeros(len(cams)), obj_ids, None, None, np.zeros((len(cams), 3))
-    probs = counts.astype(np.float64)
-    visible_mask = counts > 0
+
+    # Compute FOV-constrained arrow weights with distinctiveness weighting.
+    # arrow_weights_generic gives the FOV selection mask; we sum the per-
+    # object weights within that mask instead of raw count.
+    from langloc.localization.coarse_search import arrow_weights_generic
+    hfov = math.radians(h_fov_deg)
+    vfov = math.radians(v_fov_deg)
+    _, arrow_d = arrow_weights_generic(cams, visible_dirs, hfov, vfov)
+
+    # Recompute weighted arrow scores using per-object distinctiveness
+    arrow_w = np.zeros(len(cams), dtype=np.float64)
+    for idx in range(len(cams)):
+        if not visible_dirs[idx]:
+            continue
+        dirs_arr = np.asarray(visible_dirs[idx], dtype=np.float32)
+        w_arr = np.array(visible_weights[idx], dtype=np.float64)
+        yaws = np.array([dir_to_yaw_pitch(d)[0] for d in dirs_arr])
+        pits = np.array([dir_to_yaw_pitch(d)[1] for d in dirs_arr])
+        sel, count = best_fov_window(yaws, pits, hfov, vfov)
+        if count > 0:
+            arrow_w[idx] = float(w_arr[sel].sum())
+
+    # Weighted visibility as fallback
+    weighted_counts = np.array([sum(w) for w in visible_weights], dtype=np.float64)
+
+    if arrow_w.sum() > 0:
+        probs = arrow_w.copy()
+    else:
+        probs = weighted_counts
+
+    visible_mask = probs > 0
     if score_tau > 0 and visible_mask.any():
-        # Softmax with temperature, but ONLY over cameras that see >= 1 object.
-        # Cameras seeing 0 objects stay at probability 0.
         logits = probs[visible_mask] / score_tau
-        logits -= logits.max()  # numerical stability
+        logits -= logits.max()
         softmax_vals = np.exp(logits)
         probs[:] = 0.0
         probs[visible_mask] = softmax_vals
     probs /= probs.sum()
 
-    # Per-camera average viewing direction
+    # Per-camera average viewing direction (from arrow field, not raw average)
     cam_dirs = np.zeros((len(cams), 3), dtype=np.float64)
-    for idx, vdirs in enumerate(visible_dirs):
-        if vdirs:
-            avg = np.mean(vdirs, axis=0)
+    for idx in range(len(cams)):
+        if arrow_d[idx] is not None:
+            cam_dirs[idx] = arrow_d[idx]
+        elif visible_dirs[idx]:
+            avg = np.mean(visible_dirs[idx], axis=0)
             n = np.linalg.norm(avg)
             if n > 1e-6:
                 cam_dirs[idx] = avg / n
@@ -755,21 +823,369 @@ def run_localization(mesh: o3d.geometry.TriangleMesh,
     best_idx = int(np.argmax(probs))
     pred_pos = cams[best_idx]
 
-    # Predicted direction (FOV window)
+    # Predicted direction (FOV window at best position)
     pred_dir = None
-    dirs = visible_dirs[best_idx]
-    if dirs:
-        dirs_arr = np.array(dirs, dtype=np.float32)
-        hfov = math.radians(h_fov_deg)
-        vfov = math.radians(v_fov_deg)
-        yaws = np.array([dir_to_yaw_pitch(d)[0] for d in dirs_arr])
-        pits = np.array([dir_to_yaw_pitch(d)[1] for d in dirs_arr])
-        sel, _ = best_fov_window(yaws, pits, hfov, vfov)
-        pred_dir_vec = average_direction(dirs_arr, sel)
-        if pred_dir_vec is not None:
-            pred_dir = pred_dir_vec
+    if arrow_d[best_idx] is not None:
+        pred_dir = arrow_d[best_idx]
+    else:
+        dirs = visible_dirs[best_idx]
+        if dirs:
+            dirs_arr = np.array(dirs, dtype=np.float32)
+            yaws = np.array([dir_to_yaw_pitch(d)[0] for d in dirs_arr])
+            pits = np.array([dir_to_yaw_pitch(d)[1] for d in dirs_arr])
+            sel, _ = best_fov_window(yaws, pits, hfov, vfov)
+            pred_dir_vec = average_direction(dirs_arr, sel)
+            if pred_dir_vec is not None:
+                pred_dir = pred_dir_vec
 
     return cams, probs, obj_ids, pred_pos, pred_dir, cam_dirs
+
+
+# ---------------------------------------------------------------------------
+# Dialogue-based pose refinement (oracle mode)
+# ---------------------------------------------------------------------------
+
+def run_dialogue_refinement(
+    cams: np.ndarray,
+    probs: np.ndarray,
+    cam_dirs: np.ndarray,
+    pred_pos: np.ndarray,
+    pred_dir: np.ndarray,
+    gt_pos: np.ndarray,
+    gt_dir: np.ndarray,
+    dataset_root: Path,
+    scan_id: str,
+    max_rounds: int = 12,
+    backend_name: str = "a1",
+) -> Tuple[np.ndarray, np.ndarray, int, List[Tuple[str, str, str]]]:
+    """Run oracle dialogue to refine the predicted pose.
+
+    Uses the existing dialogue system in oracle mode: the GT frame's visible
+    labels and spatial relations provide ground-truth answers to targeted
+    yes/no questions, and the posterior over grid candidates is updated via
+    Bayes' rule until convergence.
+
+    Args:
+        cams: Grid candidate positions, shape ``(N, 3)``.
+        probs: Prior probability over candidates, shape ``(N,)``.
+        cam_dirs: Per-candidate viewing directions, shape ``(N, 3)``.
+        pred_pos: Initial predicted position from fine localization.
+        pred_dir: Initial predicted direction from fine localization.
+        gt_pos: Ground-truth position (for oracle answers).
+        gt_dir: Ground-truth direction.
+        dataset_root: Root of the dataset (e.g. ``/path/to/3RScan``).
+        scan_id: Scene identifier.
+        max_rounds: Maximum number of dialogue rounds.
+        backend_name: Which backend to use (``"a1"``, ``"a2"``, or ``"a3"``).
+
+    Returns:
+        Tuple of ``(refined_pos, refined_dir, n_questions, dialogue_log)``
+        where *dialogue_log* is a list of ``(question_text, answer, top_prob)``
+        tuples tracking each round.
+    """
+    from langloc.dialogue.backends import CandidateBackendA1, FrameBackendA3, ParticleBackendA2
+    from langloc.dialogue.candidates import extract_candidates
+    from langloc.dialogue.dialogue_config import DialogueConfig
+    from langloc.dialogue.dialogue_runner import nearest_frame_to_gt, oracle_answer
+    from langloc.dialogue.frame_mapping import build_cand_to_frame_map, top_frames_by_mapping
+    from langloc.dialogue.math_utils import _normalize, c2f_to_dense, pose_errors
+    from langloc.dialogue.question_pool import Question, build_pools, compute_label_idf
+    from langloc.dialogue.question_selection import pick_next_question_system
+    from langloc.dialogue.scene_data import DEFAULT_ALIASES, load_scene_data
+    from langloc.dialogue.semantics import frame_label_salience, frame_relations, rel_item_to_tuple, relation_phrase
+
+    cfg = DialogueConfig(
+        answer_mode="oracle",
+        max_rounds=max_rounds,
+        min_rounds=2,
+        conf_threshold=0.85,
+        auto_relax=True,
+        candidate_set="grid",
+        include_predicted_pose=True,
+        pred_candidate_prior=0.15,
+        k_nn=5,
+        sigma=0.5,
+        use_direction=True,
+        dir_temp=0.25,
+        max_pool_frames=30,
+        question_strategy="ig",
+        cache_answers=False,
+        # Oracle mode: ask everything, no P(yes) threshold filtering
+        ask_min_p=0.0,
+        ask_max_p=1.0,
+        # Only viewpoint-dependent spatial relations — size/height comparisons
+        # (bigger_than, smaller_than, higher_than, lower_than) are true from
+        # every viewpoint and provide zero positional information.
+        allowed_rels=["left", "right", "front", "behind", "close_by"],
+    )
+
+    # Load scene data (frames with semantics)
+    scene = load_scene_data(dataset_root, scan_id, dict(DEFAULT_ALIASES))
+    frames_all = scene.frames
+
+    # Build candidate set from grid points
+    # Filter to candidates with nonzero probability
+    valid_mask = probs > 0
+    if valid_mask.sum() == 0:
+        print("  [dialogue] No valid candidates, skipping.")
+        return pred_pos, pred_dir, 0, [], probs.copy()
+
+    cand_pos = cams[valid_mask].astype(np.float32)
+    cand_prior = probs[valid_mask].astype(np.float64)
+    cand_prior = cand_prior / max(float(cand_prior.sum()), 1e-12)
+
+    # Candidate directions
+    cd = cam_dirs[valid_mask].astype(np.float32)
+    norms = np.linalg.norm(cd, axis=1, keepdims=True)
+    has_dir = norms.squeeze() > 1e-6
+    if has_dir.any():
+        cd[has_dir] = cd[has_dir] / norms[has_dir]
+        cand_dir = cd
+    else:
+        cand_dir = None
+
+    # For A1/A2: inject frame positions as additional candidates so
+    # there are always hypotheses near GT even when the heatmap missed it.
+    if backend_name in ("a1", "a2"):
+        frame_base_prior = 0.02  # 2% per frame → 20% total for 10 frames
+        n_fr = len(scene.frame_pos)
+        fr_pos = scene.frame_pos.astype(np.float32)
+        cand_pos = np.concatenate([cand_pos, fr_pos], axis=0)
+        fr_prior = np.full(n_fr, frame_base_prior, dtype=np.float64)
+        total_fr_prior = frame_base_prior * n_fr
+        cand_prior = np.concatenate([cand_prior * (1.0 - total_fr_prior), fr_prior])
+        cand_prior = np.clip(cand_prior, 0, None)
+        cand_prior = cand_prior / max(float(cand_prior.sum()), 1e-12)
+        fr_dir = scene.frame_dir.astype(np.float32)
+        fr_dir = fr_dir / np.maximum(np.linalg.norm(fr_dir, axis=1, keepdims=True), 1e-6)
+        if cand_dir is not None:
+            cand_dir = np.concatenate([cand_dir, fr_dir], axis=0)
+        else:
+            # Grid had no directions — start from frame directions
+            cand_dir = np.concatenate([np.zeros((len(cand_pos) - n_fr, 3), dtype=np.float32), fr_dir], axis=0)
+        print(f"  [dialogue] Injected {n_fr} frame-position candidates "
+              f"(base prior={frame_base_prior:.2f} each, total={total_fr_prior:.1%})")
+
+    # Optionally append predicted pose as extra candidate
+    if cfg.include_predicted_pose and pred_pos is not None:
+        extra_pos = pred_pos[None, :].astype(np.float32)
+        cand_pos = np.concatenate([cand_pos, extra_pos], axis=0)
+        extra_prior = np.array([cfg.pred_candidate_prior], dtype=np.float64)
+        cand_prior = np.concatenate([cand_prior * (1.0 - cfg.pred_candidate_prior), extra_prior])
+        cand_prior = cand_prior / max(float(cand_prior.sum()), 1e-12)
+        if cand_dir is not None and pred_dir is not None:
+            extra_dir = (pred_dir / max(float(np.linalg.norm(pred_dir)), 1e-6))[None, :].astype(np.float32)
+            cand_dir = np.concatenate([cand_dir, extra_dir], axis=0)
+
+    # Candidate-to-frame mapping
+    c2f_map = build_cand_to_frame_map(
+        cand_pos=cand_pos,
+        cand_dir=cand_dir,
+        frame_pos=scene.frame_pos,
+        frame_dir=scene.frame_dir,
+        k_nn=cfg.k_nn,
+        sigma=cfg.sigma,
+        use_direction=cfg.use_direction and (cand_dir is not None),
+        dir_temp=cfg.dir_temp,
+    )
+    frame_subset = top_frames_by_mapping(c2f_map, max_frames=cfg.max_pool_frames)
+    frames_pool = [frames_all[i] for i in frame_subset]
+
+    # Dense mapping matrix
+    W = c2f_to_dense(c2f_map, num_cands=len(cand_pos), num_frames=len(scene.frame_pos))
+    W = W[:, frame_subset]
+
+    pool_pos = np.asarray([scene.frame_pos[i] for i in frame_subset], dtype=np.float64)
+    pool_dir = np.asarray([_normalize(scene.frame_dir[i]) for i in frame_subset], dtype=np.float64)
+
+    pool_label_dicts = [frame_label_salience(fr) for fr in frames_pool]
+    pool_rel_sets = [frame_relations(fr) for fr in frames_pool]
+
+    label_pool, rel_pool = build_pools(
+        frames_all=frames_all,
+        frame_subset=frame_subset,
+        max_rel_pool=cfg.max_rel_pool,
+        rel_min_salience=cfg.rel_min_salience,
+        rel_unique_only=cfg.rel_unique_only,
+        allowed_rels=cfg.allowed_rels,
+    )
+    ignore = set(x.strip().lower() for x in cfg.ignore_labels)
+    label_pool = [lab for lab in label_pool if lab not in ignore]
+
+    idf = compute_label_idf(label_pool, pool_label_dicts)
+
+    # Oracle GT frame
+    gt_frame_idx = nearest_frame_to_gt(gt_pos, frames_all, scene)
+    fr_gt = frames_all[gt_frame_idx]
+    oracle_label_dict = frame_label_salience(fr_gt)
+    oracle_rel_set = frame_relations(fr_gt)
+
+    # Create backend
+    if backend_name == "a1":
+        backend = CandidateBackendA1(
+            cand_pos=cand_pos,
+            cand_dir=cand_dir,
+            cand_prior=cand_prior,
+            c2f_pool=W,
+            frame_label_dicts=pool_label_dicts,
+            frame_rel_sets=pool_rel_sets,
+            frame_dirs=pool_dir,
+            alpha_label=cfg.alpha_label,
+            alpha_rel=cfg.alpha_rel,
+            p_u_label=cfg.p_u_label,
+            p_u_rel=cfg.p_u_rel,
+            p_u_unanswerable=cfg.p_u_unanswerable,
+            vis_tau=cfg.vis_tau,
+            ans_tau=cfg.ans_tau,
+        )
+    elif backend_name == "a3":
+        pf0 = (W.T @ cand_prior).reshape(-1)
+        pf0 = pf0 / max(float(pf0.sum()), 1e-12)
+        backend = FrameBackendA3(
+            p0=pf0,
+            frames_pool=frames_pool,
+            frame_label_dicts=pool_label_dicts,
+            frame_rel_sets=pool_rel_sets,
+            frame_pos=pool_pos,
+            frame_dir=pool_dir,
+            alpha_label=cfg.alpha_label,
+            alpha_rel=cfg.alpha_rel,
+            p_u_label=cfg.p_u_label,
+            p_u_rel=cfg.p_u_rel,
+            p_u_unanswerable=cfg.p_u_unanswerable,
+            vis_tau=cfg.vis_tau,
+            ans_tau=cfg.ans_tau,
+        )
+    else:
+        backend = ParticleBackendA2(
+            cand_pos=cand_pos,
+            cand_dir=cand_dir,
+            cand_prior=cand_prior,
+            frame_label_dicts=pool_label_dicts,
+            frame_rel_sets=pool_rel_sets,
+            frame_pos=pool_pos,
+            frame_dir=pool_dir,
+            n_particles=cfg.n_particles,
+            k_nn=cfg.p_k_nn,
+            sigma=cfg.p_sigma,
+            jitter_pos=cfg.p_jitter,
+            alpha_label=cfg.alpha_label,
+            alpha_rel=cfg.alpha_rel,
+            p_u_label=cfg.p_u_label,
+            p_u_rel=cfg.p_u_rel,
+            p_u_unanswerable=cfg.p_u_unanswerable,
+            vis_tau=cfg.vis_tau,
+            ans_tau=cfg.ans_tau,
+            seed=cfg.seed,
+        )
+
+    # Run dialogue
+    # A1/A2: skip relation questions — with only ~10 frames the
+    # candidate-to-frame mapping makes relations non-discriminative
+    # (e.g. "sink behind wall" is true from most viewpoints, boosting
+    # all candidates equally and diffusing the posterior).
+    if backend_name in ("a1", "a2"):
+        questions = [Question("label", i) for i in range(len(label_pool))]
+    else:
+        questions = ([Question("rel", i) for i in range(len(rel_pool))]
+                     + [Question("label", i) for i in range(len(label_pool))])
+
+    dialogue_log: List[Tuple[str, str, str]] = []
+    asked = 0
+
+    print(f"  [dialogue] Starting oracle dialogue ({backend_name.upper()}, "
+          f"max {max_rounds} rounds, {len(label_pool)} labels, {len(rel_pool)} relations)")
+
+    for r in range(max_rounds):
+        tp = backend.top_prob()
+        if r + 1 >= cfg.min_rounds and tp >= cfg.conf_threshold:
+            print(f"  [dialogue] Round {r+1}: confident (topP={tp:.3f} >= {cfg.conf_threshold})")
+            break
+
+        q = pick_next_question_system(backend_name, backend, questions,
+                                       label_pool, rel_pool, idf, cfg)
+        if q is None and cfg.auto_relax:
+            old_min, old_max, old_ans = cfg.ask_min_p, cfg.ask_max_p, cfg.rel_min_answerable
+            try:
+                cfg.ask_min_p, cfg.ask_max_p = 0.01, 0.99
+                q = pick_next_question_system(backend_name, backend, questions,
+                                               label_pool, rel_pool, idf, cfg)
+                if q is None:
+                    cfg.rel_min_answerable = 0.0
+                    q = pick_next_question_system(backend_name, backend, questions,
+                                                   label_pool, rel_pool, idf, cfg)
+            finally:
+                cfg.ask_min_p, cfg.ask_max_p, cfg.rel_min_answerable = old_min, old_max, old_ans
+
+        if q is None:
+            print(f"  [dialogue] Round {r+1}: no more questions (topP={tp:.3f})")
+            break
+
+        # Render question text
+        if q.qtype == "label":
+            lab = label_pool[q.idx]
+            q_text = f"Do you see a {lab}?"
+        else:
+            s, rel, o = rel_item_to_tuple(rel_pool[q.idx])
+            q_text = f"Is {s} {relation_phrase(rel)} {o}?"
+
+        # Oracle answer
+        ans = oracle_answer(q, label_pool, rel_pool, oracle_label_dict, oracle_rel_set, cfg)
+
+        print(f"  [dialogue] Round {r+1}: {q_text} -> {ans} (topP={tp:.3f})")
+        dialogue_log.append((q_text, ans, f"{tp:.3f}"))
+
+        if ans not in ("y", "n", "u"):
+            continue
+
+        asked += 1
+        if q.qtype == "label":
+            backend.update_label(label_pool[q.idx], ans)
+        else:
+            backend.update_rel(rel_item_to_tuple(rel_pool[q.idx]), ans)
+
+        questions = [qq for qq in questions if not (qq.qtype == q.qtype and qq.idx == q.idx)]
+
+    # Extract refined pose
+    map_pos, map_dir, mean_pos, mean_dir = backend.predict_pose()
+    # A3 snaps to best frame (MAP); A1/A2 use posterior-weighted mean
+    # because the MAP stays stuck at the predicted-pose candidate while
+    # the mean gets pulled toward GT as label evidence accumulates.
+    if backend_name == "a3":
+        refined_pos = map_pos
+        refined_dir = map_dir
+    else:
+        refined_pos = mean_pos
+        refined_dir = mean_dir
+
+    # Compute errors for logging
+    if gt_pos is not None:
+        pre_pos_err, pre_rot_err = pose_errors(pred_pos, pred_dir, gt_pos, gt_dir)
+        map_pos_err, map_rot_err = pose_errors(map_pos, map_dir, gt_pos, gt_dir)
+        mean_pos_err, mean_rot_err = pose_errors(mean_pos, mean_dir, gt_pos, gt_dir)
+        post_pos_err, post_rot_err = pose_errors(refined_pos, refined_dir, gt_pos, gt_dir)
+        print(f"  [dialogue] Before: pos_err={pre_pos_err:.3f}m, rot_err={pre_rot_err:.1f}deg")
+        print(f"  [dialogue] After (MAP):  pos_err={map_pos_err:.3f}m, rot_err={map_rot_err:.1f}deg")
+        print(f"  [dialogue] After (mean): pos_err={mean_pos_err:.3f}m, rot_err={mean_rot_err:.1f}deg")
+        using = "MAP" if backend_name == "a3" else "mean"
+        print(f"  [dialogue] Using: {using} → pos_err={post_pos_err:.3f}m, rot_err={post_rot_err:.1f}deg")
+        print(f"  [dialogue] Questions asked: {asked}")
+        # Diagnostic: closest candidate to GT
+        if hasattr(backend, 'cand_pos'):
+            d_gt = np.linalg.norm(backend.cand_pos - gt_pos[None, :], axis=1)
+            print(f"  [dialogue] Closest candidate to GT: {d_gt.min():.3f}m (idx={int(d_gt.argmin())})")
+
+    # Return posterior mapped back to the original grid for heatmap rendering.
+    # The first n_grid entries of the posterior correspond to cams[valid_mask].
+    posterior = backend.posterior_vector().copy()
+    n_grid = int(valid_mask.sum())
+    grid_posterior = np.zeros(len(probs), dtype=np.float64)
+    grid_posterior[valid_mask] = posterior[:n_grid]
+    total = grid_posterior.sum()
+    if total > 1e-12:
+        grid_posterior = grid_posterior / total
+
+    return refined_pos, refined_dir, asked, dialogue_log, grid_posterior
 
 
 # ---------------------------------------------------------------------------
@@ -843,7 +1259,10 @@ def overlay_heatmap(topdown_img: np.ndarray,
                     up_axis: str = "z_up",
                     dpi: int = 300,
                     gt_pos: np.ndarray | None = None,
-                    gt_dir: np.ndarray | None = None) -> np.ndarray:
+                    gt_dir: np.ndarray | None = None,
+                    dialogue_pos: np.ndarray | None = None,
+                    dialogue_dir: np.ndarray | None = None,
+                    anchor_probs: np.ndarray | None = None) -> np.ndarray:
     """Composite a publication-quality probability heatmap onto the top-down image.
 
     Uses KDE-based density estimation over projected grid positions, weighted
@@ -875,8 +1294,11 @@ def overlay_heatmap(topdown_img: np.ndarray,
     # Project 3D grid cameras to top-down image pixels
     px, py = _project_to_topdown(cams, intrinsic, extrinsic)
 
-    # Filter to in-bounds points with non-zero probability only
-    mask = (px >= 0) & (px < W) & (py >= 0) & (py < H) & (probs > 0)
+    # Filter to in-bounds points. When anchor_probs is provided, use its
+    # nonzero mask to define the interpolation footprint (keeps the grid
+    # extent even when dialogue pushes many probs toward zero).
+    coverage = anchor_probs if anchor_probs is not None else probs
+    mask = (px >= 0) & (px < W) & (py >= 0) & (py < H) & (coverage > 0)
     px_v, py_v = px[mask].astype(np.float64), py[mask].astype(np.float64)
     probs_v = probs[mask].astype(np.float64)
 
@@ -918,8 +1340,21 @@ def overlay_heatmap(topdown_img: np.ndarray,
     heatmap_rgba = cmap(prob_full)  # (H, W, 4) float in [0, 1]
     heatmap_rgb = heatmap_rgba[:, :, :3]
 
-    # Only overlay where probability is meaningful (> 2% of max)
-    prob_mask = prob_full > 0.02
+    # Only overlay where probability is meaningful (> 2% of max).
+    # When anchor_probs is given, compute coverage from the anchor grid
+    # so regions with dialogue-prob ~0 still show up as dark (not hidden).
+    if anchor_probs is not None:
+        anchor_v = anchor_probs[mask].astype(np.float64)
+        anc_field = griddata(points, anchor_v, (gx_mesh, gy_mesh),
+                             method="cubic", fill_value=0.0)
+        anc_field = np.clip(anc_field, 0, None)
+        anc_full = np.asarray(
+            Image.fromarray((np.clip(anc_field / max(anc_field.max(), 1e-12), 0, 1) * 255
+                             ).astype(np.uint8), mode="L"
+                            ).resize((W, H), Image.LANCZOS), dtype=np.float64) / 255.0
+        prob_mask = anc_full > 0.02
+    else:
+        prob_mask = prob_full > 0.02
     mask_float = gaussian_filter(prob_mask.astype(np.float64), sigma=3.0)
     mask_float = np.clip(mask_float * alpha, 0, 1)
 
@@ -942,7 +1377,7 @@ def overlay_heatmap(topdown_img: np.ndarray,
         pred_px_arr, pred_py_arr = _project_to_topdown(
             pred_pos[None, :], intrinsic, extrinsic)
         pred_px, pred_py = float(pred_px_arr[0]), float(pred_py_arr[0])
-        print(f"  [heatmap] pred projected px={pred_px:.1f}, py={pred_py:.1f}  (img {W}x{H})")
+
 
         if -W * 0.1 <= pred_px < W * 1.1 and -H * 0.1 <= pred_py < H * 1.1:
             if pred_dir is not None and h_fov_deg > 0:
@@ -1022,6 +1457,42 @@ def overlay_heatmap(topdown_img: np.ndarray,
                     markersize=7, markeredgecolor="white",
                     markeredgewidth=1.2, zorder=5, label="Ground Truth")
 
+    # Dialogue-refined pose overlay (blue)
+    if dialogue_pos is not None:
+        dlg_px_arr, dlg_py_arr = _project_to_topdown(
+            dialogue_pos[None, :], intrinsic, extrinsic)
+        dlg_px, dlg_py = float(dlg_px_arr[0]), float(dlg_py_arr[0])
+
+        if -W * 0.1 <= dlg_px < W * 1.1 and -H * 0.1 <= dlg_py < H * 1.1:
+            if dialogue_dir is not None and h_fov_deg > 0:
+                from matplotlib.patches import Polygon as MplPolygon
+                fov_reach_m = 2.5
+                half_fov = math.radians(h_fov_deg / 2.0)
+                up_idx_d = {"x_up": 0, "y_up": 1, "z_up": 2}.get(up_axis, 2)
+                floor_axes_d = [i for i in range(3) if i != up_idx_d]
+                a0d, a1d = floor_axes_d
+                heading_d = math.atan2(dialogue_dir[a1d], dialogue_dir[a0d])
+                n_arc = 30
+                angles_d = np.linspace(heading_d - half_fov, heading_d + half_fov, n_arc)
+                arc_pts_d = np.zeros((n_arc, 3), dtype=np.float64)
+                arc_pts_d[:, up_idx_d] = dialogue_pos[up_idx_d]
+                arc_pts_d[:, a0d] = dialogue_pos[a0d] + fov_reach_m * np.cos(angles_d)
+                arc_pts_d[:, a1d] = dialogue_pos[a1d] + fov_reach_m * np.sin(angles_d)
+                arc_px_d, arc_py_d = _project_to_topdown(arc_pts_d, intrinsic, extrinsic)
+                wedge_xy_d = [(dlg_px, dlg_py)]
+                for wx, wy in zip(arc_px_d, arc_py_d):
+                    wedge_xy_d.append((float(wx), float(wy)))
+                wedge_xy_d.append((dlg_px, dlg_py))
+                wedge_d = MplPolygon(
+                    wedge_xy_d, closed=True,
+                    facecolor="#42a5f5", edgecolor="#1565c0",
+                    alpha=0.30, linewidth=1.2, zorder=4)
+                ax.add_patch(wedge_d)
+
+            ax.plot(dlg_px, dlg_py, marker="D", color="#42a5f5",
+                    markersize=7, markeredgecolor="white",
+                    markeredgewidth=1.2, zorder=6, label="Dialogue-Refined")
+
     # Colorbar
     sm = plt.cm.ScalarMappable(cmap=cmap_name, norm=plt.Normalize(0, 1))
     sm.set_array([])
@@ -1029,8 +1500,16 @@ def overlay_heatmap(topdown_img: np.ndarray,
     cbar.set_label("Probability", fontsize=max(8, W / dpi * 1.2))
     cbar.ax.tick_params(labelsize=max(6, W / dpi))
 
+    # Legend (only when there are multiple markers to distinguish)
+    handles, labels = ax.get_legend_handles_labels()
+    if len(handles) > 1:
+        leg = ax.legend(loc="lower left", fontsize=max(6, W / dpi * 0.9),
+                        framealpha=0.85, edgecolor="#888888",
+                        handletextpad=0.3, borderpad=0.3)
+        leg.set_zorder(10)
+
     # Title
-    ax.set_title("Visibility Probability Heatmap",
+    ax.set_title("Localization Probability Heatmap",
                  fontsize=title_fs, pad=title_fs * 0.8)
 
     ax.set_axis_off()
@@ -1045,6 +1524,85 @@ def overlay_heatmap(topdown_img: np.ndarray,
     if buf.shape[:2] != (H, W):
         buf = np.asarray(Image.fromarray(buf).resize((W, H), Image.LANCZOS))
 
+    return buf
+
+
+def overlay_poses_only(topdown_img: np.ndarray,
+                       intrinsic: np.ndarray,
+                       extrinsic: np.ndarray,
+                       pred_pos: np.ndarray | None,
+                       pred_dir: np.ndarray | None,
+                       gt_pos: np.ndarray | None,
+                       gt_dir: np.ndarray | None,
+                       h_fov_deg: float = 100.0,
+                       up_axis: str = "z_up",
+                       dpi: int = 300) -> np.ndarray:
+    """Draw only GT and predicted pose markers on the top-down view (no heatmap)."""
+    H, W = topdown_img.shape[:2]
+    _set_eccv_rc()
+    title_fs = max(10, W / dpi * 1.8)
+    title_h_in = title_fs * 2.5 / 72
+    fig_w = W / dpi
+    fig_h = H / dpi + title_h_in
+    fig, ax = plt.subplots(1, 1, figsize=(fig_w, fig_h), dpi=dpi)
+    ax.imshow(topdown_img)
+
+    up_idx = {"x_up": 0, "y_up": 1, "z_up": 2}.get(up_axis, 2)
+    floor_axes = [i for i in range(3) if i != up_idx]
+    a0, a1 = floor_axes
+
+    def _draw_pose(pos, direction, color, edge_color, marker, label, zorder):
+        px_arr, py_arr = _project_to_topdown(pos[None, :], intrinsic, extrinsic)
+        px_v, py_v = float(px_arr[0]), float(py_arr[0])
+        if not (-W * 0.1 <= px_v < W * 1.1 and -H * 0.1 <= py_v < H * 1.1):
+            return
+        if direction is not None and h_fov_deg > 0:
+            from matplotlib.patches import Polygon as MplPolygon
+            fov_reach_m = 2.5
+            half_fov = math.radians(h_fov_deg / 2.0)
+            heading = math.atan2(direction[a1], direction[a0])
+            n_arc = 30
+            angles = np.linspace(heading - half_fov, heading + half_fov, n_arc)
+            arc_pts = np.zeros((n_arc, 3), dtype=np.float64)
+            arc_pts[:, up_idx] = pos[up_idx]
+            arc_pts[:, a0] = pos[a0] + fov_reach_m * np.cos(angles)
+            arc_pts[:, a1] = pos[a1] + fov_reach_m * np.sin(angles)
+            arc_px, arc_py = _project_to_topdown(arc_pts, intrinsic, extrinsic)
+            wedge_xy = [(px_v, py_v)]
+            for wx, wy in zip(arc_px, arc_py):
+                wedge_xy.append((float(wx), float(wy)))
+            wedge_xy.append((px_v, py_v))
+            wedge = MplPolygon(wedge_xy, closed=True,
+                               facecolor=color, edgecolor=edge_color,
+                               alpha=0.30, linewidth=1.2, zorder=zorder)
+            ax.add_patch(wedge)
+        ax.plot(px_v, py_v, marker=marker, color=color,
+                markersize=7, markeredgecolor="white",
+                markeredgewidth=1.2, zorder=zorder + 1, label=label)
+
+    if pred_pos is not None:
+        _draw_pose(pred_pos, pred_dir, "#00e676", "#00c853", "o", "Predicted", 4)
+    if gt_pos is not None:
+        _draw_pose(gt_pos, gt_dir, "#ef5350", "#c62828", "o", "Ground Truth", 6)
+
+    handles, labels = ax.get_legend_handles_labels()
+    if len(handles) > 1:
+        leg = ax.legend(loc="lower left", fontsize=max(6, W / dpi * 0.9),
+                        framealpha=0.85, edgecolor="#888888",
+                        handletextpad=0.3, borderpad=0.3)
+        leg.set_zorder(10)
+
+    ax.set_title("GT vs Predicted Pose",
+                 fontsize=title_fs, pad=title_fs * 0.8)
+    ax.set_axis_off()
+    ax.set_xlim(0, W)
+    ax.set_ylim(H, 0)
+    fig.subplots_adjust(left=0, right=1, top=1 - title_h_in / fig_h, bottom=0)
+    fig.canvas.draw()
+    buf = np.asarray(fig.canvas.buffer_rgba())[:, :, :3].copy()
+    plt.close(fig)
+    if buf.shape[:2] != (H, W):
+        buf = np.asarray(Image.fromarray(buf).resize((W, H), Image.LANCZOS))
     return buf
 
 
@@ -1122,9 +1680,9 @@ def overlay_direction_field(topdown_img: np.ndarray,
     # Build line segments and colors
     from matplotlib.collections import LineCollection
     segments = []
-    colors = []
-    linewidths = []
+    prob_norms = []
     p_max = probs[indices].max()
+    cmap = plt.get_cmap("inferno")
 
     for idx in indices:
         cx, cy = float(px[idx]), float(py[idx])
@@ -1145,14 +1703,11 @@ def overlay_direction_field(topdown_img: np.ndarray,
         x0, y0 = cx - half * dx_2d, cy - half * dy_2d
         x1, y1 = cx + half * dx_2d, cy + half * dy_2d
         segments.append([(x0, y0), (x1, y1)])
+        prob_norms.append(prob_norm)
 
-        # HSV color: hue = heading angle
-        heading = math.atan2(cam_dirs[idx, a1], cam_dirs[idx, a0])
-        hue = (heading / (2 * math.pi)) % 1.0
-        r, g, b = mcolors.hsv_to_rgb([hue, 0.85, 0.95])
-        a = 0.55 + 0.40 * prob_norm  # alpha: 0.55..0.95
-        colors.append((r, g, b, a))
-        linewidths.append(0.6 + 1.8 * prob_norm)
+    # Color by probability: inferno colormap (dark = low, yellow = high)
+    colors = [cmap(p) for p in prob_norms]
+    linewidths = [1.0] * len(prob_norms)
 
     if not segments:
         return topdown_img.copy()
@@ -1175,7 +1730,7 @@ def overlay_direction_field(topdown_img: np.ndarray,
         pred_px_arr, pred_py_arr = _project_to_topdown(
             pred_pos[None, :], intrinsic, extrinsic)
         pred_px, pred_py = float(pred_px_arr[0]), float(pred_py_arr[0])
-        print(f"  [dirfield] pred projected px={pred_px:.1f}, py={pred_py:.1f}  (img {W}x{H})")
+
 
         if -W * 0.1 <= pred_px < W * 1.1 and -H * 0.1 <= pred_py < H * 1.1:
             if pred_dir is not None and h_fov_deg > 0:
@@ -1240,50 +1795,12 @@ def overlay_direction_field(topdown_img: np.ndarray,
                     markersize=6, markeredgecolor="white",
                     markeredgewidth=1.0, zorder=5)
 
-    # --- Legends ---
-    font_size = max(7, min(W, H) / dpi * 1.0)
-    legend_r = min(W, H) * 0.04
-
-    # HSV colour wheel legend (bottom-right)
-    legend_cx = W - legend_r * 2.5
-    legend_cy = H - legend_r * 2.5
-    n_legend = 36
-    for i in range(n_legend):
-        ang = 2 * math.pi * i / n_legend
-        hue = (ang / (2 * math.pi)) % 1.0
-        r, g, b = mcolors.hsv_to_rgb([hue, 0.85, 0.95])
-        x0 = legend_cx + legend_r * 0.55 * math.cos(ang)
-        y0 = legend_cy + legend_r * 0.55 * math.sin(ang)
-        x1 = legend_cx + legend_r * math.cos(ang)
-        y1 = legend_cy + legend_r * math.sin(ang)
-        ax.plot([x0, x1], [y0, y1], color=(r, g, b), linewidth=2.5, solid_capstyle="round")
-    ax.text(legend_cx, legend_cy - legend_r * 1.4, "Heading",
-            ha="center", va="bottom", fontsize=font_size,
-            color="white", fontweight="bold",
-            bbox=dict(boxstyle="round,pad=0.15", fc="black", alpha=0.5, ec="none"))
-
-    # Probability gradient legend (bottom-left): blue → yellow
-    prob_cmap = plt.get_cmap("plasma")
-    leg_x0 = legend_r * 1.5
-    leg_y = H - legend_r * 2.5
-    leg_w = min(W, H) * 0.12
-    n_grad = 20
-    for i in range(n_grad):
-        t = i / max(n_grad - 1, 1)
-        c = prob_cmap(t)
-        gx0 = leg_x0 + t * leg_w
-        ax.plot([gx0, gx0], [leg_y - legend_r * 0.5, leg_y + legend_r * 0.5],
-                color=c, linewidth=3.0, solid_capstyle="butt")
-    ax.text(leg_x0, leg_y + legend_r * 0.8, "Low", ha="center", va="top",
-            fontsize=font_size * 0.85, color="white",
-            bbox=dict(boxstyle="round,pad=0.1", fc="black", alpha=0.4, ec="none"))
-    ax.text(leg_x0 + leg_w, leg_y + legend_r * 0.8, "High", ha="center", va="top",
-            fontsize=font_size * 0.85, color="white",
-            bbox=dict(boxstyle="round,pad=0.1", fc="black", alpha=0.4, ec="none"))
-    ax.text(leg_x0 + leg_w * 0.5, leg_y - legend_r * 1.4, "Probability",
-            ha="center", va="bottom", fontsize=font_size,
-            color="white", fontweight="bold",
-            bbox=dict(boxstyle="round,pad=0.15", fc="black", alpha=0.5, ec="none"))
+    # Colorbar for probability
+    sm = plt.cm.ScalarMappable(cmap="inferno", norm=plt.Normalize(0, 1))
+    sm.set_array([])
+    cbar = fig.colorbar(sm, ax=ax, fraction=0.03, pad=0.01, aspect=30)
+    cbar.set_label("Probability", fontsize=max(8, W / dpi * 1.2))
+    cbar.ax.tick_params(labelsize=max(6, W / dpi))
 
     # Title
     ax.set_title("Predicted Viewing Direction Field",
@@ -1292,7 +1809,7 @@ def overlay_direction_field(topdown_img: np.ndarray,
     ax.set_axis_off()
     ax.set_xlim(0, W)
     ax.set_ylim(H, 0)
-    fig.subplots_adjust(left=0, right=1, top=1 - title_h_in / fig_h, bottom=0)
+    fig.subplots_adjust(left=0, right=0.93, top=1 - title_h_in / fig_h, bottom=0)
 
     fig.canvas.draw()
     buf = np.asarray(fig.canvas.buffer_rgba())[:, :, :3].copy()
@@ -1371,7 +1888,7 @@ def _make_cylinder_between(start: np.ndarray, end: np.ndarray,
 
 
 def render_scene_graph(mesh: o3d.geometry.TriangleMesh,
-                       graphs_3dssg: str,
+                       graphs_3dssg: dict,
                        scan_id: str,
                        matched_obj_ids: List[int],
                        obj2faces: Dict[int, np.ndarray],
@@ -1393,7 +1910,7 @@ def render_scene_graph(mesh: o3d.geometry.TriangleMesh,
 
     Args:
         mesh: The scene mesh.
-        graphs_3dssg: Path to the 3DSSG graphs .pt file.
+        graphs_3dssg: Pre-loaded 3DSSG graphs dict (from torch.load).
         scan_id: Scene identifier.
         matched_obj_ids: Object IDs matched by the localization pipeline.
         obj2faces: Mapping from object ID to face indices.
@@ -1407,8 +1924,8 @@ def render_scene_graph(mesh: o3d.geometry.TriangleMesh,
     Returns:
         (H, W, 3) uint8 RGB array.
     """
-    # Load scene graph data
-    g3d_all = torch.load(graphs_3dssg, map_location="cpu", weights_only=False)
+    # Look up scene in pre-loaded graph data
+    g3d_all = graphs_3dssg
     g = None
     for key in [scan_id, f"3RScan/{scan_id}", scan_id.replace("3RScan/", "")]:
         if key in g3d_all:
@@ -1434,33 +1951,39 @@ def render_scene_graph(mesh: o3d.geometry.TriangleMesh,
     scene = r.scene
     scene.set_background([1.0, 1.0, 1.0, 1.0])
 
-    # Desaturate mesh and add it
-    semantic_colors = None
-    if mesh.has_vertex_colors():
-        semantic_colors = np.asarray(mesh.vertex_colors, dtype=np.float64).copy()
-    if desat > 0 and semantic_colors is not None:
-        render_mesh = color_matched_objects(mesh, np.zeros(0, dtype=np.int32),
-                                             matched_obj_ids, semantic_colors,
+    # Color matched objects with semantic instance colours on the mesh
+    # Build tri2obj from obj2faces so color_matched_objects can paint per-face
+    n_tris = len(np.asarray(mesh.triangles))
+    tri2obj_sg = np.zeros(n_tris, dtype=np.int32)
+    for oid, faces in obj2faces.items():
+        if faces is not None and len(faces) > 0:
+            tri2obj_sg[faces] = int(oid)
+
+    # Load semantic colors: prefer labels PLY, fall back to mesh vertex colors
+    sem_colors = None
+    if labels_ply and Path(labels_ply).exists():
+        lm = o3d.io.read_triangle_mesh(labels_ply)
+        if lm.has_vertex_colors():
+            sem_colors = np.asarray(lm.vertex_colors, dtype=np.float64)
+    if sem_colors is None and mesh.has_vertex_colors():
+        sem_colors = np.asarray(mesh.vertex_colors, dtype=np.float64).copy()
+
+    if sem_colors is not None and matched_obj_ids:
+        render_mesh = color_matched_objects(mesh, tri2obj_sg,
+                                             matched_obj_ids, sem_colors,
                                              desat=desat)
     else:
         render_mesh = mesh
 
     mesh_mat = rendering.MaterialRecord()
     mesh_mat.shader = "defaultLitTransparency"
-    mesh_mat.base_color = [1.0, 1.0, 1.0, 0.90]
+    mesh_mat.base_color = [1.0, 1.0, 1.0, 0.85]
     scene.add_geometry("mesh", render_mesh, mesh_mat)
     scene.view.set_post_processing(True)
 
-    # Load instance label colors from labels PLY (same vertex topology as mesh)
-    label_colors = None
-    if labels_ply and Path(labels_ply).exists():
-        labels_mesh = o3d.io.read_triangle_mesh(labels_ply)
-        if labels_mesh.has_vertex_colors():
-            label_colors = np.asarray(labels_mesh.vertex_colors, dtype=np.float64)
-
     def _obj_label_color(oid: int) -> np.ndarray:
         """Get the dominant label color for an object from the labels PLY."""
-        if label_colors is None:
+        if sem_colors is None:
             return _avg_vertex_color(mesh, obj2faces, oid)
         faces = obj2faces.get(oid)
         if faces is None or len(faces) == 0:
@@ -1468,7 +1991,7 @@ def render_scene_graph(mesh: o3d.geometry.TriangleMesh,
         tris = np.asarray(mesh.triangles, dtype=np.int32)
         vert_ids = np.unique(tris[faces].ravel())
         # Use the most frequent color (mode) rather than average
-        vc = label_colors[vert_ids]
+        vc = sem_colors[vert_ids]
         # Quantize to avoid float noise, then find mode
         quantized = (vc * 255).astype(np.uint8)
         keys = quantized[:, 0].astype(np.uint32) << 16 | quantized[:, 1].astype(np.uint32) << 8 | quantized[:, 2].astype(np.uint32)
@@ -1477,16 +2000,27 @@ def render_scene_graph(mesh: o3d.geometry.TriangleMesh,
         return np.array([(best >> 16) & 0xFF, (best >> 8) & 0xFF, best & 0xFF],
                         dtype=np.float64) / 255.0
 
-    # Sphere markers at matched object centroids
-    sphere_radius = 0.12
-    sphere_mat = rendering.MaterialRecord()
-    sphere_mat.shader = "defaultLit"
+    # Sphere markers at matched object centroids — vivid opaque colors
+    sphere_radius = 0.07
+
+    def _intensify_color(rgb: np.ndarray) -> np.ndarray:
+        """Push colour to maximum saturation and full brightness."""
+        import colorsys
+        h, s, v = colorsys.rgb_to_hsv(float(rgb[0]), float(rgb[1]), float(rgb[2]))
+        s = 1.0   # full saturation
+        v = 1.0   # full brightness
+        return np.array(colorsys.hsv_to_rgb(h, s, v), dtype=np.float64)
+
     for i, oid in enumerate(matched_obj_ids):
         if oid not in obj_centroids:
             continue
-        color = _obj_label_color(oid)
-        sphere = _make_sphere(obj_centroids[oid], sphere_radius, color)
-        scene.add_geometry(f"sphere_{i}", sphere, sphere_mat)
+        base_color = _obj_label_color(oid)
+        intense = _intensify_color(base_color)
+        sphere = _make_sphere(obj_centroids[oid], sphere_radius, intense)
+        sph_mat = rendering.MaterialRecord()
+        sph_mat.shader = "defaultLit"
+        sph_mat.base_color = [1.0, 1.0, 1.0, 1.0]
+        scene.add_geometry(f"sphere_{i}", sphere, sph_mat)
 
     # Cylinder edges for spatial relations between matched objects
     edge_lists = g.get("edge_lists", {})
@@ -1494,7 +2028,7 @@ def render_scene_graph(mesh: o3d.geometry.TriangleMesh,
     to_ids = edge_lists.get("to", [])
     relations = edge_lists.get("relation", [])
 
-    edge_color = np.array([0.4, 0.4, 0.4])
+    edge_color = np.array([0.15, 0.15, 0.15])
     cyl_mat = rendering.MaterialRecord()
     cyl_mat.shader = "defaultLit"
     seen_pairs: set = set()
@@ -1513,7 +2047,7 @@ def render_scene_graph(mesh: o3d.geometry.TriangleMesh,
         if fi not in matched_set or ti not in matched_set:
             continue
         cyl = _make_cylinder_between(obj_centroids[fi], obj_centroids[ti],
-                                      radius=0.008, color=edge_color)
+                                      radius=0.012, color=edge_color)
         if len(cyl.vertices) > 0:
             scene.add_geometry(f"edge_{edge_i}", cyl, cyl_mat)
             edge_i += 1
@@ -1525,7 +2059,7 @@ def render_scene_graph(mesh: o3d.geometry.TriangleMesh,
     scene.scene.set_sun_light(
         direction=np.array([0.3, -1.0, -1.0], dtype=np.float32),
         color=np.array([1.0, 1.0, 1.0], dtype=np.float32),
-        intensity=75000.0)
+        intensity=120000.0)
 
     # Camera — use GT pose pulled back if available, else fallback
     if gt_pos is not None and gt_dir is not None:
@@ -1619,6 +2153,120 @@ def render_scene_graph(mesh: o3d.geometry.TriangleMesh,
 
 
 # ---------------------------------------------------------------------------
+# Scene retrieval — find other scenes matching query objects + relations
+# ---------------------------------------------------------------------------
+
+_GENERIC_LABELS = frozenset({
+    "wall", "floor", "ceiling", "door", "doorframe", "window", "object"})
+_SPATIAL_RELS = frozenset({"left", "right", "front", "behind"})
+
+
+def find_matching_scenes(
+    sg_all: dict,
+    source_scan_id: str,
+    query_labels: set[str],
+    query_relations: set[tuple[str, str, str]],
+    top_k: int = 4,
+) -> List[dict]:
+    """Find scenes whose objects and spatial relations best match a query.
+
+    Args:
+        sg_all: All scene graphs (scan_id → graph dict).
+        source_scan_id: Scene to exclude (the query's own scene).
+        query_labels: Set of non-generic object labels from the query frame.
+        query_relations: Set of (subject_label, object_label, relation) tuples.
+        top_k: Number of results to return.
+
+    Returns:
+        List of dicts sorted by score, each with keys:
+        scan_id, score, matched_labels, matched_relations.
+    """
+    results = []
+    for scan_id, g in sg_all.items():
+        if scan_id == source_scan_id:
+            continue
+        objects = g.get("objects", {})
+        edge_lists = g.get("edge_lists", {})
+
+        # Scene label set (non-generic)
+        scene_labels: set[str] = set()
+        for obj in objects.values():
+            l = obj["label"]
+            if l not in _GENERIC_LABELS:
+                scene_labels.add(l)
+
+        shared_labels = query_labels & scene_labels
+        if len(shared_labels) < 2:
+            continue
+
+        # Scene spatial edge set
+        from_ids = edge_lists.get("from", [])
+        to_ids = edge_lists.get("to", [])
+        relations = edge_lists.get("relation", [])
+        scene_edges: set[tuple[str, str, str]] = set()
+        for fi, ti, rel in zip(from_ids, to_ids, relations):
+            if rel not in _SPATIAL_RELS:
+                continue
+            fl = objects.get(str(int(fi)), {}).get("label", "")
+            tl = objects.get(str(int(ti)), {}).get("label", "")
+            scene_edges.add((fl, tl, rel))
+
+        shared_rels = query_relations & scene_edges
+        obj_score = len(shared_labels) / max(len(query_labels), 1)
+        rel_score = len(shared_rels) / max(len(query_relations), 1)
+        total = obj_score * 0.5 + rel_score * 0.5
+
+        results.append({
+            "scan_id": scan_id,
+            "score": total,
+            "matched_labels": shared_labels,
+            "matched_relations": shared_rels,
+        })
+
+    results.sort(key=lambda x: -x["score"])
+    return results[:top_k]
+
+
+def find_best_frame(scan_dir: Path, query_labels: set[str]) -> dict | None:
+    """Find the frame in a scene that shows the most query objects.
+
+    Args:
+        scan_dir: Path to the scene directory (e.g. data/scans/scene0006_01).
+        query_labels: Non-generic object labels to look for.
+
+    Returns:
+        The frame dict with the best coverage, or None if no descriptions exist.
+    """
+    desc_dir = scan_dir / "output" / "descriptions"
+    if not desc_dir.exists():
+        return None
+
+    best_frame = None
+    best_coverage = -1
+
+    for f in desc_dir.glob("[0-9]*.json"):
+        try:
+            data = json.loads(f.read_text())
+            if not isinstance(data, dict):
+                continue
+        except Exception:
+            continue
+
+        vis = data.get("visible_objects", {})
+        vis_labels: set[str] = set()
+        for obj in vis.values():
+            if isinstance(obj, dict):
+                vis_labels.add(obj.get("label", ""))
+
+        coverage = len(query_labels & vis_labels)
+        if coverage > best_coverage:
+            best_coverage = coverage
+            best_frame = data
+
+    return best_frame
+
+
+# ---------------------------------------------------------------------------
 # Combined teaser figure
 # ---------------------------------------------------------------------------
 
@@ -1695,7 +2343,7 @@ def compose_teaser(perspective_img: np.ndarray,
 
     # --- Perspective panel ---
     ax_persp.imshow(perspective_img)
-    ax_persp.set_title("Perspective View", fontsize=11, fontweight="bold")
+    ax_persp.set_title("Ground Truth View", fontsize=11, fontweight="bold")
     ax_persp.set_axis_off()
 
     # --- Scene graph panel ---
@@ -1779,6 +2427,10 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--scene-graph", "--scene_graph", dest="scene_graph",
                     action="store_true",
                     help="Produce an Open3D scene graph visualization (PNG).")
+    ap.add_argument("--num-retrieval-scenes", "--num_retrieval_scenes",
+                    dest="num_retrieval_scenes", type=int, default=0,
+                    help="Find N other scenes matching the query objects+relations "
+                         "and render scene graph visualizations for them. 0=disabled.")
     ap.add_argument("--output", type=Path, default=Path("teaser_output"),
                     help="Output directory.")
 
@@ -1848,6 +2500,16 @@ def parse_args() -> argparse.Namespace:
     # Combined figure
     ap.add_argument("--combined", action="store_true",
                     help="Also produce a combined 3-panel teaser figure.")
+
+    # Dialogue refinement
+    ap.add_argument("--dialogue", action="store_true",
+                    help="Run oracle dialogue to refine the predicted pose.")
+    ap.add_argument("--dialogue-backend", "--dialogue_backend", dest="dialogue_backend",
+                    choices=["a1", "a2", "a3"], default="a3",
+                    help="Dialogue backend (default: a3 = frame posterior).")
+    ap.add_argument("--dialogue-max-rounds", "--dialogue_max_rounds",
+                    dest="dialogue_max_rounds", type=int, default=12,
+                    help="Max dialogue rounds (default: 12).")
 
     return ap.parse_args()
 
@@ -1920,6 +2582,11 @@ def main() -> None:
 
     up_axis = args.up_axis if args.up_axis else detect_up_axis(mesh)
 
+    # Pre-load 3DSSG graphs once (avoids segfault from repeated torch.load with Open3D)
+    sg_all_data = None
+    if args.graphs_3dssg:
+        sg_all_data = torch.load(args.graphs_3dssg, map_location="cpu", weights_only=False)
+
     # --- 2. Determine query source ---
     query_sg = None
     query_text = None
@@ -1967,6 +2634,34 @@ def main() -> None:
         else:
             print("[2/6] No query and no descriptions found — skipping localization.")
 
+    # --- Pre-compute retrieval matches before Open3D rendering ---
+    # (Open3D Filament causes heap corruption; extract pure-Python data first)
+    retrieval_matches = None
+    if args.num_retrieval_scenes > 0 and frame_data is not None and sg_all_data is not None:
+        vis = frame_data.get("visible_objects", {})
+        _ret_labels: set[str] = set()
+        for obj in vis.values():
+            if isinstance(obj, dict):
+                l = obj.get("label", "")
+                if l not in _GENERIC_LABELS:
+                    _ret_labels.add(l)
+
+        rels = frame_data.get("spatial_relations", [])
+        _ret_rels: set[tuple[str, str, str]] = set()
+        for r in rels:
+            if isinstance(r, dict) and r.get("relation") in _SPATIAL_RELS:
+                s, o = r.get("subject", ""), r.get("object", "")
+                if s not in _GENERIC_LABELS and o not in _GENERIC_LABELS:
+                    _ret_rels.add((s, o, r["relation"]))
+
+        retrieval_matches = {
+            "query_labels": _ret_labels,
+            "query_relations": _ret_rels,
+            "matches": find_matching_scenes(
+                sg_all_data, args.scan_id, _ret_labels, _ret_rels,
+                top_k=args.num_retrieval_scenes),
+        }
+
     # --- 3. Run localization ---
     loc_results = None
     if query_sg is not None or (args.query and query_text):
@@ -1991,6 +2686,33 @@ def main() -> None:
         loc_results = (cams, probs, obj_ids, pred_pos, pred_dir, cam_dirs)
     else:
         print("[3/6] No query — skipping localization.")
+
+    # --- 3b. Dialogue refinement (optional) ---
+    dialogue_results = None
+    if args.dialogue and loc_results is not None and gt_pos is not None:
+        cams, probs, obj_ids, pred_pos, pred_dir, cam_dirs = loc_results
+        if pred_pos is not None and pred_dir is not None:
+            print(f"[3b/6] Running dialogue refinement...")
+            (refined_pos, refined_dir, n_questions, dialogue_log,
+             dlg_grid_posterior) = run_dialogue_refinement(
+                cams=cams,
+                probs=probs,
+                cam_dirs=cam_dirs,
+                pred_pos=pred_pos,
+                pred_dir=pred_dir,
+                gt_pos=gt_pos,
+                gt_dir=gt_dir,
+                dataset_root=args.root,
+                scan_id=args.scan_id,
+                max_rounds=args.dialogue_max_rounds,
+                backend_name=args.dialogue_backend,
+            )
+            dialogue_results = (refined_pos, refined_dir, n_questions, dialogue_log,
+                                dlg_grid_posterior)
+        else:
+            print("[3b/6] No predicted pose — skipping dialogue.")
+    elif args.dialogue and gt_pos is None:
+        print("[3b/6] No GT pose available for oracle dialogue — skipping.")
 
     # --- 4. Color matched objects with semantic instance colours ---
     render_mesh = mesh  # default: original mesh
@@ -2017,8 +2739,8 @@ def main() -> None:
                                    camera_json=args.camera_json,
                                    interactive=args.interactive,
                                    frame_pose=frame_pose)
-    persp_titled = _add_title(persp_img, "Perspective View", dpi=args.dpi)
-    persp_path = out / f"{args.scan_id}_perspective.png"
+    persp_titled = _add_title(persp_img, "Ground Truth View", dpi=args.dpi)
+    persp_path = out / f"{args.scan_id}_gt.png"
     Image.fromarray(persp_titled).save(persp_path)
     print(f"  Saved: {persp_path}")
 
@@ -2037,7 +2759,7 @@ def main() -> None:
     np.savez(cam_path, intrinsic=intrinsic, extrinsic=extrinsic)
     print(f"  Saved camera params: {cam_path}")
 
-    # Predicted-pose perspective render (for debugging direction)
+    # Predicted / refined pose perspective render
     if loc_results is not None:
         cams, probs, obj_ids, pred_pos, pred_dir, cam_dirs = loc_results
         if pred_pos is not None and pred_dir is not None:
@@ -2046,11 +2768,7 @@ def main() -> None:
             if gt_dir is not None:
                 print(f"  gt_dir:   [{gt_dir[0]:.3f}, {gt_dir[1]:.3f}, {gt_dir[2]:.3f}]")
 
-            # Render from predicted pose using eye/center/up (avoids matrix
-            # convention pitfalls — Open3D handles the transform internally)
             up_vec = _up_vector(up_axis)
-            eye = pred_pos.astype(np.float64)
-            centre = (pred_pos + pred_dir).astype(np.float64)
             r = rendering.OffscreenRenderer(args.width, args.height)
             r.scene.set_background([1.0, 1.0, 1.0, 1.0])
             mat = rendering.MaterialRecord()
@@ -2063,6 +2781,10 @@ def main() -> None:
                 direction=np.array([0.3, -1.0, -1.0], dtype=np.float32),
                 color=np.array([1.0, 1.0, 1.0], dtype=np.float32),
                 intensity=75000.0)
+
+            # Predicted pose view (before dialogue)
+            eye = pred_pos.astype(np.float64)
+            centre = (pred_pos + pred_dir).astype(np.float64)
             r.setup_camera(60.0, centre, eye, up_vec)
             pred_persp = np.asarray(r.render_to_image())
             if pred_persp.shape[2] == 4:
@@ -2073,11 +2795,29 @@ def main() -> None:
             Image.fromarray(pred_persp_titled).save(pred_persp_path)
             print(f"  Saved: {pred_persp_path}")
 
+            # Dialogue-refined pose view (separate file)
+            if dialogue_results is not None and dialogue_results[0] is not None:
+                dlg_pos = dialogue_results[0].astype(np.float64)
+                dlg_dir_v = dialogue_results[1].astype(np.float64)
+                r.setup_camera(60.0, dlg_pos + dlg_dir_v, dlg_pos, up_vec)
+                dlg_persp = np.asarray(r.render_to_image())
+                if dlg_persp.shape[2] == 4:
+                    dlg_persp = dlg_persp[:, :, :3]
+                dlg_persp = dlg_persp.astype(np.uint8)
+                dlg_persp_titled = _add_title(dlg_persp, "Dialogue-Refined Pose View", dpi=args.dpi)
+                dlg_persp_path = out / f"{args.scan_id}_dialogue_perspective.png"
+                Image.fromarray(dlg_persp_titled).save(dlg_persp_path)
+                print(f"  Saved: {dlg_persp_path}")
+
     # Heatmap overlay
     if loc_results is not None:
         cams, probs, obj_ids, pred_pos, pred_dir, cam_dirs = loc_results
         if len(cams) > 0 and probs.sum() > 0:
-            heatmap_img = overlay_heatmap(
+            _dlg_pos = dialogue_results[0] if dialogue_results is not None else None
+            _dlg_dir = dialogue_results[1] if dialogue_results is not None else None
+
+            # Original heatmap with GT + predicted pose only
+            poses_img = overlay_heatmap(
                 topdown_img, intrinsic, extrinsic,
                 cams, probs, pred_pos, pred_dir,
                 query=query_text or "", alpha=args.heatmap_alpha,
@@ -2085,9 +2825,54 @@ def main() -> None:
                 h_fov_deg=args.h_fov, up_axis=up_axis,
                 dpi=args.dpi,
                 gt_pos=gt_pos, gt_dir=gt_dir)
+            poses_path = out / f"{args.scan_id}_poses_overlay.png"
+            Image.fromarray(poses_img).save(poses_path)
+            print(f"  Saved: {poses_path}")
+
+            # Main heatmap overlay — use dialogue-updated probs when available
+            if dialogue_results is not None:
+                dlg_grid_posterior = dialogue_results[4]
+                # Dialogue heatmap with GT + dialogue-refined pose
+                heatmap_img = overlay_heatmap(
+                    topdown_img, intrinsic, extrinsic,
+                    cams, dlg_grid_posterior,
+                    pred_pos=pred_pos, pred_dir=pred_dir,
+                    query=query_text or "", alpha=args.heatmap_alpha,
+                    cmap_name=args.heatmap_cmap, sigma=args.heatmap_sigma,
+                    h_fov_deg=args.h_fov, up_axis=up_axis,
+                    dpi=args.dpi,
+                    gt_pos=gt_pos, gt_dir=gt_dir,
+                    dialogue_pos=_dlg_pos, dialogue_dir=_dlg_dir,
+                    anchor_probs=probs)
+            else:
+                heatmap_img = overlay_heatmap(
+                    topdown_img, intrinsic, extrinsic,
+                    cams, probs, pred_pos, pred_dir,
+                    query=query_text or "", alpha=args.heatmap_alpha,
+                    cmap_name=args.heatmap_cmap, sigma=args.heatmap_sigma,
+                    h_fov_deg=args.h_fov, up_axis=up_axis,
+                    dpi=args.dpi,
+                    gt_pos=gt_pos, gt_dir=gt_dir)
             heatmap_path = out / f"{args.scan_id}_heatmap_overlay.png"
             Image.fromarray(heatmap_img).save(heatmap_path)
             print(f"  Saved: {heatmap_path}")
+
+            # Dialogue-only heatmap (same updated probs, only GT + dialogue marker)
+            if dialogue_results is not None:
+                dlg_only_img = overlay_heatmap(
+                    topdown_img, intrinsic, extrinsic,
+                    cams, dlg_grid_posterior,
+                    pred_pos=None, pred_dir=None,
+                    query=query_text or "", alpha=args.heatmap_alpha,
+                    cmap_name=args.heatmap_cmap, sigma=args.heatmap_sigma,
+                    h_fov_deg=args.h_fov, up_axis=up_axis,
+                    dpi=args.dpi,
+                    gt_pos=gt_pos, gt_dir=gt_dir,
+                    dialogue_pos=_dlg_pos, dialogue_dir=_dlg_dir,
+                    anchor_probs=probs)
+                dlg_only_path = out / f"{args.scan_id}_heatmap_dialogue.png"
+                Image.fromarray(dlg_only_img).save(dlg_only_path)
+                print(f"  Saved: {dlg_only_path}")
 
             # Direction field overlay
             dirfield_img = None
@@ -2117,7 +2902,7 @@ def main() -> None:
                     else:
                         labels_ply = None
                     sg_img = render_scene_graph(
-                        mesh, args.graphs_3dssg, args.scan_id,
+                        mesh, sg_all_data, args.scan_id,
                         matched_obj_ids=matched_ids,
                         obj2faces=obj2faces,
                         up_axis=up_axis,
@@ -2152,7 +2937,7 @@ def main() -> None:
             else:
                 labels_ply = None
             sg_img = render_scene_graph(
-                mesh, args.graphs_3dssg, args.scan_id,
+                mesh, sg_all_data, args.scan_id,
                 matched_obj_ids=[],
                 obj2faces=obj2faces,
                 up_axis=up_axis,
@@ -2164,8 +2949,287 @@ def main() -> None:
             Image.fromarray(sg_img).save(sg_path)
             print(f"  Saved: {sg_path}")
 
+    # --- Scene retrieval: render scene graphs for pre-computed matches ---
+    if retrieval_matches is not None:
+        query_labels = retrieval_matches["query_labels"]
+        query_relations = retrieval_matches["query_relations"]
+        matches = retrieval_matches["matches"]
+
+        print(f"\n[Retrieval] Finding {args.num_retrieval_scenes} matching scenes...")
+        print(f"  Query objects: {sorted(query_labels)}")
+        print(f"  Query relations: {len(query_relations)} spatial edges")
+
+        retrieval_dir = out / f"retrieval_{args.scan_id}"
+        retrieval_dir.mkdir(parents=True, exist_ok=True)
+
+        for rank, m in enumerate(matches, 1):
+            m_scan = m["scan_id"]
+            m_score = m["score"]
+            print(f"  #{rank} {m_scan}  score={m_score:.2f}  "
+                  f"objs={sorted(m['matched_labels'])}")
+
+            # Find best frame in that scene
+            m_scan_dir = args.root / m_scan
+            if not m_scan_dir.exists():
+                print(f"    Skipping — scan dir not found: {m_scan_dir}")
+                continue
+
+            best_frame = find_best_frame(m_scan_dir, query_labels)
+            if best_frame is None:
+                print(f"    Skipping — no frame descriptions found")
+                continue
+
+            best_fid = best_frame.get("image_index", "?")
+            best_desc = best_frame.get("description", "")[:80]
+            print(f"    Best frame: {best_fid} — \"{best_desc}...\"")
+
+            # Load mesh for this scene
+            if args.dataset == "scannet":
+                m_mesh, m_tri2obj, m_obj2faces = load_scene_scannet(
+                    m_scan_dir, m_scan)
+                m_labels_ply = str(m_scan_dir / f"{m_scan}_vh_clean_2.labels.ply")
+            else:
+                m_mesh, m_tri2obj, m_obj2faces = load_scene_3rscan(m_scan_dir)
+                m_labels_ply = None
+
+            # Get matched object IDs from the scene graph
+            m_g = sg_all_data.get(m_scan, {})
+            m_objects = m_g.get("objects", {})
+            m_matched_ids = []
+            for oid_str, obj in m_objects.items():
+                if obj["label"] in m["matched_labels"]:
+                    m_matched_ids.append(int(oid_str))
+
+            # Get GT pose from best frame for camera placement
+            m_gt_pos, m_gt_dir = None, None
+            m_pose = best_frame.get("scene_pose")
+            if m_pose is not None:
+                m_pose_mat = np.array(m_pose, dtype=np.float64)
+                m_gt_pos = m_pose_mat[:3, 3]
+                m_dir = m_pose_mat[:3, 2]
+                m_dir_norm = np.linalg.norm(m_dir)
+                if m_dir_norm > 1e-6:
+                    m_gt_dir = m_dir / m_dir_norm
+
+            m_up = detect_up_axis(m_mesh)
+
+            # Render scene graph — keep original mesh colors for retrievals
+            sg_img = render_scene_graph(
+                m_mesh, sg_all_data, m_scan,
+                matched_obj_ids=m_matched_ids,
+                obj2faces=m_obj2faces,
+                up_axis=m_up,
+                width=args.width, height=args.height,
+                gt_pos=m_gt_pos, gt_dir=m_gt_dir,
+                desat=0.0,
+                labels_ply=m_labels_ply)
+            sg_path = retrieval_dir / f"{rank}_{m_scan}_scene_graph.png"
+            Image.fromarray(sg_img).save(sg_path)
+            print(f"    Saved: {sg_path}")
+
+    # --- Pose error computation ---
+    if loc_results is not None and gt_pos is not None:
+        cams, probs, obj_ids, pred_pos, pred_dir, cam_dirs = loc_results
+        from langloc.localization.metrics import (
+            compute_metrics_standard, compute_view_iou_error)
+
+        up_idx = {"x_up": 0, "y_up": 1, "z_up": 2}.get(up_axis, 2)
+        floor_axes = [i for i in range(3) if i != up_idx]
+
+        # 2D floor position error (like the paper)
+        gt_2d = gt_pos[floor_axes]
+        pred_2d = pred_pos[floor_axes] if pred_pos is not None else gt_2d
+        pos_err = float(np.linalg.norm(pred_2d - gt_2d))
+
+        # Top-10 position error
+        dists_2d = np.linalg.norm(cams[:, floor_axes] - gt_2d[None, :], axis=1)
+        k = min(10, len(probs))
+        top_idx = np.argpartition(probs, -k)[-k:]
+        top10_err = float(dists_2d[top_idx].min())
+
+        # Angular error
+        ang_err = None
+        if pred_dir is not None and gt_dir is not None:
+            pred_2d_dir = pred_dir[floor_axes]
+            gt_2d_dir = gt_dir[floor_axes]
+            pn = np.linalg.norm(pred_2d_dir)
+            gn = np.linalg.norm(gt_2d_dir)
+            if pn > 1e-6 and gn > 1e-6:
+                cos_a = np.clip(np.dot(pred_2d_dir / pn, gt_2d_dir / gn), -1, 1)
+                ang_err = float(np.degrees(np.arccos(cos_a)))
+
+        # 3D IoU
+        iou_val = None
+        try:
+            verts = np.asarray(mesh.vertices, dtype=np.float64)
+            tris = np.asarray(mesh.triangles, dtype=np.int32)
+            tri_pts = verts[tris]  # (T, 3, 3)
+            tri_centroids = tri_pts.mean(axis=1)
+            e1 = tri_pts[:, 1] - tri_pts[:, 0]
+            e2 = tri_pts[:, 2] - tri_pts[:, 0]
+            tri_areas = 0.5 * np.linalg.norm(np.cross(e1, e2), axis=1)
+
+            mesh_t = o3d.t.geometry.TriangleMesh.from_legacy(mesh)
+            rc_scene = o3d.t.geometry.RaycastingScene()
+            geom_id = rc_scene.add_triangles(mesh_t)
+
+            hfov = math.radians(args.h_fov) if args.h_fov > 0 else math.radians(60)
+            vfov = hfov * args.height / args.width
+
+            iou, iou_err, _, _ = compute_view_iou_error(
+                gt_pos, gt_dir, pred_pos, pred_dir,
+                hfov, vfov, rc_scene, geom_id,
+                tri_pts, tri_centroids, tri_areas)
+            iou_val = iou
+        except Exception as e:
+            print(f"  Warning: IoU computation failed: {e}")
+
+        # Dialogue-refined metrics
+        dlg_pos_err = None
+        dlg_ang_err = None
+        dlg_iou_val = None
+        dlg_n_questions = None
+        if dialogue_results is not None:
+            refined_pos, refined_dir, n_q, dlg_log = dialogue_results[:4]
+            dlg_n_questions = n_q
+            ref_2d = refined_pos[floor_axes] if refined_pos is not None else gt_2d
+            dlg_pos_err = float(np.linalg.norm(ref_2d - gt_2d))
+            if refined_dir is not None and gt_dir is not None:
+                ref_2d_dir = refined_dir[floor_axes]
+                rn = np.linalg.norm(ref_2d_dir)
+                gn2 = np.linalg.norm(gt_2d_dir) if 'gt_2d_dir' in dir() else np.linalg.norm(gt_dir[floor_axes])
+                if rn > 1e-6 and gn2 > 1e-6:
+                    cos_d = np.clip(np.dot(ref_2d_dir / rn, gt_dir[floor_axes] / gn2), -1, 1)
+                    dlg_ang_err = float(np.degrees(np.arccos(cos_d)))
+            try:
+                dlg_iou, _, _, _ = compute_view_iou_error(
+                    gt_pos, gt_dir, refined_pos, refined_dir,
+                    hfov, vfov, rc_scene, geom_id,
+                    tri_pts, tri_centroids, tri_areas)
+                dlg_iou_val = dlg_iou
+            except Exception:
+                pass
+
+        # Print summary
+        print(f"\n  === Pose Error Summary ===")
+        print(f"  Position error (2D):    {pos_err:.3f} m")
+        print(f"  Top-10 position error:  {top10_err:.3f} m")
+        if ang_err is not None:
+            print(f"  Angular error:          {ang_err:.1f} deg")
+        if iou_val is not None:
+            print(f"  3D View IoU:            {iou_val:.3f}")
+
+        if dlg_pos_err is not None:
+            print(f"\n  === After Dialogue ({dlg_n_questions} questions) ===")
+            print(f"  Position error (2D):    {dlg_pos_err:.3f} m  (was {pos_err:.3f} m)")
+            if dlg_ang_err is not None:
+                print(f"  Angular error:          {dlg_ang_err:.1f} deg  (was {f'{ang_err:.1f}' if ang_err is not None else '—'} deg)")
+            if dlg_iou_val is not None:
+                print(f"  3D View IoU:            {dlg_iou_val:.3f}  (was {f'{iou_val:.3f}' if iou_val is not None else '—'})")
+
+        # Write metrics file (Markdown with LaTeX table)
+        metrics_path = out / f"{args.scan_id}_metrics.md"
+        frame_id_str = frame_data.get("image_index", "?") if frame_data else "?"
+
+        # 3D errors for the .md (complement the 2D errors already computed)
+        from langloc.dialogue.math_utils import pose_errors as _pe
+        pred_3d_pos_err, pred_3d_rot_err = _pe(pred_pos, pred_dir, gt_pos, gt_dir)
+
+        lines = [
+            f"# Pose Error — {args.scan_id} / frame {frame_id_str}",
+            "",
+            f"**Query:** {query_text or '(none)'}",
+            "",
+            "## Metrics (Fine Localization)",
+            "",
+            "| Metric | Value |",
+            "|--------|-------|",
+            f"| Position error (2D) | {pos_err:.3f} m |",
+            f"| Position error (3D) | {pred_3d_pos_err:.3f} m |",
+            f"| Top-10 position error | {top10_err:.3f} m |",
+            f"| Angular error (2D) | {f'{ang_err:.1f} deg' if ang_err is not None else '—'} |",
+            f"| Angular error (3D) | {f'{pred_3d_rot_err:.1f} deg' if not np.isnan(pred_3d_rot_err) else '—'} |",
+            f"| 3D View IoU | {f'{iou_val:.3f}' if iou_val is not None else '—'} |",
+            f"| Matched objects | {len(obj_ids)} |",
+            f"| Grid points | {len(cams)} |",
+        ]
+        if dlg_pos_err is not None:
+            refined_pos, refined_dir, n_q, dlg_log = dialogue_results[:4]
+            dlg_3d_pos_err, dlg_3d_rot_err = _pe(refined_pos, refined_dir, gt_pos, gt_dir)
+            lines += [
+                "",
+                f"## Metrics (After Dialogue — {dlg_n_questions} questions, backend: {args.dialogue_backend.upper()})",
+                "",
+                "| Metric | Before | After | Δ |",
+                "|--------|--------|-------|---|",
+                f"| Position error (2D) | {pos_err:.3f} m | {dlg_pos_err:.3f} m | {dlg_pos_err - pos_err:+.3f} m |",
+                f"| Position error (3D) | {pred_3d_pos_err:.3f} m | {dlg_3d_pos_err:.3f} m | {dlg_3d_pos_err - pred_3d_pos_err:+.3f} m |",
+                f"| Angular error (2D) | {f'{ang_err:.1f}' if ang_err is not None else '—'} deg | {f'{dlg_ang_err:.1f}' if dlg_ang_err is not None else '—'} deg | {f'{dlg_ang_err - ang_err:+.1f}' if ang_err is not None and dlg_ang_err is not None else '—'} deg |",
+                f"| Angular error (3D) | {f'{pred_3d_rot_err:.1f}' if not np.isnan(pred_3d_rot_err) else '—'} deg | {f'{dlg_3d_rot_err:.1f}' if not np.isnan(dlg_3d_rot_err) else '—'} deg | {f'{dlg_3d_rot_err - pred_3d_rot_err:+.1f}' if not (np.isnan(pred_3d_rot_err) or np.isnan(dlg_3d_rot_err)) else '—'} deg |",
+                f"| 3D View IoU | {f'{iou_val:.3f}' if iou_val is not None else '—'} | {f'{dlg_iou_val:.3f}' if dlg_iou_val is not None else '—'} | {f'{dlg_iou_val - iou_val:+.3f}' if iou_val is not None and dlg_iou_val is not None else '—'} |",
+                "",
+                "### Dialogue Log",
+                "",
+                "| Round | Question | Answer | Top P |",
+                "|-------|----------|--------|-------|",
+            ]
+            for i, (q_text, ans, tp_str) in enumerate(dlg_log, 1):
+                lines.append(f"| {i} | {q_text} | {ans} | {tp_str} |")
+
+        # LaTeX table
+        lines += [
+            "",
+            "## LaTeX",
+            "",
+            "```latex",
+            "\\begin{table}[h]",
+            "\\centering",
+            f"\\caption{{Pose error for {args.scan_id}, frame {frame_id_str}.}}",
+        ]
+        if dlg_pos_err is not None:
+            lines += [
+                "\\begin{tabular}{lcc}",
+                "\\toprule",
+                "Metric & Before & After \\\\",
+                "\\midrule",
+                f"Position error (2D) & {pos_err:.3f}\\,m & {dlg_pos_err:.3f}\\,m \\\\",
+                f"Position error (3D) & {pred_3d_pos_err:.3f}\\,m & {dlg_3d_pos_err:.3f}\\,m \\\\",
+                f"Angular error (2D) & {f'{ang_err:.1f}' if ang_err is not None else '--'}$^\\circ$ & {f'{dlg_ang_err:.1f}' if dlg_ang_err is not None else '--'}$^\\circ$ \\\\",
+                f"Angular error (3D) & {f'{pred_3d_rot_err:.1f}' if not np.isnan(pred_3d_rot_err) else '--'}$^\\circ$ & {f'{dlg_3d_rot_err:.1f}' if not np.isnan(dlg_3d_rot_err) else '--'}$^\\circ$ \\\\",
+                f"3D View IoU & {f'{iou_val:.3f}' if iou_val is not None else '--'} & {f'{dlg_iou_val:.3f}' if dlg_iou_val is not None else '--'} \\\\",
+                f"Questions asked & \\multicolumn{{2}}{{c}}{{{dlg_n_questions}}} \\\\",
+                "\\bottomrule",
+                "\\end{tabular}",
+            ]
+        else:
+            lines += [
+                "\\begin{tabular}{lc}",
+                "\\toprule",
+                "Metric & Value \\\\",
+                "\\midrule",
+                f"Position error (2D) & {pos_err:.3f}\\,m \\\\",
+                f"Position error (3D) & {pred_3d_pos_err:.3f}\\,m \\\\",
+                f"Angular error (2D) & {f'{ang_err:.1f}' if ang_err is not None else '--'}$^\\circ$ \\\\",
+                f"Angular error (3D) & {f'{pred_3d_rot_err:.1f}' if not np.isnan(pred_3d_rot_err) else '--'}$^\\circ$ \\\\",
+                f"3D View IoU & {f'{iou_val:.3f}' if iou_val is not None else '--'} \\\\",
+                f"Matched objects & {len(obj_ids)} \\\\",
+                f"Grid points & {len(cams)} \\\\",
+                "\\bottomrule",
+                "\\end{tabular}",
+            ]
+        lines += [
+            "\\end{table}",
+            "```",
+            "",
+        ]
+        metrics_path.write_text("\n".join(lines))
+        print(f"  Saved: {metrics_path}")
+
     print("Done.")
 
 
 if __name__ == "__main__":
     main()
+    # Force immediate exit to avoid segfault from Open3D Filament cleanup
+    # during normal Python interpreter shutdown.
+    os._exit(0)

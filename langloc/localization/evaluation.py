@@ -206,7 +206,7 @@ def evaluate_scene(scene_id: str,
     verts = np.asarray(mesh.vertices)
     grid_step = _cfg_get(cfg, "grid_step", 0.25)
     eye_height = _cfg_get(cfg, "eye_height", 1.6)
-    cams = sample_grid(verts, step=grid_step, z_eye=eye_height)
+    cams = sample_grid(verts, step=grid_step, z_eye=eye_height, mesh=mesh)
 
     xs, ys = verts[:, 0], verts[:, 1]
     gx = np.arange(xs.min(), xs.max() + 1e-4, grid_step)
