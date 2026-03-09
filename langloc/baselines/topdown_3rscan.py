@@ -35,25 +35,9 @@ import open3d as o3d
 from PIL import Image
 from tqdm import tqdm
 
+from langloc.eval.view_iou import PREFERRED_MESH_FILES, discover_mesh
+
 log = logging.getLogger(__name__)
-
-
-PREFERRED_MESH_FILES = (
-    "mesh.refined.v2.obj",
-    "labels.instances.annotated.v2.ply",
-    "mesh.refined.ply",
-    "mesh.refined.obj",
-    "mesh.obj",
-)
-
-
-def discover_mesh(scan_dir: Path) -> Path:
-    """Return the first available mesh path for one scan directory."""
-    for name in PREFERRED_MESH_FILES:
-        path = scan_dir / name
-        if path.exists():
-            return path
-    raise FileNotFoundError(f"No known mesh file found in {scan_dir}")
 
 
 def discover_scan_dirs(dataset_root: Path) -> List[Path]:

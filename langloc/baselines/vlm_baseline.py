@@ -30,16 +30,14 @@ from qwen_vl_utils import process_vision_info
 from transformers import AutoProcessor, GenerationConfig, Qwen3VLForConditionalGeneration
 
 
+from langloc.eval.view_iou import (
+    discover_mesh,
+    normalize,
+)
+from langloc.localization.frame_io import format_args_section
+
 DEFAULT_MODEL_ID = "Qwen/Qwen3-VL-2B-Instruct"
 DEFAULT_TOPDOWN_NAME = "topdown.png"
-
-PREFERRED_MESH_FILES = (
-    "mesh.refined.v2.obj",
-    "labels.instances.annotated.v2.ply",
-    "mesh.refined.ply",
-    "mesh.refined.obj",
-    "mesh.obj",
-)
 
 
 @dataclass(frozen=True)
@@ -61,13 +59,6 @@ class FailureRecord:
     scene_id: str
     frame_id: str
     reason: str
-
-
-def normalize(v: np.ndarray, eps: float = 1e-9) -> Optional[np.ndarray]:
-    norm = float(np.linalg.norm(v))
-    if norm < eps:
-        return None
-    return v / norm
 
 
 def parse_args() -> argparse.Namespace:
@@ -180,16 +171,6 @@ def parse_args() -> argparse.Namespace:
         help="Debug only: visualize mesh with GT/predicted pose for each processed frame.",
     )
     return parser.parse_args()
-
-
-def format_args_section(args: argparse.Namespace) -> str:
-    lines = ["Parameters used", "---------------"]
-    for key in sorted(vars(args)):
-        value = getattr(args, key)
-        if isinstance(value, Path):
-            value = str(value)
-        lines.append(f"{key}: {value}")
-    return "\n".join(lines)
 
 
 def build_prompt(scene_description: str, width: int, height: int) -> str:
@@ -480,14 +461,6 @@ def single_point_metrics(
     hit_masses = {str(float(r)): float(1.0 if distance_m <= float(r) else 0.0) for r in hit_radii}
     mass_radii = {str(float(p)): float(distance_m) for p in mass_percentiles}
     return hit_masses, mass_radii
-
-
-def discover_mesh(scene_dir: Path) -> Path:
-    for name in PREFERRED_MESH_FILES:
-        path = scene_dir / name
-        if path.exists():
-            return path
-    raise FileNotFoundError(f"No known mesh file found in {scene_dir}")
 
 
 def visualize_debug_pose(

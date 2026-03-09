@@ -44,7 +44,6 @@ from langloc.dialogue.frame_mapping import (
 from langloc.dialogue.scene_data import (
     DEFAULT_ALIASES,
     FrameInfo,
-    SceneData,
     load_relaxed_json,
     load_scene_data,
     parse_aliases,

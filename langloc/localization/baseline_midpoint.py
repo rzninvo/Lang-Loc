@@ -31,7 +31,7 @@ from langloc.localization.frame_io import (
     load_scene_graphs,
     select_frame,
 )
-from langloc.localization.metrics import (
+from langloc.eval.metrics import (
     SceneMetrics,
     build_metrics_table_standard,
     compute_metrics_standard,

@@ -5,7 +5,7 @@ Public API re-exports for convenient access::
     from langloc.localization import evaluate_scene, EvalMode, SceneMetrics
 """
 from langloc.localization.evaluation import EvalMode, evaluate_scene, run_evaluation
-from langloc.localization.metrics import SceneMetrics
+from langloc.eval.metrics import SceneMetrics
 from langloc.localization.grid import load_scene, sample_grid, first_hit_is_object
 from langloc.localization.matching import topk_matched_objects
 from langloc.localization.pipeline import run_loc_pipeline

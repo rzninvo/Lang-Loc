@@ -43,7 +43,7 @@ import json
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -55,19 +55,38 @@ import torch
 # --------------------------------------------------------------------------- #
 
 from langloc.graphs.scene_graph import SceneGraph
-from langloc.graphs.create_text_embeddings import create_embedding_nlp
-from langloc.graphs.graph_loader_utils import get_word2vec
+from langloc.utils.embedding import _embed_word2vec
 from langloc.utils.mesh_segmentation import build_segmented_mesh
 
 # --------------------------------------------------------------------------- #
 # Import helpers from langloc.localization                                   #
 # --------------------------------------------------------------------------- #
 
-from langloc.localization.grid import load_scene, sample_grid, first_hit_is_object
+from langloc.localization.grid import load_scene, first_hit_is_object
 from langloc.localization.matching import topk_matched_objects
 from langloc.localization.visualization import (
     colour_objects, colormap, dir_to_yaw_pitch,
     best_fov_window, average_direction,
+    add_heatmap_markers, add_arrow_markers,
+    create_camera_frustum,
+)
+from langloc.localization.frame_io import (
+    camera_center_from_pose,
+    ensure_query_root,
+    format_args_section,
+    load_frame_jsons,
+    select_frame,
+    frame_to_scenegraph,
+    load_scene_graphs,
+)
+from langloc.localization.prediction import (
+    select_prediction_point,
+    top_n_fov_poses,
+)
+from langloc.eval.metrics import compute_view_iou_error
+from langloc.eval.view_iou import (
+    _camera_axes_from_forward,
+    _visible_triangles_from_view,
 )
 
 # These functions do not exist in langloc.localization yet.
@@ -79,12 +98,6 @@ canonical_label_for_matching = None
 # --------------------------------------------------------------------------- #
 # Data containers                                                             #
 # --------------------------------------------------------------------------- #
-
-@dataclass
-class FrameSelection:
-    frame: dict
-    path: Path
-
 
 @dataclass
 class SceneMetrics:
@@ -154,228 +167,9 @@ def build_metrics_table(metrics_list: List[SceneMetrics],
     return "\n".join(lines)
 
 
-def format_args_section(args: argparse.Namespace) -> str:
-    """Return a human-readable list of CLI parameters."""
-
-    def _stringify(value: object) -> str:
-        if isinstance(value, Path):
-            return str(value)
-        if isinstance(value, (list, tuple)):
-            return "[" + ", ".join(_stringify(v) for v in value) + "]"
-        if isinstance(value, dict):
-            items = ", ".join(f"{k}: {_stringify(v)}" for k, v in value.items())
-            return "{" + items + "}"
-        return str(value)
-
-    lines = ["Parameters used", "---------------"]
-    for key in sorted(vars(args)):
-        if key.startswith("_"):
-            continue
-        value = getattr(args, key)
-        lines.append(f"{key}: {_stringify(value)}")
-    return "\n".join(lines)
-
-
-# --------------------------------------------------------------------------- #
-# Caption graph construction utilities                                       #
-# --------------------------------------------------------------------------- #
-
-_EMBED_CACHE: Dict[str, np.ndarray] = {}
-_EMBED_CACHE_TOKEN: Dict[str, np.ndarray] = {}
-_W2V_HASH: Dict[str, np.ndarray] = {}
-
-
-def _embed_word2vec(text: str, mode: str = "token") -> List[float]:
-    text = str(text)
-    key = text.strip().lower()
-    if mode == "doc":
-        cached = _EMBED_CACHE.get(key)
-        if cached is None:
-            vec = np.asarray(create_embedding_nlp(text), dtype=np.float32)
-            cached = vec
-            _EMBED_CACHE[key] = cached
-        return cached.tolist()
-
-    cached = _EMBED_CACHE_TOKEN.get(key)
-    if cached is None:
-        w2v = get_word2vec(text, _W2V_HASH)
-        # graph_loader_utils.get_word2vec returns (vec, cache) for non-empty text.
-        vec = w2v[0] if isinstance(w2v, tuple) else w2v
-        cached = np.asarray(vec, dtype=np.float32)
-        _EMBED_CACHE_TOKEN[key] = cached
-    return cached.tolist()
-
-
-def load_frame_jsons(desc_dir: Path) -> List[FrameSelection]:
-    frames: List[FrameSelection] = []
-    if not desc_dir.exists():
-        return frames
-
-    frame_jsons = sorted(
-        p for p in desc_dir.glob("frame-*.json")
-        if not p.stem.endswith("_parsed")
-    )
-    if frame_jsons:
-        # Prefer explicit per-frame JSON files when available.
-        # Exclude parser byproducts such as frame-xxxx_parsed.json.
-        candidate_paths = frame_jsons
-    else:
-        # Fallback to aggregate file; if absent, use broad JSON fallback.
-        all_desc = desc_dir / "all_descriptions.json"
-        if all_desc.exists():
-            candidate_paths = [all_desc]
-        else:
-            candidate_paths = sorted(
-                p for p in desc_dir.glob("*.json")
-                if not p.stem.endswith("_parsed")
-            )
-
-    for path in candidate_paths:
-        try:
-            data = json.loads(path.read_text())
-        except json.JSONDecodeError:
-            continue
-
-        if isinstance(data, dict):
-            frames.append(FrameSelection(frame=data, path=path))
-        elif isinstance(data, list):
-            for idx, item in enumerate(data):
-                if not isinstance(item, dict):
-                    continue
-                virtual_name = path.with_name(f"{path.stem}_{idx:03d}{path.suffix}")
-                frames.append(FrameSelection(frame=item, path=virtual_name))
-
-    # De-duplicate by image_index so aggregate JSONs do not create duplicate
-    # candidates for the same frame.
-    deduped: List[FrameSelection] = []
-    seen_image_indices: set[str] = set()
-    for fs in frames:
-        image_index = str(fs.frame.get("image_index", "")).strip()
-        if image_index:
-            if image_index in seen_image_indices:
-                continue
-            seen_image_indices.add(image_index)
-        deduped.append(fs)
-    return deduped
-
-
-def select_frame(frames: List[FrameSelection],
-                 policy: str,
-                 frame_index: int,
-                 rng: np.random.Generator) -> Optional[FrameSelection]:
-    if not frames:
-        return None
-
-    def total_pixels(fs: FrameSelection) -> int:
-        objs = fs.frame.get("visible_objects", {}) or {}
-        total = 0
-        for obj in objs.values():
-            try:
-                total += int((obj or {}).get("pixel_count", 0))
-            except (TypeError, ValueError):
-                continue
-        return total
-
-    if policy == "first":
-        return frames[0]
-    if policy == "index":
-        return frames[frame_index % len(frames)]
-    if policy == "random":
-        return frames[int(rng.integers(0, len(frames)))]
-    if policy == "max_visible":
-        # Deterministic tie-break:
-        # 1) highest visible-object count
-        # 2) highest total pixel_count
-        # 3) stable filename order
-        return min(
-            frames,
-            key=lambda fs: (
-                -len(fs.frame.get("visible_objects", {}) or {}),
-                -total_pixels(fs),
-                fs.path.name,
-            ),
-        )
-    if policy == "max_pixels":
-        return max(frames, key=total_pixels)
-
-    raise ValueError(f"Unknown frame selection policy '{policy}'")
-
-
-def frame_to_scenegraph(frame: dict,
-                        embedding_type: str = "word2vec",
-                        query_embedding_mode: str = "token") -> Tuple[SceneGraph, Dict[int, dict]]:
-    if embedding_type != "word2vec":
-        raise ValueError("Only word2vec embedding supported for evaluation graphs.")
-
-    visible_objects = frame.get("visible_objects", {}) or {}
-    # Sort by descending pixel count to favour dominant objects for duplicate labels.
-    sorted_items = sorted(
-        visible_objects.items(),
-        key=lambda kv: int(kv[1].get("pixel_count", 0)),
-        reverse=True,
-    )
-
-    nodes: List[dict] = []
-    label_lookup: Dict[str, List[int]] = {}
-    meta: Dict[int, dict] = {}
-
-    for new_id, (raw_id, obj) in enumerate(sorted_items):
-        label = obj.get("label", f"object_{raw_id}")
-        label_key = label.strip().lower()
-        nodes.append({
-            "id": new_id,
-            "label": label,
-            "attributes": [],
-            "label_word2vec": _embed_word2vec(label, mode=query_embedding_mode),
-            "attributes_word2vec": {"all": []},
-        })
-        label_lookup.setdefault(label_key, []).append(new_id)
-        meta[new_id] = {
-            "source_object_id": raw_id,
-            "label": label,
-            "centroid_world": np.asarray(obj.get("centroid_world", [0, 0, 0]),
-                                         dtype=np.float32),
-        }
-
-    edges: List[dict] = []
-    for rel in frame.get("spatial_relations", []) or []:
-        subj = str(rel.get("subject", "")).strip().lower()
-        obj = str(rel.get("object", "")).strip().lower()
-        rel_type = rel.get("relation", "").strip()
-        if not subj or not obj or not rel_type:
-            continue
-        subj_ids = label_lookup.get(subj)
-        obj_ids = label_lookup.get(obj)
-        if not subj_ids or not obj_ids:
-            continue
-        edges.append({
-            "source": subj_ids[0],
-            "target": obj_ids[0],
-            "relationship": rel_type,
-            "relation_word2vec": _embed_word2vec(rel_type, mode=query_embedding_mode),
-        })
-
-    graph_dict = {"nodes": nodes, "edges": edges}
-    sg = SceneGraph(scene_id=frame.get("scene_index", "unknown_scene"),
-                    txt_id=frame.get("image_index"),
-                    graph_type="scanscribe",
-                    graph=graph_dict,
-                    embedding_type=embedding_type,
-                    use_attributes=True)
-    return sg, meta
-
-
 # --------------------------------------------------------------------------- #
 # Camera pose + metric helpers                                               #
 # --------------------------------------------------------------------------- #
-
-def camera_center_from_pose(pose: Iterable[Iterable[float]]) -> np.ndarray:
-    mat = np.asarray(pose, dtype=np.float64)
-    if mat.shape != (4, 4):
-        raise ValueError(f"Expected 4x4 scene_pose, got shape {mat.shape}")
-    t = mat[:3, 3]
-    return t.astype(np.float32)
-
 
 def compute_metrics(cams: np.ndarray,
                     probs: np.ndarray,
@@ -421,256 +215,6 @@ def compute_metrics(cams: np.ndarray,
     )
 
 
-def _camera_axes_from_forward(forward: np.ndarray) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
-    """Return orthonormal (fwd, right, up) axes derived from a forward vector."""
-    fwd = np.asarray(forward, dtype=np.float64)
-    norm = float(np.linalg.norm(fwd))
-    if norm < 1e-6:
-        return None
-    fwd /= norm
-
-    up = np.array([0.0, 0.0, 1.0], dtype=np.float64)
-    if abs(float(np.dot(fwd, up))) > 0.95:
-        up = np.array([0.0, 1.0, 0.0], dtype=np.float64)
-
-    right = np.cross(fwd, up)
-    r_norm = float(np.linalg.norm(right))
-    if r_norm < 1e-6:
-        return None
-    right /= r_norm
-    up = np.cross(right, fwd)
-    u_norm = float(np.linalg.norm(up))
-    if u_norm < 1e-6:
-        return None
-    up /= u_norm
-    return fwd, right, up
-
-
-def _visible_triangles_from_view(cam: np.ndarray,
-                                 forward: Optional[np.ndarray],
-                                 hfov: float,
-                                 vfov: float,
-                                 rc: o3d.t.geometry.RaycastingScene,
-                                 geom_id: int,
-                                 tri_pts: np.ndarray,
-                                 tri_centroids: np.ndarray,
-                                 near: float = 0.05,
-                                 far: Optional[float] = None) -> set[int]:
-    """
-    Return triangle indices visible from a camera: inside frustum (all verts),
-    and first-hit occlusion check via centroid rays.
-    """
-    if forward is None:
-        return set()
-    axes = _camera_axes_from_forward(forward)
-    if axes is None:
-        return set()
-    fwd_axis, right_axis, up_axis = axes
-
-    cam = np.asarray(cam, dtype=np.float64)
-    rel = tri_pts - cam[None, None, :]        # [T,3,3]
-
-    fwd = rel @ fwd_axis
-    right = rel @ right_axis
-    up = rel @ up_axis
-
-    near = max(float(near), 1e-4)
-    in_front = np.all(fwd > near, axis=1)
-    if far is not None:
-        in_front &= np.all(fwd < float(far), axis=1)
-
-    tan_h = math.tan(hfov * 0.5)
-    tan_v = math.tan(vfov * 0.5)
-
-    inside_h = np.all(np.abs(right) <= fwd * tan_h, axis=1)
-    inside_v = np.all(np.abs(up) <= fwd * tan_v, axis=1)
-
-    frustum_mask = in_front & inside_h & inside_v
-    if not np.any(frustum_mask):
-        return set()
-
-    sel_idx = np.nonzero(frustum_mask)[0]
-
-    # Occlusion test: cast a ray to the centroid
-    vecs = tri_centroids[sel_idx] - cam[None, :]
-    dist = np.linalg.norm(vecs, axis=1)
-    valid = dist > 1e-6
-    if not np.any(valid):
-        return set()
-
-    sel_idx = sel_idx[valid]
-    dirs = vecs[valid] / dist[valid][:, None]
-
-    rays = np.concatenate(
-        [np.repeat(cam[None, :], len(sel_idx), axis=0), dirs],
-        axis=1,
-    ).astype(np.float32)
-
-    res = rc.cast_rays(o3d.core.Tensor(rays))
-    prim_ids = np.asarray(res["primitive_ids"].numpy())
-    geom_ids = np.asarray(res["geometry_ids"].numpy())
-
-    hit_mask = (prim_ids == sel_idx) & (geom_ids == geom_id)
-    return {int(i) for i in sel_idx[hit_mask]}
-
-
-def compute_view_iou_error(gt_cam: np.ndarray,
-                           gt_dir: Optional[np.ndarray],
-                           pred_cam: np.ndarray,
-                           pred_dir: Optional[np.ndarray],
-                           hfov: float,
-                           vfov: float,
-                           rc: o3d.t.geometry.RaycastingScene,
-                           geom_id: int,
-                           tri_pts: np.ndarray,
-                           tri_centroids: np.ndarray,
-                           tri_areas: np.ndarray,
-                           near: float = 0.05,
-                           far: Optional[float] = None) -> Tuple[Optional[float], Optional[float], set[int], set[int]]:
-    """
-    Return (IoU, IoU error, gt_set, pred_set) between GT and predicted views.
-    IoU error = 1 - IoU. Returns (None, None, sets) if insufficient data.
-    """
-    if gt_dir is None or pred_dir is None:
-        return None, None, set(), set()
-    gt_vis = _visible_triangles_from_view(gt_cam, gt_dir, hfov, vfov,
-                                          rc, geom_id, tri_pts, tri_centroids,
-                                          near=near, far=far)
-    pred_vis = _visible_triangles_from_view(pred_cam, pred_dir, hfov, vfov,
-                                            rc, geom_id, tri_pts, tri_centroids,
-                                            near=near, far=far)
-    if not gt_vis and not pred_vis:
-        return None, None, gt_vis, pred_vis
-
-    inter = gt_vis & pred_vis
-    union = gt_vis | pred_vis
-    if not union:
-        return None, None, gt_vis, pred_vis
-
-    inter_area = float(tri_areas[list(inter)].sum()) if inter else 0.0
-    union_area = float(tri_areas[list(union)].sum())
-    if union_area <= 1e-9:
-        return None, None, gt_vis, pred_vis
-    iou = inter_area / union_area
-    return iou, 1.0 - iou, gt_vis, pred_vis
-
-
-def _cluster_weighted_prediction(positions: np.ndarray,
-                                 weights: np.ndarray,
-                                 bandwidth: float,
-                                 max_points: int) -> Tuple[np.ndarray, List[int], np.ndarray]:
-    """Return a weighted-average position that emphasises local clusters."""
-    if len(positions) == 0:
-        raise ValueError("No candidate positions available for prediction.")
-
-    weights = np.clip(np.asarray(weights, dtype=np.float64), 0.0, None)
-    if not np.any(weights > 0):
-        weights = np.ones_like(weights)
-
-    bandwidth = max(float(bandwidth), 1e-6)
-    max_points = max(1, int(max_points))
-
-    idx_sorted = np.argsort(weights)
-    if len(idx_sorted) > max_points:
-        idx_sorted = idx_sorted[-max_points:]
-
-    subset_positions = positions[idx_sorted]
-    subset_weights = weights[idx_sorted]
-    subset_weights /= subset_weights.sum()
-
-    if len(subset_positions) == 1:
-        return subset_positions[0], [int(idx_sorted[0])], np.asarray([1.0], dtype=np.float64)
-
-    diff = subset_positions[:, None, :] - subset_positions[None, :, :]
-    dist2 = np.sum(diff * diff, axis=2)
-    kernel = np.exp(-dist2 / (2.0 * bandwidth * bandwidth))
-    density = kernel @ subset_weights
-    cluster_weights = subset_weights * density
-    total = cluster_weights.sum()
-    if total <= 0:
-        cluster_weights = subset_weights
-        total = cluster_weights.sum()
-    cluster_weights /= total
-    pred = np.sum(cluster_weights[:, None] * subset_positions, axis=0)
-
-    return pred, [int(idx) for idx in idx_sorted], cluster_weights
-
-
-def select_prediction_point(positions: np.ndarray,
-                            weights: np.ndarray,
-                            strategy: str,
-                            rng: np.random.Generator,
-                            bandwidth: float,
-                            max_points: int) -> Tuple[np.ndarray, List[int], np.ndarray]:
-    """Select a predicted camera position according to the requested strategy."""
-    if len(positions) == 0:
-        raise ValueError("No candidate positions available for prediction.")
-
-    weights = np.clip(np.asarray(weights, dtype=np.float64), 0.0, None)
-    if not np.any(weights > 0):
-        weights = np.ones_like(weights)
-    total = weights.sum()
-
-    if strategy == "argmax" or len(positions) == 1:
-        idx = int(np.argmax(weights))
-        return positions[idx], [idx], np.asarray([1.0], dtype=np.float64)
-
-    if strategy == "random":
-        probs = weights / total
-        idx = int(rng.choice(len(positions), p=probs))
-        return positions[idx], [idx], np.asarray([1.0], dtype=np.float64)
-
-    # Default: weighted cluster-aware prediction.
-    return _cluster_weighted_prediction(positions,
-                                        weights,
-                                        bandwidth=bandwidth,
-                                        max_points=max_points)
-
-
-def top_n_fov_poses(positions: np.ndarray,
-                    weights: np.ndarray,
-                    n: int,
-                    rng: np.random.Generator,
-                    directions: Optional[np.ndarray] = None) -> List[Dict[str, object]]:
-    """Return up to n pose/direction pairs prioritising highest FOV-weighted probability."""
-    if n <= 0:
-        return []
-    if len(positions) == 0 or len(weights) == 0:
-        return []
-    if len(positions) != len(weights):
-        raise ValueError("Positions and weights must have the same length.")
-    if directions is not None and len(directions) != len(positions):
-        raise ValueError("Directions must align with positions.")
-
-    weights = np.clip(np.asarray(weights, dtype=np.float64), 0.0, None)
-    if not np.any(weights > 0):
-        weights = np.ones_like(weights)
-
-    max_w = float(weights.max())
-    top_idx = np.where(weights == max_w)[0]
-
-    if len(top_idx) > n:
-        chosen = rng.choice(top_idx, size=n, replace=False)
-    else:
-        sorted_idx = np.argsort(-weights)
-        chosen = sorted_idx[: min(n, len(sorted_idx))]
-
-    results: List[Dict[str, object]] = []
-    for i in chosen:
-        pose_xy = [float(positions[i][0]), float(positions[i][1])]
-        if directions is not None:
-            dir_vec = np.asarray(directions[i], dtype=np.float64)
-            norm = float(np.linalg.norm(dir_vec))
-            dir_out = (dir_vec / norm).tolist() if norm > 1e-6 else None
-        else:
-            dir_out = None
-        results.append({
-            "pose": pose_xy,
-            "direction": dir_out,
-        })
-    return results
-
-
 def softmax_probs(scores: np.ndarray, tau: float) -> np.ndarray:
     """Return softmax probabilities over scores with temperature tau."""
     scores = np.asarray(scores, dtype=np.float64)
@@ -692,104 +236,6 @@ def proximity_bonus(distances: np.ndarray, decay: float) -> float:
         return 0.0
     decay = max(float(decay), 1e-6)
     return float(np.exp(-distances / decay).sum())
-
-
-def add_heatmap_markers(gt_cam: np.ndarray,
-                        pred_grid: Optional[np.ndarray],
-                        pred_arrow: Optional[np.ndarray],
-                        label_gt: str = "GT",
-                        label_grid: str = "Pred (grid)",
-                        label_arrow: str = "Pred (arrow)") -> None:
-    plt.scatter(gt_cam[0], gt_cam[1],
-                c="red", marker="*", s=160,
-                linewidths=1.2, edgecolors="black",
-                label=label_gt)
-    if pred_grid is not None:
-        plt.scatter(pred_grid[0], pred_grid[1],
-                    c="orange", marker="o", s=80,
-                    linewidths=1.0, edgecolors="black",
-                    label=label_grid)
-    if pred_arrow is not None:
-        plt.scatter(pred_arrow[0], pred_arrow[1],
-                    c="#18a0fb", marker="D", s=70,
-                    linewidths=1.0, edgecolors="black",
-                    label=label_arrow)
-    plt.legend(loc="best")
-
-
-def add_arrow_markers(gt_cam: np.ndarray,
-                      pred_grid: Optional[np.ndarray],
-                      pred_arrow: Optional[np.ndarray]) -> None:
-    plt.scatter([gt_cam[0]], [gt_cam[1]],
-                c="red", marker="*", s=160,
-                linewidths=1.0, edgecolors="black",
-                label="GT")
-    if pred_grid is not None:
-        plt.scatter([pred_grid[0]], [pred_grid[1]],
-                    c="orange", marker="o", s=80,
-                    linewidths=1.0, edgecolors="black",
-                    label="Pred (grid)")
-    if pred_arrow is not None:
-        plt.scatter([pred_arrow[0]], [pred_arrow[1]],
-                    c="#18a0fb", marker="D", s=70,
-                    linewidths=1.0, edgecolors="black",
-                    label="Pred (arrow)")
-    plt.legend(loc="best")
-
-
-def create_camera_frustum(center: np.ndarray,
-                          forward: Optional[np.ndarray],
-                          colour: Tuple[float, float, float],
-                          h_fov: float,
-                          v_fov: float,
-                          scale: float = 0.6) -> Optional[o3d.geometry.LineSet]:
-    """Return a simple line-based frustum; None if forward dir unavailable."""
-    if forward is None:
-        return None
-    fwd = np.asarray(forward, dtype=np.float64)
-    norm = np.linalg.norm(fwd)
-    if norm < 1e-6:
-        return None
-    fwd /= norm
-
-    up = np.array([0.0, 0.0, 1.0], dtype=np.float64)
-    if abs(float(np.dot(fwd, up))) > 0.95:
-        up = np.array([0.0, 1.0, 0.0], dtype=np.float64)
-
-    right = np.cross(fwd, up)
-    r_norm = np.linalg.norm(right)
-    if r_norm < 1e-6:
-        return None
-    right /= r_norm
-    up = np.cross(right, fwd)
-
-    depth = scale
-    half_w = math.tan(h_fov / 2.0) * depth
-    half_h = math.tan(v_fov / 2.0) * depth
-
-    centre = np.asarray(center, dtype=np.float64)
-    apex = centre
-    base = centre + fwd * depth
-
-    corners = [
-        base + right * half_w + up * half_h,
-        base - right * half_w + up * half_h,
-        base - right * half_w - up * half_h,
-        base + right * half_w - up * half_h,
-    ]
-
-    points = np.vstack([apex, *corners])
-    lines = np.array([
-        [0, 1], [0, 2], [0, 3], [0, 4],
-        [1, 2], [2, 3], [3, 4], [4, 1]
-    ], dtype=np.int32)
-
-    frustum = o3d.geometry.LineSet()
-    frustum.points = o3d.utility.Vector3dVector(points)
-    frustum.lines = o3d.utility.Vector2iVector(lines)
-    colours = np.tile(np.asarray(colour, dtype=np.float64), (lines.shape[0], 1))
-    frustum.colors = o3d.utility.Vector3dVector(colours)
-    return frustum
 
 
 # --------------------------------------------------------------------------- #
@@ -918,25 +364,6 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_scene_graphs(graphs_dir: Path,
-                      scene_use_attributes: bool = False) -> Dict[str, SceneGraph]:
-    g3d_path = graphs_dir / "3dssg" / "3dssg_graphs_processed_edgelists_relationembed.pt"
-    if not g3d_path.exists():
-        raise FileNotFoundError(g3d_path)
-    # Processed graph bundle is a trusted local pickle-like payload (not just weights).
-    # PyTorch 2.6 defaults torch.load(..., weights_only=True), which breaks this file.
-    g3d = torch.load(g3d_path, map_location="cpu", weights_only=False)
-    scenes: Dict[str, SceneGraph] = {}
-    for sid, graph in g3d.items():
-        scenes[sid] = SceneGraph(sid,
-                                 graph_type="3dssg",
-                                 graph=graph,
-                                 max_dist=1.0,
-                                 embedding_type="word2vec",
-                                 use_attributes=scene_use_attributes)
-    return scenes
-
-
 def debug_label_matches(query_graph: SceneGraph,
                         scene_graph: SceneGraph,
                         topn: int = 5,
@@ -1040,12 +467,6 @@ def debug_label_matches(query_graph: SceneGraph,
                 same_scores.append(float(sim[qi, si]))
         suffix = f" [same-label best: {max(same_scores):.3f}]" if same_scores else ""
         print(f"      q[{qid}] {qlabel} -> " + " | ".join(parts) + suffix)
-
-
-def ensure_query_root(query_root: Optional[Path], root: Path) -> Path:
-    if query_root is not None:
-        return query_root
-    return root
 
 
 def _extract_floor_bbox(scene_dir: Path,
@@ -1666,7 +1087,7 @@ def main() -> None:
     params_text = format_args_section(args)
     rng = np.random.default_rng(seed=args.seed)
 
-    scenes = load_scene_graphs(args.graphs, scene_use_attributes=args.scene_use_attributes)
+    scenes = load_scene_graphs(args.graphs, use_attributes=args.scene_use_attributes)
 
     candidate_ids = list(scenes.keys())
     if args.visualize_scene:

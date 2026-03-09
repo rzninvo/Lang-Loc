@@ -9,7 +9,7 @@ import pandas as pd
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-from langloc.graphs.graph_loader_utils import get_obj_distance, bounding_box, plot_relation, get_ada, get_clip, get_word2vec
+from langloc.graphs.graph_loader_utils import get_obj_distance, bounding_box, plot_relation, get_clip, get_word2vec
 
 dist_thr = 1.0
 

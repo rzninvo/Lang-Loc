@@ -3030,7 +3030,7 @@ def main() -> None:
     # --- Pose error computation ---
     if loc_results is not None and gt_pos is not None:
         cams, probs, obj_ids, pred_pos, pred_dir, cam_dirs = loc_results
-        from langloc.localization.metrics import (
+        from langloc.eval.metrics import (
             compute_metrics_standard, compute_view_iou_error)
 
         up_idx = {"x_up": 0, "y_up": 1, "z_up": 2}.get(up_axis, 2)

@@ -17,7 +17,7 @@ import json
 import math
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -26,12 +26,10 @@ import open3d as o3d
 from langloc.localization.grid import (
     load_scene,
     sample_grid,
-    first_hit_is_object,
     compute_visible_dirs,
 )
 from langloc.localization.matching import topk_matched_objects
 from langloc.localization.frame_io import (
-    FrameSelection,
     load_frame_jsons,
     select_frame,
     frame_to_scenegraph,
@@ -46,7 +44,7 @@ from langloc.localization.prediction import (
     build_grid_candidates,
     build_pose_candidates,
 )
-from langloc.localization.metrics import (
+from langloc.eval.metrics import (
     SceneMetrics,
     compute_metrics_standard,
     compute_metrics_simple,
@@ -61,9 +59,6 @@ from langloc.localization.coarse_search import (
 from langloc.localization.visualization import (
     colour_objects,
     colormap,
-    dir_to_yaw_pitch,
-    best_fov_window,
-    average_direction,
     add_heatmap_markers,
     add_arrow_markers,
     create_camera_frustum,
@@ -497,7 +492,7 @@ def evaluate_scene(scene_id: str,
                         label=f"Refined grid ({arrow_step_used:.2f} m)")
         plt.axis("equal"); plt.xlabel("X (m)"); plt.ylabel("Y (m)")
         plt.title(f"{scene_id} · {metrics.frame_id} · grid {grid_step:.2f} m")
-        add_heatmap_markers(gt_cam, pred_cam, label_pred=f"Pred ({pred_source})")
+        add_heatmap_markers(gt_cam, pred_grid=pred_cam, label_grid=f"Pred ({pred_source})")
         plt.tight_layout(); plt.show()
 
     if show_arrows and arrow_weights:
@@ -534,7 +529,7 @@ def evaluate_scene(scene_id: str,
             plt.axis("equal"); plt.xlabel("X (m)"); plt.ylabel("Y (m)")
             plt.title(f"{scene_id} · FOV arrows "
                       f"(H={h_fov_deg:.0f}°, V={v_fov_deg:.0f}°)")
-            add_arrow_markers(gt_cam, pred_cam)
+            add_arrow_markers(gt_cam, pred_grid=pred_cam)
             plt.tight_layout(); plt.show()
 
     if show_3d:

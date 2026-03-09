@@ -25,44 +25,13 @@ import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
-import numpy as np
 import openai
 from tqdm import tqdm
 
-from langloc.graphs.create_text_embeddings import create_embedding_nlp
-from langloc.graphs.graph_loader_utils import get_word2vec
 from langloc.graph_matching.single_inference import parse_text_to_json
-
-
-# --------------------------------------------------------------------------- #
-# word2vec embedding (same caching pattern as visualize_eval_loc_mk4.py)      #
-# --------------------------------------------------------------------------- #
-
-_EMBED_CACHE: Dict[str, np.ndarray] = {}
-_EMBED_CACHE_TOKEN: Dict[str, np.ndarray] = {}
-_W2V_HASH: Dict[str, np.ndarray] = {}
-
-
-def _embed_word2vec(text: str, mode: str = "token") -> List[float]:
-    text = str(text)
-    key = text.strip().lower()
-    if mode == "doc":
-        cached = _EMBED_CACHE.get(key)
-        if cached is None:
-            vec = np.asarray(create_embedding_nlp(text), dtype=np.float32)
-            cached = vec
-            _EMBED_CACHE[key] = cached
-        return cached.tolist()
-
-    cached = _EMBED_CACHE_TOKEN.get(key)
-    if cached is None:
-        w2v = get_word2vec(text, _W2V_HASH)
-        vec = w2v[0] if isinstance(w2v, tuple) else w2v
-        cached = np.asarray(vec, dtype=np.float32)
-        _EMBED_CACHE_TOKEN[key] = cached
-    return cached.tolist()
+from langloc.utils.embedding import _embed_word2vec
 
 
 # --------------------------------------------------------------------------- #

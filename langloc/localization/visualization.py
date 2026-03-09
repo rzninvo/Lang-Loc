@@ -183,44 +183,65 @@ def average_direction(unit_dirs: np.ndarray, sel: np.ndarray) -> Optional[np.nda
 # ---------------------------------------------------------------------------
 
 def add_heatmap_markers(gt_cam: np.ndarray,
-                        pred_cam: np.ndarray,
+                        pred_grid: Optional[np.ndarray] = None,
+                        pred_arrow: Optional[np.ndarray] = None,
                         label_gt: str = "GT",
-                        label_pred: str = "Pred") -> None:
+                        label_grid: str = "Pred (grid)",
+                        label_arrow: str = "Pred (arrow)") -> None:
     """Add ground-truth and predicted camera markers to the current matplotlib figure.
+
+    Supports both single-prediction and dual-prediction (grid + arrow)
+    visualisation.
 
     Args:
         gt_cam: Ground-truth camera position, shape ``(3,)`` (only X, Y used).
-        pred_cam: Predicted camera position, shape ``(3,)`` (only X, Y used).
+        pred_grid: Grid-based predicted position (optional).
+        pred_arrow: Arrow/FOV-based predicted position (optional).
         label_gt: Legend label for the ground-truth marker.
-        label_pred: Legend label for the predicted marker.
+        label_grid: Legend label for the grid prediction marker.
+        label_arrow: Legend label for the arrow prediction marker.
     """
     plt.scatter(gt_cam[0], gt_cam[1],
                 c="red", marker="*", s=160,
                 linewidths=1.2, edgecolors="black",
                 label=label_gt)
-    plt.scatter(pred_cam[0], pred_cam[1],
-                c="orange", marker="o", s=80,
-                linewidths=1.0, edgecolors="black",
-                label=label_pred)
+    if pred_grid is not None:
+        plt.scatter(pred_grid[0], pred_grid[1],
+                    c="orange", marker="o", s=80,
+                    linewidths=1.0, edgecolors="black",
+                    label=label_grid)
+    if pred_arrow is not None:
+        plt.scatter(pred_arrow[0], pred_arrow[1],
+                    c="#18a0fb", marker="D", s=70,
+                    linewidths=1.0, edgecolors="black",
+                    label=label_arrow)
     plt.legend(loc="best")
 
 
 def add_arrow_markers(gt_cam: np.ndarray,
-                      pred_cam: np.ndarray) -> None:
+                      pred_grid: Optional[np.ndarray] = None,
+                      pred_arrow: Optional[np.ndarray] = None) -> None:
     """Add ground-truth and predicted camera markers to an arrow (quiver) plot.
 
     Args:
         gt_cam: Ground-truth camera position, shape ``(3,)``.
-        pred_cam: Predicted camera position, shape ``(3,)``.
+        pred_grid: Grid-based predicted position (optional).
+        pred_arrow: Arrow/FOV-based predicted position (optional).
     """
     plt.scatter([gt_cam[0]], [gt_cam[1]],
                 c="red", marker="*", s=160,
                 linewidths=1.0, edgecolors="black",
                 label="GT")
-    plt.scatter([pred_cam[0]], [pred_cam[1]],
-                c="orange", marker="o", s=80,
-                linewidths=1.0, edgecolors="black",
-                label="Pred")
+    if pred_grid is not None:
+        plt.scatter([pred_grid[0]], [pred_grid[1]],
+                    c="orange", marker="o", s=80,
+                    linewidths=1.0, edgecolors="black",
+                    label="Pred (grid)")
+    if pred_arrow is not None:
+        plt.scatter([pred_arrow[0]], [pred_arrow[1]],
+                    c="#18a0fb", marker="D", s=70,
+                    linewidths=1.0, edgecolors="black",
+                    label="Pred (arrow)")
     plt.legend(loc="best")
 
 

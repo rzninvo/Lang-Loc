@@ -17,7 +17,7 @@ import numpy as np
 import torch
 
 from langloc.graphs.scene_graph import SceneGraph
-from langloc.graphs.create_text_embeddings import create_embedding_nlp
+from langloc.utils.embedding import _embed_word2vec
 
 
 @dataclass
@@ -34,36 +34,17 @@ class FrameSelection:
 
 
 # ---------------------------------------------------------------------------
-#  Word2vec embedding cache
-# ---------------------------------------------------------------------------
-
-_EMBED_CACHE: Dict[str, np.ndarray] = {}
-
-
-def _embed_word2vec(text: str) -> List[float]:
-    """Return a word2vec embedding for *text*, using a module-level cache.
-
-    Args:
-        text: Free-form text string to embed.
-
-    Returns:
-        Embedding vector as a list of floats.
-    """
-    key = text.strip().lower()
-    cached = _EMBED_CACHE.get(key)
-    if cached is None:
-        vec = np.asarray(create_embedding_nlp(text), dtype=np.float32)
-        cached = vec
-        _EMBED_CACHE[key] = cached
-    return cached.tolist()
-
-
-# ---------------------------------------------------------------------------
 #  Frame loading and selection
 # ---------------------------------------------------------------------------
 
 def load_frame_jsons(desc_dir: Path) -> List[FrameSelection]:
     """Load all frame annotation JSONs from a descriptions directory.
+
+    Prefers explicit ``frame-*.json`` files (excluding ``*_parsed.json``
+    parser byproducts).  Falls back to ``all_descriptions.json`` and then
+    to a broad ``*.json`` glob.  Results are de-duplicated by
+    ``image_index`` to avoid double-counting when both individual and
+    aggregate JSONs exist.
 
     Each JSON file may contain a single dict (one frame) or a list of
     dicts (multiple frames); both formats are supported.
@@ -78,7 +59,24 @@ def load_frame_jsons(desc_dir: Path) -> List[FrameSelection]:
     frames: List[FrameSelection] = []
     if not desc_dir.exists():
         return frames
-    for path in sorted(desc_dir.glob("*.json")):
+
+    frame_jsons = sorted(
+        p for p in desc_dir.glob("frame-*.json")
+        if not p.stem.endswith("_parsed")
+    )
+    if frame_jsons:
+        candidate_paths = frame_jsons
+    else:
+        all_desc = desc_dir / "all_descriptions.json"
+        if all_desc.exists():
+            candidate_paths = [all_desc]
+        else:
+            candidate_paths = sorted(
+                p for p in desc_dir.glob("*.json")
+                if not p.stem.endswith("_parsed")
+            )
+
+    for path in candidate_paths:
         try:
             data = json.loads(path.read_text())
         except json.JSONDecodeError:
@@ -92,7 +90,31 @@ def load_frame_jsons(desc_dir: Path) -> List[FrameSelection]:
                     continue
                 virtual_name = path.with_name(f"{path.stem}_{idx:03d}{path.suffix}")
                 frames.append(FrameSelection(frame=item, path=virtual_name))
-    return frames
+
+    # De-duplicate by image_index so aggregate JSONs do not create duplicate
+    # candidates for the same frame.
+    deduped: List[FrameSelection] = []
+    seen_image_indices: set = set()
+    for fs in frames:
+        image_index = str(fs.frame.get("image_index", "")).strip()
+        if image_index:
+            if image_index in seen_image_indices:
+                continue
+            seen_image_indices.add(image_index)
+        deduped.append(fs)
+    return deduped
+
+
+def _total_pixels(fs: FrameSelection) -> int:
+    """Sum ``pixel_count`` across visible objects in a frame."""
+    objs = fs.frame.get("visible_objects", {}) or {}
+    total = 0
+    for obj in objs.values():
+        try:
+            total += int((obj or {}).get("pixel_count", 0))
+        except (TypeError, ValueError):
+            continue
+    return total
 
 
 def select_frame(frames: List[FrameSelection],
@@ -125,14 +147,20 @@ def select_frame(frames: List[FrameSelection],
     if policy == "random":
         return frames[int(rng.integers(0, len(frames)))]
     if policy == "max_visible":
-        return max(frames,
-                   key=lambda fs: len(fs.frame.get("visible_objects", {})))
+        # Deterministic tie-break:
+        # 1) highest visible-object count
+        # 2) highest total pixel_count
+        # 3) stable filename order
+        return min(
+            frames,
+            key=lambda fs: (
+                -len(fs.frame.get("visible_objects", {}) or {}),
+                -_total_pixels(fs),
+                fs.path.name,
+            ),
+        )
     if policy == "max_pixels":
-        def total_pixels(fs: FrameSelection) -> int:
-            objs = fs.frame.get("visible_objects", {})
-            return sum(int(obj.get("pixel_count", 0)) for obj in objs.values())
-
-        return max(frames, key=total_pixels)
+        return max(frames, key=_total_pixels)
 
     raise ValueError(f"Unknown frame selection policy '{policy}'")
 
@@ -143,7 +171,8 @@ def select_frame(frames: List[FrameSelection],
 
 def frame_to_scenegraph(frame: dict,
                         embedding_type: str = "word2vec",
-                        use_attributes: bool = True) -> Tuple[SceneGraph, Dict[int, dict]]:
+                        use_attributes: bool = True,
+                        query_embedding_mode: str = "doc") -> Tuple[SceneGraph, Dict[int, dict]]:
     """Build a caption SceneGraph from a frame's visible objects and spatial relations.
 
     Each visible object becomes a graph node (with word2vec label
@@ -158,6 +187,10 @@ def frame_to_scenegraph(frame: dict,
             is supported.
         use_attributes: Whether to include attribute embeddings in the
             constructed SceneGraph.
+        query_embedding_mode: Embedding mode passed to
+            :func:`~langloc.utils.embedding._embed_word2vec`.
+            ``"doc"`` for spaCy doc vectors, ``"token"`` for word2vec
+            token embeddings.
 
     Returns:
         A 2-tuple ``(sg, meta)`` where
@@ -190,7 +223,7 @@ def frame_to_scenegraph(frame: dict,
             "id": new_id,
             "label": label,
             "attributes": [],
-            "label_word2vec": _embed_word2vec(label),
+            "label_word2vec": _embed_word2vec(label, mode=query_embedding_mode),
             "attributes_word2vec": {"all": []},
         })
         label_lookup.setdefault(label_key, []).append(new_id)
@@ -216,7 +249,7 @@ def frame_to_scenegraph(frame: dict,
             "source": subj_ids[0],
             "target": obj_ids[0],
             "relationship": rel_type,
-            "relation_word2vec": _embed_word2vec(rel_type),
+            "relation_word2vec": _embed_word2vec(rel_type, mode=query_embedding_mode),
         })
 
     graph_dict = {"nodes": nodes, "edges": edges}

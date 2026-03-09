@@ -19,19 +19,16 @@ a similarity threshold).
 from __future__ import annotations
 
 import argparse
-import csv
 import json
 import logging
 import math
 import sys
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
 import open3d as o3d
-import torch
 
 logger = logging.getLogger(__name__)
 
@@ -40,15 +37,14 @@ logger = logging.getLogger(__name__)
 # --------------------------------------------------------------------------- #
 
 from langloc.graphs.scene_graph import SceneGraph
-from langloc.graphs.create_text_embeddings import create_embedding_nlp
-from langloc.graphs.graph_loader_utils import get_word2vec
+from langloc.utils.embedding import _embed_word2vec
 from langloc.utils.mesh_segmentation import build_segmented_mesh
 
 # --------------------------------------------------------------------------- #
 # Import helpers from langloc.localization                                    #
 # --------------------------------------------------------------------------- #
 
-from langloc.localization.grid import load_scene, sample_grid, first_hit_is_object
+from langloc.localization.grid import load_scene, first_hit_is_object
 from langloc.localization.matching import topk_matched_objects
 from langloc.localization.visualization import (
     colour_objects, colormap, dir_to_yaw_pitch,
@@ -64,16 +60,24 @@ canonical_label_for_matching = None
 # Import shared utilities from mk4 (reuse everything except graph construction)
 # --------------------------------------------------------------------------- #
 
-from tools.viz.visualize_eval_loc_mk4 import (
+from langloc.localization.frame_io import (
     FrameSelection,
-    SceneMetrics,
-    build_metrics_table,
-    format_args_section,
     camera_center_from_pose,
-    compute_metrics,
-    compute_view_iou_error,
+    ensure_query_root,
+    format_args_section,
+)
+from langloc.localization.prediction import (
     select_prediction_point,
     top_n_fov_poses,
+    _cluster_weighted_prediction,
+)
+from langloc.eval.metrics import compute_view_iou_error
+from langloc.eval.view_iou import _visible_triangles_from_view
+
+from tools.viz.visualize_eval_loc_mk4 import (
+    SceneMetrics,
+    build_metrics_table,
+    compute_metrics,
     softmax_probs,
     proximity_bonus,
     add_heatmap_markers,
@@ -82,38 +86,7 @@ from tools.viz.visualize_eval_loc_mk4 import (
     load_scene_graphs,
     debug_label_matches,
     _extract_floor_bbox,
-    _visible_triangles_from_view,
-    _cluster_weighted_prediction,
 )
-
-
-# --------------------------------------------------------------------------- #
-# word2vec caching (same as mk4 / preprocess_descriptions.py)                 #
-# --------------------------------------------------------------------------- #
-
-_EMBED_CACHE: Dict[str, np.ndarray] = {}
-_EMBED_CACHE_TOKEN: Dict[str, np.ndarray] = {}
-_W2V_HASH: Dict[str, np.ndarray] = {}
-
-
-def _embed_word2vec(text: str, mode: str = "token") -> List[float]:
-    text = str(text)
-    key = text.strip().lower()
-    if mode == "doc":
-        cached = _EMBED_CACHE.get(key)
-        if cached is None:
-            vec = np.asarray(create_embedding_nlp(text), dtype=np.float32)
-            cached = vec
-            _EMBED_CACHE[key] = cached
-        return cached.tolist()
-
-    cached = _EMBED_CACHE_TOKEN.get(key)
-    if cached is None:
-        w2v = get_word2vec(text, _W2V_HASH)
-        vec = w2v[0] if isinstance(w2v, tuple) else w2v
-        cached = np.asarray(vec, dtype=np.float32)
-        _EMBED_CACHE_TOKEN[key] = cached
-    return cached.tolist()
 
 
 # --------------------------------------------------------------------------- #
@@ -306,16 +279,6 @@ def parsed_frame_to_scenegraph(
         use_attributes=True,
     )
     return sg, meta
-
-
-# --------------------------------------------------------------------------- #
-# Helpers reused verbatim from mk4                                            #
-# --------------------------------------------------------------------------- #
-
-def ensure_query_root(query_root: Optional[Path], root: Path) -> Path:
-    if query_root is not None:
-        return query_root
-    return root
 
 
 # --------------------------------------------------------------------------- #
@@ -996,7 +959,7 @@ def main() -> None:
     params_text = format_args_section(args)
     rng = np.random.default_rng(seed=args.seed)
 
-    scenes = load_scene_graphs(args.graphs, scene_use_attributes=args.scene_use_attributes)
+    scenes = load_scene_graphs(args.graphs, use_attributes=args.scene_use_attributes)
 
     candidate_ids = list(scenes.keys())
     if args.visualize_scene:
