@@ -15,7 +15,7 @@ from langloc.utils.utils import _get_nlp
 from langloc.graphs.create_text_embeddings import create_embedding, create_embedding_clip
 
 
-def plot_relation(obj1, obj2, ax, distance):
+def plot_relation(obj1: dict, obj2: dict, ax: plt.Axes, distance: float) -> None:
     """Draws a line between two object centroids on a 3-D axis.
 
     Args:
@@ -29,7 +29,7 @@ def plot_relation(obj1, obj2, ax, distance):
     ax.plot([centroid1[0], centroid2[0]], [centroid1[1], centroid2[1]], [centroid1[2], centroid2[2]], c='b', linewidth=distance)
 
 
-def draw_obb(corners, ax):
+def draw_obb(corners: np.ndarray, ax: plt.Axes) -> None:
     """Draws the 12 edges of an oriented bounding box on a 3-D axis.
 
     Args:
@@ -50,7 +50,7 @@ def draw_obb(corners, ax):
     ax.plot([corners[6, 0], corners[7, 0]], [corners[6, 1], corners[7, 1]], [corners[6, 2], corners[7, 2]], c='g')
 
 
-def bounding_box(obj, ax=None, plot=False):
+def bounding_box(obj: dict, ax: plt.Axes | None = None, plot: bool = False) -> tuple[np.ndarray, np.ndarray] | None:
     """Computes or visualises an oriented bounding box from a 3DSSG object.
 
     Args:
@@ -100,7 +100,7 @@ def bounding_box(obj, ax=None, plot=False):
         return bb_min[:3], bb_max[:3]
 
 
-def get_obj_distance(obj1, obj2, objs):
+def get_obj_distance(obj1: str, obj2: str, objs: dict) -> float:
     """Computes the minimum distance between two objects' bounding boxes.
 
     Args:
@@ -141,7 +141,7 @@ def get_clip(desc: str, cache: dict) -> tuple[torch.Tensor, dict]:
         return emb, cache
 
 
-def get_ada(desc, hash):
+def get_ada(desc: str, hash: dict) -> tuple[list[float], dict]:
     """Returns a cached Ada embedding, computing it if missing.
 
     Args:
@@ -158,7 +158,7 @@ def get_ada(desc, hash):
     return hash[desc], hash
 
 
-def get_word2vec(desc, hash):
+def get_word2vec(desc: str, hash: dict) -> tuple[np.ndarray, dict] | np.ndarray:
     """Returns a cached spaCy word2vec embedding, computing it if missing.
 
     Args:
@@ -178,7 +178,7 @@ def get_word2vec(desc, hash):
     return hash[desc], hash
 
 
-def check_and_remove_invalid_edges(all_scenes):
+def check_and_remove_invalid_edges(all_scenes: dict) -> dict:
     """Removes edges whose source or target cannot be parsed as integers.
 
     Args:

@@ -16,7 +16,7 @@ class Timer:
         text2graph_matching_iter: Iteration counts for the ranking step.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.start_time = time.time()
         self.total_time = 0
 
@@ -29,7 +29,7 @@ class Timer:
         self.text2graph_matching_time = []
         self.text2graph_matching_iter = []
 
-    def save(self, path, cfg):
+    def save(self, path: str, cfg: object) -> None:
         """Writes aggregated timing statistics to a text file.
 
         Args:

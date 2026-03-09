@@ -152,6 +152,7 @@ def process_frame(frame_path: Path,
 # --------------------------------------------------------------------------- #
 
 def parse_args() -> argparse.Namespace:
+    """Build and return the CLI argument parser for description preprocessing."""
     p = argparse.ArgumentParser(
         description="Preprocess frame descriptions via GPT and cache parsed scene graphs."
     )
@@ -181,6 +182,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Parse CLI arguments, discover frames, and batch-process descriptions."""
     args = parse_args()
 
     # Load API key from optional file, otherwise OPENAI_API_KEY.

@@ -15,7 +15,7 @@ import open3d as o3d
 import open3d.core as o3c
 
 
-def load_scene(scan_dir: Path):
+def load_scene(scan_dir: Path) -> Tuple[o3d.geometry.TriangleMesh, np.ndarray, Dict[int, np.ndarray]]:
     """Load a 3RScan scene mesh and build per-triangle / per-object maps.
 
     Reads the annotated PLY file, extracts per-vertex object IDs from PLY
@@ -116,7 +116,7 @@ def extract_floor_bbox(scan_dir: Path,
 
 
 def sample_grid(verts: np.ndarray, step: float, z_eye: float = 1.6,
-                mesh: Optional[o3d.geometry.TriangleMesh] = None):
+                mesh: Optional[o3d.geometry.TriangleMesh] = None) -> np.ndarray:
     """Sample a regular XY grid of candidate camera positions over the mesh.
 
     The grid covers the axis-aligned bounding box of the mesh vertices in

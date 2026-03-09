@@ -27,19 +27,27 @@ import time
 # ---------------------------------------------------------------------------
 
 class Timer:
-    def __init__(self):
+    """Tracks elapsed times for CLIP embedding, scoring, and matching stages."""
+
+    def __init__(self) -> None:
+        """Initialize timing accumulators."""
         self.start_time = time.time()
         self.total_time = 0
-        self.clip2clip_text_embedding_time = []
-        self.clip2clip_text_embedding_iter = []
+        self.clip2clip_text_embedding_time: list[float] = []
+        self.clip2clip_text_embedding_iter: list[int] = []
 
-        self.clip2clip_matching_score_time = []
-        self.clip2clip_matching_score_iter = []
-        # could be combined with above for a total time
-        self.clip2clip_matching_time = []
-        self.clip2clip_matching_iter = []
+        self.clip2clip_matching_score_time: list[float] = []
+        self.clip2clip_matching_score_iter: list[int] = []
+        self.clip2clip_matching_time: list[float] = []
+        self.clip2clip_matching_iter: list[int] = []
 
-    def save(self, path, args):
+    def save(self, path: str, args: argparse.Namespace) -> None:
+        """Write aggregated timing statistics to a text file.
+
+        Args:
+            path: Output file path.
+            args: Parsed CLI arguments (used for iteration count sanity checks).
+        """
         with open(path, 'w') as f:
             assert len(self.clip2clip_text_embedding_time) == len(self.clip2clip_text_embedding_iter)
             assert len(self.clip2clip_matching_score_time) == len(self.clip2clip_matching_score_iter)
@@ -70,7 +78,8 @@ class Timer:
             f.write(f'Total run time for 1 text matching against {args.out_of} database scenes: {calc_time}\n')
 
 
-def main():
+def main() -> None:
+    """Run the CLIP-to-CLIP baseline evaluation pipeline."""
     # -----------------------------------------------------------------------
     # Argument parsing
     # -----------------------------------------------------------------------
@@ -132,7 +141,8 @@ def main():
                 scene_score[scene] = sum(temp_score) / len(temp_score)
         return scene_score
 
-    def sum_over_all_sentence_scenes(time_list, all_sentence_scenes):
+    def sum_over_all_sentence_scenes(time_list: list, all_sentence_scenes: list) -> tuple[list, list]:
+        """Sum per-sentence times into per-scene totals and return unit iter counts."""
         scene_time = {}
         seen_scenes = []
         for i, scene in enumerate(all_sentence_scenes):
@@ -143,7 +153,8 @@ def main():
                 scene_time[scene] = sum(temp_time)
         return list(scene_time.values()), [1 for _ in scene_time.keys()]
 
-    def cos_sim(a, b):
+    def cos_sim(a: np.ndarray, b: np.ndarray) -> float:
+        """Compute cosine similarity between two 512-d CLIP vectors."""
         a = np.reshape(a, (512,))
         b = np.reshape(b, (512,))
         t1 = time.time()
@@ -164,14 +175,16 @@ def main():
                 scene_sentence_embedding[scene] = np.mean(temp_sentence_embedding, axis=0)
         return list(scene_sentence_embedding.values()), list(scene_sentence_embedding.keys())
 
-    def get_top(index_in_scores, all_max_scores):
+    def get_top(index_in_scores: list, all_max_scores: np.ndarray) -> tuple:
+        """Return the highest score and its text id from indexed score pairs."""
         scores = [all_max_scores[i] for i, _ in index_in_scores]
         scores = np.array(scores)
         max_scores_ind = np.argsort(scores)[::-1]
         max_scores = scores[max_scores_ind]
         return random.sample(list(max_scores), 1)[0], index_in_scores[max_scores_ind[0]][1]
 
-    def print_form(acc):
+    def print_form(acc: dict) -> None:
+        """Print top-k accuracy with variance in LaTeX-friendly format."""
         for k, v in acc.items():
             print(f'{k} top: {v[0] * 100:.2f}% variance: {v[1] * 100:.2f}%')
             print(f'${v[0] * 100:.2f}\\pm{v[1] * 100:.2f}$')
@@ -345,7 +358,15 @@ def main():
     # Scoring functions
     # -------------------------------------------------------------------
 
-    def f_avg_sent_emb_first(tuple_pair):
+    def f_avg_sent_emb_first(tuple_pair: tuple) -> dict:
+        """Score one scene's images against averaged sentence embeddings.
+
+        Args:
+            tuple_pair: ``(image_paths, image_encodings)`` for a single scene.
+
+        Returns:
+            Dict mapping scene description id to the best cosine similarity.
+        """
         scene_ids_img, img_encoded = tuple_pair
         scene_id = scene_ids_img[0].split('/')[-3]
 
@@ -361,7 +382,8 @@ def main():
         return sentence_to_best_img_score
 
     @torch.no_grad()
-    def f(tuple_pair):
+    def f(tuple_pair: tuple) -> None:
+        """Score every image in a scene against all sentences and save per-image results."""
         scene_ids_img, img_encoded = tuple_pair
 
         for idx, image in enumerate(img_encoded):
@@ -380,7 +402,8 @@ def main():
             fname = os.path.join(scene_sub, scene_id_img.split("/")[-1])
             torch.save(cos_sims_by_scene_desc, os.path.join(folder_path, fname + '.pt'))
 
-    def get_one_img_scene_to_desc_scene(folder):
+    def get_one_img_scene_to_desc_scene(folder: str) -> None:
+        """Aggregate per-image scores into per-scene max scores and save."""
         prefix = os.path.join(folder_path, '')
         files = os.listdir(prefix + folder)
         files = [os.path.join(prefix + folder, file) for file in files]
@@ -400,7 +423,8 @@ def main():
     # Evaluation with averaged sentence embeddings
     # -------------------------------------------------------------------
 
-    def get_all_scores_sent_emb_first(image_to_text_score_mapping, desc_scene_ids):
+    def get_all_scores_sent_emb_first(image_to_text_score_mapping: dict, desc_scene_ids: dict) -> None:
+        """Evaluate retrieval accuracy using pre-averaged sentence embeddings."""
         img_scene_ids = list(image_to_text_score_mapping.keys())
         img_scene_ids_idx = {scene: i for i, scene in enumerate(img_scene_ids)}
 
@@ -494,8 +518,8 @@ def main():
     # Evaluation with per-image scores
     # -------------------------------------------------------------------
 
-    def get_all_scores(scene_names, text_desc_ids):
-
+    def get_all_scores(scene_names: list, text_desc_ids: list) -> None:
+        """Evaluate retrieval accuracy using per-image max scores."""
         if dataset == "human":
             scene_names = set([scene.split('/')[0] for scene in text_desc_ids])
 
@@ -638,7 +662,8 @@ def main():
 
     scene_names = os.listdir(folder_path)
 
-    def check(scene_names):
+    def check(scene_names: list) -> None:
+        """Assert that all per-image score files have consistent keys."""
         for s in scene_names:
             prefix = os.path.join(folder_path, '')
             files = os.listdir(prefix + s)

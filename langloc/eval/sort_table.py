@@ -16,6 +16,14 @@ from typing import Dict, List, Tuple
 
 
 def _to_float(s: str) -> float:
+    """Convert a string to float, returning NaN on empty or unparseable input.
+
+    Args:
+        s: The string to convert.
+
+    Returns:
+        The parsed float, or ``nan`` if conversion fails.
+    """
     s = (s or "").strip()
     if not s:
         return float("nan")
@@ -106,6 +114,7 @@ def format_table(cols: List[str], rows: List[Dict[str, str]]) -> str:
 
 
 def main() -> None:
+    """Parse CLI arguments, sort the table, and print the result."""
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("logfile", type=Path, help="Path to the .log file containing the table")

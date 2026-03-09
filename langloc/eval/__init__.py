@@ -25,10 +25,25 @@ from langloc.eval.view_iou import (
 )
 
 
-def import_module_from_path(py_path, module_name: str):
-    """Dynamically import a Python module from a file path."""
+def import_module_from_path(py_path: "str | Path", module_name: str) -> "types.ModuleType":
+    """Dynamically import a Python module from a filesystem path.
+
+    The module is registered in ``sys.modules`` under *module_name* and
+    removed again if loading raises.
+
+    Args:
+        py_path: Filesystem path to the ``.py`` file.
+        module_name: Name to register the module under in ``sys.modules``.
+
+    Returns:
+        The imported module object.
+
+    Raises:
+        ImportError: If the file cannot be loaded as a module.
+    """
     import importlib.util
     import sys
+    import types
     from pathlib import Path
 
     py_path = Path(py_path)

@@ -15,7 +15,7 @@ import torch.nn.functional as F
 from langloc.graphs.scene_graph import SceneGraph
 
 
-def topk_matched_objects(qg: SceneGraph, sg: SceneGraph, k: int = 5) -> List:
+def topk_matched_objects(qg: SceneGraph, sg: SceneGraph, k: int = 5) -> List[int]:
     """Return scene-graph node IDs whose features best match the query.
 
     Computes the full cosine-similarity matrix between query-graph and

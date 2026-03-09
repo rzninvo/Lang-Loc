@@ -339,7 +339,7 @@ def ensure_query_root(query_root: Optional[Path], root: Path) -> Path:
     return root
 
 
-def format_args_section(args) -> str:
+def format_args_section(args: object) -> str:
     """Render a configuration object as a human-readable parameter listing.
 
     Supports both ``argparse.Namespace`` objects and dict-like Hydra

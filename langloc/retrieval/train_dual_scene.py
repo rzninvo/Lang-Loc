@@ -1,5 +1,4 @@
-"""
-Training script for DualSceneAligner (Section 3.2).
+"""Training script for DualSceneAligner (Section 3.2).
 
 Uses InfoNCE contrastive loss with scene-CLIP fusion built into the model.
 """
@@ -19,20 +18,26 @@ from langloc.retrieval.datasets.dual_scene_graph_dataset import DualSceneGraphDa
 from langloc.retrieval.models.dual_scene_aligner import DualSceneAligner
 
 
-# ── Loss ──────────────────────────────────────────────────────
-
 class InfoNCELoss(nn.Module):
-    """InfoNCE contrastive loss (paper line 178)."""
+    """InfoNCE contrastive loss (paper line 178).
 
-    def __init__(self, temperature=0.1):
+    Args:
+        temperature: Temperature scaling factor for the similarity matrix.
+    """
+
+    def __init__(self, temperature: float = 0.1) -> None:
         super().__init__()
         self.temperature = temperature
 
-    def forward(self, embeddings, labels):
-        """
+    def forward(self, embeddings: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+        """Computes InfoNCE loss over a batch of paired embeddings.
+
         Args:
-            embeddings: (2B, D) — concatenation of src and ref embeddings
-            labels: (2B,) — matching labels indicate positive pairs
+            embeddings: Concatenated src and ref embeddings of shape ``(2B, D)``.
+            labels: Matching labels of shape ``(2B,)`` indicating positive pairs.
+
+        Returns:
+            Scalar loss tensor.
         """
         embeddings = F.normalize(embeddings, dim=-1, p=2)
         sim = embeddings @ embeddings.T / self.temperature
@@ -59,10 +64,18 @@ class InfoNCELoss(nn.Module):
         return loss / max(count, 1)
 
 
-# ── Collate ───────────────────────────────────────────────────
+def collate_fn(batch_list: list[dict]) -> dict[str, torch.Tensor | int]:
+    """Collates variable-size graph pairs into a single batched dictionary.
 
-def collate_fn(batch_list):
-    """Collate variable-size graphs into a single batch."""
+    Offsets edge indices so that each graph's node indices are globally unique
+    within the batch.
+
+    Args:
+        batch_list: List of sample dictionaries from the dataset.
+
+    Returns:
+        Batched dictionary with concatenated tensors and batch assignment vectors.
+    """
     batch_size = len(batch_list)
 
     node_feats_src, geom_edges_src, geom_attr_src = [], [], []
@@ -122,15 +135,17 @@ def collate_fn(batch_list):
     }
 
 
-# ── Training ──────────────────────────────────────────────────
-
 @hydra.main(config_path="../../configs", config_name="config", version_base=None)
-def main(cfg: DictConfig):
+def main(cfg: DictConfig) -> None:
+    """Hydra CLI entry point for DualSceneAligner training.
+
+    Args:
+        cfg: Merged Hydra configuration.
+    """
     rcfg = cfg.retrieval
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
 
-    # CLIP model for relation embeddings
     clip_model, _ = clip.load("ViT-B/32", device=device)
 
     dataset = DualSceneGraphDataset(
@@ -164,11 +179,10 @@ def main(cfg: DictConfig):
         model.parameters(), lr=rcfg.lr, weight_decay=rcfg.weight_decay,
     )
 
-    # Warmup + cosine decay
     total_steps = rcfg.epochs * len(dataloader)
     warmup_steps = int(rcfg.warmup_ratio * total_steps)
 
-    def lr_lambda(step):
+    def lr_lambda(step: int) -> float:
         if step < warmup_steps:
             return step / max(warmup_steps, 1)
         progress = (step - warmup_steps) / max(total_steps - warmup_steps, 1)
@@ -192,7 +206,6 @@ def main(cfg: DictConfig):
             bs = batch["batch_size"]
             is_pos = batch["is_positive"]
 
-            # Build labels: matching indices = positive pair
             src_labels = torch.arange(bs, device=device)
             ref_labels = torch.arange(bs, device=device).clone()
             ref_labels[~is_pos] = ref_labels[~is_pos] + bs

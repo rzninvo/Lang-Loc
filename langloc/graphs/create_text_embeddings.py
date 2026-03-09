@@ -15,7 +15,7 @@ _clip_tokenizer = None
 _clip_model = None
 
 
-def _get_clip():
+def _get_clip() -> tuple:
     """Returns the lazily-loaded CLIP tokenizer and model."""
     global _clip_tokenizer, _clip_model
     if _clip_tokenizer is None:
@@ -73,7 +73,7 @@ def num_tokens_from_dict(dict_of_texts: dict, encoding_name: str) -> int:
     return num_tokens
 
 
-def check_tokens():
+def check_tokens() -> None:
     """Prints the total token count for the default text dataset."""
     scan_ids, dict_of_texts = load_text_dataset()
     num_tokens = num_tokens_from_dict(dict_of_texts, 'cl100k_base')
@@ -125,7 +125,7 @@ def create_embeddings_clip_batch(texts: list[str]) -> torch.Tensor:
     return outputs
 
 
-def create_embedding(text):
+def create_embedding(text: str) -> list[float]:
     """Creates an Ada-002 embedding via the OpenAI API.
 
     Args:
@@ -143,7 +143,7 @@ def create_embedding(text):
     return embedding
 
 
-def tokenize_text(filename):
+def tokenize_text(filename: str) -> dict[str, list]:
     """Embeds all texts in a dataset file using the Ada API.
 
     Args:
@@ -162,7 +162,7 @@ def tokenize_text(filename):
     return dict_of_embeddings
 
 
-def create_embedding_nlp(text):
+def create_embedding_nlp(text: str) -> np.ndarray:
     """Creates a 300-dim spaCy word2vec embedding.
 
     Args:
@@ -177,7 +177,7 @@ def create_embedding_nlp(text):
     return embedding
 
 
-def test_ada_embedding():
+def test_ada_embedding() -> None:
     """Prints cosine similarities between sample Ada embeddings for debugging."""
     worda = 'shelf'
     atta = ['brown']
@@ -201,7 +201,7 @@ def test_ada_embedding():
     print(f'cosine ab weighted sum: {np.dot(emba_weighted_sum, embb_weighted_sum) / (np.linalg.norm(emba_weighted_sum) * np.linalg.norm(embb_weighted_sum))}')
 
 
-def test_nlp_embedding():
+def test_nlp_embedding() -> None:
     """Prints cosine similarities between sample spaCy embeddings for debugging."""
     worda = 'shelf'
     wordb = 'bookshelf'

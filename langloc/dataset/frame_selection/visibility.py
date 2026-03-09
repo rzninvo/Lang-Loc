@@ -1,4 +1,9 @@
-"""Camera setup, rasterization, object visibility computation, and spatial relations."""
+"""Camera setup, rasterization, object visibility computation, and spatial relations.
+
+Provides GPU-accelerated mesh rasterization via PyTorch3D to determine
+per-pixel face visibility, per-object pixel counts, depth consistency
+checks, and heuristic spatial relation computation for 3D indoor scenes.
+"""
 from __future__ import annotations
 
 from collections import defaultdict
@@ -199,7 +204,7 @@ def per_face_object_ids(
     seg_mode = []
     for s0, s1, s2 in face_segs:
         vals = [int(s0), int(s1), int(s2)]
-        seg_mode.append(max(vals, key=vals.count))  # majority vote over the three vertices
+        seg_mode.append(max(vals, key=vals.count))
     seg_mode = np.asarray(seg_mode, dtype=np.int32)
 
     face_obj_ids = np.full(len(seg_mode), -1, dtype=np.int32)
@@ -209,10 +214,17 @@ def per_face_object_ids(
 
 
 def _compute_obb_from_points(points_world: np.ndarray) -> Dict[str, np.ndarray]:
-    """
-    Compute an oriented bounding box (OBB) from a 3D point cloud.
+    """Compute an oriented bounding box (OBB) from a 3D point cloud.
 
-    Returns center, orthonormal axes (rows), and half-extents.
+    Uses PCA to find the principal axes, then computes the tight bounding
+    box in that rotated frame.
+
+    Args:
+        points_world: ``(N, 3)`` point cloud in world coordinates.
+
+    Returns:
+        Dict with ``center``, ``axes`` (3x3, rows are axis vectors),
+        and ``extents`` (half-extents along each axis).
     """
     if points_world.size == 0:
         zero3 = np.zeros(3, dtype=np.float64)
@@ -262,8 +274,17 @@ def precompute_object_geometry(
     F: np.ndarray,
     face_obj_ids: np.ndarray,
 ) -> Dict[int, Dict[str, np.ndarray]]:
-    """
-    Precompute full-mesh object geometry (centroid, AABB, OBB) per object id.
+    """Precompute full-mesh object geometry (centroid, AABB, OBB) per object id.
+
+    Args:
+        V: ``(Nv, 3)`` vertex positions.
+        F: ``(Nf, 3)`` face indices.
+        face_obj_ids: ``(Nf,)`` object id per face (-1 = unlabeled).
+
+    Returns:
+        Dict mapping object id to geometry dict with keys:
+        ``centroid_world``, ``bbox_min``, ``bbox_max``,
+        ``obb_center``, ``obb_axes``, ``obb_extents``.
     """
     geometry: Dict[int, Dict[str, np.ndarray]] = {}
     object_ids = np.unique(face_obj_ids[face_obj_ids >= 0])

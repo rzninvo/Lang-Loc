@@ -76,8 +76,21 @@ class EvalMode(str, Enum):
 #  Configuration adapter
 # ---------------------------------------------------------------------------
 
-def _cfg_get(cfg, key, default=None):
-    """Get a value from an argparse Namespace or dict-like config."""
+def _cfg_get(cfg: object, key: str, default: object = None) -> object:
+    """Get a value from an argparse Namespace or dict-like config.
+
+    Tries attribute access first, then item access, falling back to
+    *default* if neither succeeds.
+
+    Args:
+        cfg: Configuration object (``argparse.Namespace``, dict, or
+            OmegaConf ``DictConfig``).
+        key: Parameter name to look up.
+        default: Value returned when *key* is not found.
+
+    Returns:
+        The configuration value, or *default*.
+    """
     if hasattr(cfg, key):
         return getattr(cfg, key)
     if hasattr(cfg, "__getitem__"):
@@ -93,12 +106,12 @@ def _cfg_get(cfg, key, default=None):
 # ---------------------------------------------------------------------------
 
 def evaluate_scene(scene_id: str,
-                   scene_graph,
+                   scene_graph: object,
                    mode: EvalMode,
-                   cfg,
+                   cfg: object,
                    rng: np.random.Generator,
                    *,
-                   graph_cfg=None) -> Optional[Union[SceneMetrics, Dict]]:
+                   graph_cfg: object = None) -> Optional[Union[SceneMetrics, Dict]]:
     """Run localization evaluation for a single scene.
 
     Steps shared across all modes:
@@ -550,13 +563,59 @@ def evaluate_scene(scene_id: str,
 #  3D visualisation helper
 # ---------------------------------------------------------------------------
 
-def _show_3d_scene(scene_id, scene_dir, mesh, obj2faces, obj_ids,
-                   cams, probs, gt_cam, gt_dir, pred_cam, pred_dir,
-                   pred_source, hfov_rad, vfov_rad, grid_step,
-                   mode, metrics,
-                   refined_points, refined_weights, arrow_all_weights,
-                   gt_vis_set, pred_vis_set):
-    """Render the 3D Open3D scene with probability spheres and camera frustums."""
+def _show_3d_scene(scene_id: str,
+                   scene_dir: Path,
+                   mesh: o3d.geometry.TriangleMesh,
+                   obj2faces: Dict[int, np.ndarray],
+                   obj_ids: List[int],
+                   cams: np.ndarray,
+                   probs: np.ndarray,
+                   gt_cam: np.ndarray,
+                   gt_dir: Optional[np.ndarray],
+                   pred_cam: np.ndarray,
+                   pred_dir: Optional[np.ndarray],
+                   pred_source: str,
+                   hfov_rad: float,
+                   vfov_rad: float,
+                   grid_step: float,
+                   mode: EvalMode,
+                   metrics: SceneMetrics,
+                   refined_points: Optional[np.ndarray],
+                   refined_weights: Optional[np.ndarray],
+                   arrow_all_weights: Optional[np.ndarray],
+                   gt_vis_set: Optional[set],
+                   pred_vis_set: Optional[set]) -> None:
+    """Render the 3D Open3D scene with probability spheres and camera frustums.
+
+    Opens one or two Open3D visualiser windows: the main scene with
+    coloured probability spheres and camera frustums, and (in standard
+    mode) an IoU overlap view showing ground-truth-only, prediction-only,
+    and shared visible triangles.
+
+    Args:
+        scene_id: 3RScan scene identifier (used in window titles).
+        scene_dir: Path to the scan directory for mesh segmentation.
+        mesh: The loaded triangle mesh.
+        obj2faces: Mapping from object ID to triangle-index arrays.
+        obj_ids: Matched object IDs to highlight.
+        cams: Grid camera positions, shape ``(N, 3)``.
+        probs: Normalised probabilities per camera, shape ``(N,)``.
+        gt_cam: Ground-truth camera position, shape ``(3,)``.
+        gt_dir: Ground-truth viewing direction, or ``None``.
+        pred_cam: Predicted camera position, shape ``(3,)``.
+        pred_dir: Predicted viewing direction, or ``None``.
+        pred_source: Label describing the prediction source.
+        hfov_rad: Horizontal field-of-view in radians.
+        vfov_rad: Vertical field-of-view in radians.
+        grid_step: Grid spacing in metres (controls frustum scale).
+        mode: Current evaluation mode.
+        metrics: Scene metrics object (used for labels).
+        refined_points: Coarse-to-fine refined grid points, or ``None``.
+        refined_weights: Weights for refined grid points, or ``None``.
+        arrow_all_weights: All arrow weights across levels, or ``None``.
+        gt_vis_set: Ground-truth visible triangle indices, or ``None``.
+        pred_vis_set: Predicted visible triangle indices, or ``None``.
+    """
     from langloc.localization.visualization import GUI_INITIALISED
     import langloc.localization.visualization as viz_mod
 
@@ -722,7 +781,7 @@ def _show_3d_scene(scene_id, scene_dir, mesh, obj2faces, obj_ids,
 #  Main evaluation loop
 # ---------------------------------------------------------------------------
 
-def run_evaluation(cfg, *, graph_cfg=None) -> None:
+def run_evaluation(cfg: object, *, graph_cfg: object = None) -> None:
     """Run the full evaluation pipeline over multiple scenes.
 
     Loads scene graphs, filters candidate scene IDs, loops over scenes
@@ -785,12 +844,30 @@ def run_evaluation(cfg, *, graph_cfg=None) -> None:
         _run_metrics_mode(candidate_ids, scenes, mode, cfg, rng, graph_cfg=graph_cfg)
 
 
-def _run_candidates_mode(candidate_ids, scenes, mode, cfg, rng, *, graph_cfg=None):
-    """Execute candidates-mode evaluation and write JSON output."""
+def _run_candidates_mode(candidate_ids: List[str],
+                         scenes: Dict[str, object],
+                         mode: EvalMode,
+                         cfg: object,
+                         rng: np.random.Generator,
+                         *,
+                         graph_cfg: object = None) -> None:
+    """Execute candidates-mode evaluation and write JSON output.
+
+    Iterates over all candidate scenes, collects pose candidate records,
+    and serialises them to a single JSON file.
+
+    Args:
+        candidate_ids: Ordered list of scene IDs to evaluate.
+        scenes: Mapping from scene ID to pre-loaded scene graph.
+        mode: Evaluation mode (should be ``CANDIDATES``).
+        cfg: Configuration namespace or dict-like object.
+        rng: NumPy random generator.
+        graph_cfg: Optional graph configuration with embedding settings.
+    """
     try:
         from tqdm import tqdm
     except ImportError:
-        def tqdm(it, **kw):
+        def tqdm(it: object, **kw: object) -> object:
             return it
 
     results: List[Dict] = []
@@ -819,8 +896,27 @@ def _run_candidates_mode(candidate_ids, scenes, mode, cfg, rng, *, graph_cfg=Non
     print(f"Wrote candidate poses to {output_path}")
 
 
-def _run_metrics_mode(candidate_ids, scenes, mode, cfg, rng, *, graph_cfg=None):
-    """Execute standard or coarse_to_fine evaluation with metrics aggregation."""
+def _run_metrics_mode(candidate_ids: List[str],
+                      scenes: Dict[str, object],
+                      mode: EvalMode,
+                      cfg: object,
+                      rng: np.random.Generator,
+                      *,
+                      graph_cfg: object = None) -> None:
+    """Execute standard or coarse-to-fine evaluation with metrics aggregation.
+
+    Loops over candidate scenes, prints per-scene results, builds an
+    aggregate summary table, and optionally writes log and JSON output
+    files.
+
+    Args:
+        candidate_ids: Ordered list of scene IDs to evaluate.
+        scenes: Mapping from scene ID to pre-loaded scene graph.
+        mode: Evaluation mode (``STANDARD`` or ``COARSE_TO_FINE``).
+        cfg: Configuration namespace or dict-like object.
+        rng: NumPy random generator.
+        graph_cfg: Optional graph configuration with embedding settings.
+    """
     params_text = format_args_section(cfg)
 
     metrics_list: List[SceneMetrics] = []
@@ -874,8 +970,8 @@ def _run_metrics_mode(candidate_ids, scenes, mode, cfg, rng, *, graph_cfg=None):
         print(table_text)
         print("---------------------------------------------------------\n")
 
-    # Aggregate
-    def agg(values):
+    def agg(values: List[float]) -> tuple[float, float]:
+        """Return (mean, median) of a list of floats."""
         arr = np.asarray(values, dtype=np.float64)
         return float(arr.mean()), float(np.median(arr))
 

@@ -62,7 +62,6 @@ def extract_candidates(
     else:
         raise ValueError(f"Unknown candidate_set: {candidate_set}")
 
-    # add predicted pose as extra hypothesis
     if include_predicted_pose:
         pp = entry.get("predicted_pose", None)
         if isinstance(pp, dict) and "position" in pp:

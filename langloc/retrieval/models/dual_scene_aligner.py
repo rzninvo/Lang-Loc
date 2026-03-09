@@ -1,5 +1,4 @@
-"""
-Dual-branch scene graph encoder for language-based scene retrieval.
+"""Dual-branch scene graph encoder for language-based scene retrieval.
 
 Matches the architecture described in Section 3.2 of the ECCV 2026 paper:
   - Eq.3: x_i = MLP(f_i)                     -- node encoder
@@ -18,9 +17,13 @@ from langloc.retrieval.models.networks.edge_gat import MultiGAT_Edge
 
 
 class GatedFusion(nn.Module):
-    """Gated fusion of geometric and text branch features (Eq.6)."""
+    """Gated fusion of geometric and text branch features (Eq.6).
 
-    def __init__(self, hidden_dim):
+    Args:
+        hidden_dim: Dimension of the input feature vectors from each branch.
+    """
+
+    def __init__(self, hidden_dim: int) -> None:
         super().__init__()
         self.gate = nn.Sequential(
             nn.Linear(hidden_dim * 2, hidden_dim),
@@ -35,7 +38,16 @@ class GatedFusion(nn.Module):
         )
         self.norm = nn.LayerNorm(hidden_dim)
 
-    def forward(self, g, t):
+    def forward(self, g: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """Fuses geometric and text features via a learned gate.
+
+        Args:
+            g: Geometric branch features of shape ``(N, hidden_dim)``.
+            t: Text branch features of shape ``(N, hidden_dim)``.
+
+        Returns:
+            Fused features of shape ``(N, hidden_dim)``.
+        """
         combined = torch.cat([g, t], dim=-1)
         gate = self.gate(combined)
         fused = self.transform(combined)
@@ -43,21 +55,25 @@ class GatedFusion(nn.Module):
 
 
 class DualSceneAligner(nn.Module):
-    """
-    Dual-branch scene graph encoder with built-in scene CLIP fusion.
+    """Dual-branch scene graph encoder with built-in scene CLIP fusion.
 
     Inputs (via batch dict):
-      - node_feats: (N, 518)  -- [centroid(3) | color(3) | CLIP(512)]
-      - geom_edges: (2, E_g)  -- k-NN spatial edges
-      - geom_attr:  (E_g, 8)  -- [delta_c | ||delta_c|| | r_i | r_j | 0 | 0]
-      - text_edges: (2, E_t)  -- relation edges
-      - text_attr:  (E_t, 512) -- pre-computed CLIP embeddings of relation strings
-      - scene_clip: (B, 512)  -- phi("A room with l_1, ..., l_K")
+      - node_feats: ``(N, 518)``  -- ``[centroid(3) | color(3) | CLIP(512)]``
+      - geom_edges: ``(2, E_g)``  -- k-NN spatial edges
+      - geom_attr:  ``(E_g, 8)``  -- ``[delta_c | ||delta_c|| | r_i | r_j | 0 | 0]``
+      - text_edges: ``(2, E_t)``  -- relation edges
+      - text_attr:  ``(E_t, 512)`` -- pre-computed CLIP embeddings of relation strings
+      - scene_clip: ``(B, 512)``  -- ``phi("A room with l_1, ..., l_K")``
 
-    Output: z(G) in R^d (default d=256).
+    Output: ``z(G)`` in ``R^d`` (default ``d=256``).
+
+    Args:
+        node_input_dim: Dimension of input node features.
+        hidden_dim: Hidden dimension for GNN layers and fusion.
+        dropout: Dropout probability.
     """
 
-    def __init__(self, node_input_dim=518, hidden_dim=256, dropout=0.1):
+    def __init__(self, node_input_dim: int = 518, hidden_dim: int = 256, dropout: float = 0.1) -> None:
         super().__init__()
         self.hidden_dim = hidden_dim
 
@@ -101,43 +117,56 @@ class DualSceneAligner(nn.Module):
             nn.Linear(256, 256),
         )
 
-    def encode_scene(self, node_feats, geom_edges, geom_attr,
-                     text_edges, text_attr, batch, scene_clip):
-        """
-        Encode a scene graph to a single vector z(G).
+    def encode_scene(
+        self,
+        node_feats: torch.Tensor,
+        geom_edges: torch.Tensor,
+        geom_attr: torch.Tensor,
+        text_edges: torch.Tensor,
+        text_attr: torch.Tensor,
+        batch: torch.Tensor,
+        scene_clip: torch.Tensor,
+    ) -> torch.Tensor:
+        """Encodes a scene graph to a single vector z(G).
 
-        Returns: (B, 256) graph embedding
+        Args:
+            node_feats: Node features of shape ``(N, node_input_dim)``.
+            geom_edges: Geometric edge index of shape ``(2, E_g)``.
+            geom_attr: Geometric edge attributes of shape ``(E_g, 8)``.
+            text_edges: Text relation edge index of shape ``(2, E_t)``.
+            text_attr: CLIP text edge attributes of shape ``(E_t, 512)``.
+            batch: Batch assignment vector of shape ``(N,)``.
+            scene_clip: Scene-level CLIP embedding of shape ``(B, 512)``.
+
+        Returns:
+            Graph embedding of shape ``(B, 256)``.
         """
-        # Eq.3
         x = self.node_encoder(node_feats)
 
-        # Eq.4 — geometric branch
         g = self.norm_geom(self.gat_geom(x, geom_edges, geom_attr.float()))
 
-        # Eq.5 — relation branch (input is x, not g)
+        # Relation branch falls back to geometric if no text edges exist
         if text_edges.size(1) > 0:
             t = self.norm_text(self.gat_text(x, text_edges, text_attr.float()))
         else:
             t = g
 
-        # Eq.6 — gated fusion
         h = self.fusion(g, t)
 
-        # Eq.7 — mean-pool + scene CLIP concat + final projection
         pooled = scatter_mean(h, batch, dim=0)
         z = self.final_proj(torch.cat([pooled, scene_clip], dim=-1))
         return z
 
-    def forward(self, batch):
-        """
-        Forward pass for paired scene graphs.
+    def forward(self, batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+        """Forward pass for paired scene graphs.
 
         Args:
-            batch: dict with keys *_src / *_ref for source and reference,
-                   plus scene_clip_src, scene_clip_ref, src_batch, ref_batch.
+            batch: Dictionary with keys ``*_src`` / ``*_ref`` for source and
+                reference, plus ``scene_clip_src``, ``scene_clip_ref``,
+                ``src_batch``, ``ref_batch``.
 
         Returns:
-            {"src_emb": (B, 256), "ref_emb": (B, 256)}
+            Dictionary with ``src_emb`` and ``ref_emb``, each of shape ``(B, 256)``.
         """
         src_emb = self.encode_scene(
             batch["node_feats_src"], batch["geom_edges_src"],

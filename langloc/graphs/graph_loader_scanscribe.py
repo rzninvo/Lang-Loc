@@ -9,7 +9,7 @@ from langloc.graphs.graph_loader_utils import get_ada, get_word2vec, check_and_r
 from langloc.utils.utils import txt_to_json
 
 
-def process_scenes_to_dict(dir_to_scenes):
+def process_scenes_to_dict(dir_to_scenes: str) -> dict:
     """Reads all ScanScribe JSON scene files into a nested dictionary.
 
     Args:
@@ -38,7 +38,7 @@ def process_scenes_to_dict(dir_to_scenes):
         scenes[id] = scene
     return scenes
                 
-def add_edge_features(all_scenes):
+def add_edge_features(all_scenes: dict) -> dict:
     """Adds Ada and word2vec embeddings for edge relationships in all scenes.
 
     Args:
@@ -58,7 +58,7 @@ def add_edge_features(all_scenes):
                 # NOTE: assumed there are no attributes for edges
     return all_scenes
 
-def add_node_features(all_scenes):
+def add_node_features(all_scenes: dict) -> dict:
     """Adds Ada and word2vec embeddings for node labels and attributes in all scenes.
 
     Args:

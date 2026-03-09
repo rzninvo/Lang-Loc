@@ -1,4 +1,9 @@
-"""Legacy greedy next-best-view selection and K-means clustering."""
+"""Legacy greedy next-best-view selection and K-means clustering.
+
+Provides the original two-step view selection pipeline: greedy NBV
+coverage/diversity scoring followed by K-means spatial clustering.
+Used as fallback when ``dpp_enabled`` is ``False`` in config.
+"""
 from __future__ import annotations
 
 from collections import defaultdict

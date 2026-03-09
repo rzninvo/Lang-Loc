@@ -6,7 +6,7 @@ from sklearn.cluster import DBSCAN
 from langloc.graphs.scene_graph import SceneGraph
 
 
-def combine_node_features(graph1, graph2):
+def combine_node_features(graph1: SceneGraph, graph2: SceneGraph) -> tuple[np.ndarray, np.ndarray]:
     """Concatenates node features from two graphs with graph-membership indices.
 
     Args:
@@ -24,7 +24,7 @@ def combine_node_features(graph1, graph2):
     return all_node_features, all_node_graph_index
 
 
-def get_matching_subgraph(graph1, graph2, dbscan_eps=0.5, dbscan_min_samples=1):
+def get_matching_subgraph(graph1: SceneGraph, graph2: SceneGraph, dbscan_eps: float = 0.5, dbscan_min_samples: int = 1) -> tuple[SceneGraph | None, SceneGraph | None]:
     """Extracts matching subgraphs from two scene graphs using DBSCAN clustering.
 
     Clusters all nodes from both graphs by feature similarity, then keeps

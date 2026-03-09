@@ -1,5 +1,4 @@
-"""
-Fine-tune DualSceneAligner on ScanScribe-3DSSG cross-domain pairs.
+"""Fine-tune DualSceneAligner on ScanScribe-3DSSG cross-domain pairs.
 
 Loads a pretrained checkpoint and fine-tunes with low learning rate
 on ScanScribe text graphs paired with 3DSSG scene graphs.
@@ -21,7 +20,12 @@ from langloc.retrieval.train_dual_scene import InfoNCELoss, collate_fn
 
 
 @hydra.main(config_path="../../configs", config_name="config", version_base=None)
-def main(cfg: DictConfig):
+def main(cfg: DictConfig) -> None:
+    """Hydra CLI entry point for DualSceneAligner fine-tuning.
+
+    Args:
+        cfg: Merged Hydra configuration.
+    """
     rcfg = cfg.retrieval
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
@@ -47,7 +51,6 @@ def main(cfg: DictConfig):
         dropout=rcfg.dropout,
     ).to(device)
 
-    # Load pretrained checkpoint
     ckpt = torch.load(rcfg.pretrained_checkpoint, map_location=device, weights_only=False)
     model.load_state_dict(ckpt["model_state_dict"])
     print(f"Loaded pretrained weights from {rcfg.pretrained_checkpoint}")

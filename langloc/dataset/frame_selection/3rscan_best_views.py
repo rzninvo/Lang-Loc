@@ -99,27 +99,19 @@ def load_scan_id_set(path: Path | None) -> set[str]:
             ids.add(line)
     return ids
 
-def load_mesh_with_textures(scene_path, device):
-    """
-    Load the refined 3RScan mesh together with its texture map and return a
-    PyTorch3D `Meshes` instance ready for rendering.
+def load_mesh_with_textures(scene_path: Path, device: torch.device) -> tuple:
+    """Load the refined 3RScan mesh with its texture map as a PyTorch3D Meshes.
 
-    The OBJ uses shared vertices for UV seams; to keep texture coordinates
-    consistent with PyTorch3D we duplicate vertices per triangle and return the
-    index mapping so auxiliary per-vertex data (e.g., segmentation) can be
-    expanded in the same way.
+    The OBJ uses shared vertices for UV seams; vertices are duplicated per
+    triangle to keep texture coordinates consistent with PyTorch3D.
 
     Args:
-        scene_path (Path | str): Directory containing the 3RScan assets.
-        device (torch.device): Device on which the mesh tensors should live.
+        scene_path: Directory containing the 3RScan assets.
+        device: Device on which the mesh tensors should live.
 
     Returns:
-        tuple[Meshes, np.ndarray, np.ndarray]:
-            - meshes:  Single-item `Meshes` with duplicated vertices and UVs.
-            - orig_vertex_idx: 1D array mapping each expanded vertex back to the
-              original OBJ vertex index (length = 3 * num_faces).
-            - verts: Original vertex positions from the OBJ (N, 3), kept so the
-              caller can build per-vertex annotations without duplication.
+        Tuple of ``(meshes, orig_vertex_idx, original_verts)`` where
+        ``orig_vertex_idx`` maps expanded vertices back to original OBJ indices.
     """
 
     obj_path = scene_path / "mesh.refined.v2.obj"
@@ -153,26 +145,23 @@ def load_mesh_with_textures(scene_path, device):
     return meshes, orig_vertex_idx, verts
 
 
-def load_segments_and_instances(scene_path: Path, base_vertices: np.ndarray):
-    """
-    Transfer per-vertex instance IDs and semantic labels onto the mesh.
+def load_segments_and_instances(scene_path: Path, base_vertices: np.ndarray) -> tuple[np.ndarray, dict[int, int], dict[int, str]]:
+    """Transfer per-vertex instance IDs and semantic labels onto the mesh.
 
-    The official `mesh.refined.0.010000.segs.v2.json` is aligned with a decimated
-    mesh, so we instead use the annotated point cloud
-    `labels.instances.annotated.v2.ply` and find the nearest annotated point for
-    every vertex of the textured mesh.
+    Uses the annotated point cloud ``labels.instances.annotated.v2.ply``
+    and nearest-neighbor lookup to align labels with the textured mesh vertices.
 
     Args:
-        scene_path (Path): 3RScan scene directory.
-        base_vertices (np.ndarray): (N, 3) array of the original (non-duplicated)
-            OBJ vertices.
+        scene_path: 3RScan scene directory.
+        base_vertices: ``(N, 3)`` array of the original (non-duplicated) OBJ vertices.
 
     Returns:
-        tuple[np.ndarray, dict[int, int], dict[int, str]]:
-            - vert_obj: per-vertex instance IDs aligned with `base_vertices`.
-            - seg_to_obj: identity mapping retained for API compatibility
-              (`segment` -> `objectId`).
-            - obj_to_label: objectId -> semantic label (lowercased).
+        Tuple of ``(vert_obj, seg_to_obj, obj_to_label)`` where ``vert_obj``
+        has per-vertex instance IDs, ``seg_to_obj`` is an identity mapping
+        for API compatibility, and ``obj_to_label`` maps objectId to label.
+
+    Raises:
+        FileNotFoundError: If annotation files are missing.
     """
     semseg_json = scene_path / "semseg.v2.json"
     ply_path = scene_path / "labels.instances.annotated.v2.ply"
@@ -195,18 +184,19 @@ def load_segments_and_instances(scene_path: Path, base_vertices: np.ndarray):
     return vert_obj.astype(np.int32), seg_to_obj, obj_to_label
 
 
-def load_object_geometry_from_semseg(scene_path: Path):
-    """
-    Load per-object geometry from 3RScan `semseg.v2.json` OBB fields.
+def load_object_geometry_from_semseg(scene_path: Path) -> dict:
+    """Load per-object geometry from 3RScan ``semseg.v2.json`` OBB fields.
 
-    The file provides, per object:
-      - centroid
-      - axis lengths
-      - normalized axes (3x3)
+    Converts the per-object centroid, axis lengths, and normalized axes
+    into the geometry structure expected by ``compute_visible_objects()``.
 
-    We convert this into the geometry structure expected by
-    `compute_visible_objects(...)`:
-      centroid_world, bbox_min/max, obb_center/axes/extents.
+    Args:
+        scene_path: 3RScan scene directory.
+
+    Returns:
+        Dict mapping ``objectId`` to geometry dict with keys:
+        ``centroid_world``, ``bbox_min``, ``bbox_max``,
+        ``obb_center``, ``obb_axes``, ``obb_extents``.
     """
     semseg_json = scene_path / "semseg.v2.json"
     if not semseg_json.exists():
@@ -257,15 +247,17 @@ def load_object_geometry_from_semseg(scene_path: Path):
     return geometry
 
 
-def load_object_attributes(scene_id: str, dataset_path: Path):
-    """
-    Load per-object metadata for a specific 3RScan scene from `objects.json`.
+def load_object_attributes(scene_id: str, dataset_path: Path) -> dict[int, dict[str, object]]:
+    """Load per-object metadata for a 3RScan scene from ``objects.json``.
+
+    Args:
+        scene_id: UUID of the 3RScan scene.
+        dataset_path: Root of the 3RScan dataset.
 
     Returns:
-        Dict[int, Dict[str, object]] mapping `objectId -> merged metadata`.
-        Includes nested semantic attributes plus selected top-level fields:
-        `ply_color`, `nyu40`, `eigen13`, `rio27`, `global_id`, `id`,
-        `label`, and `affordances`.
+        Dict mapping ``objectId`` to merged metadata dict. Includes
+        semantic attributes and top-level fields such as ``ply_color``,
+        ``nyu40``, ``global_id``, ``label``, and ``affordances``.
     """
     objects_json = dataset_path / "objects.json"
     if not objects_json.exists():
@@ -390,11 +382,11 @@ def build_semantic_id_mapping(
 # ----------------------- GT Relationship Helpers ------------------------------
 
 def load_gt_relationships(scene_id: str, dataset_path: Path) -> list[list] | None:
-    """
-    Load ground-truth relationships for a 3RScan scene.
+    """Load ground-truth relationships for a 3RScan scene.
 
     Reads ``relationships.json`` (3DSSG format) and returns the raw
-    relationship triples for the requested scene.
+    relationship triples for the requested scene. Results are cached
+    at module level to avoid re-reading for batch runs.
 
     Args:
         scene_id: UUID of the 3RScan scene.
@@ -653,21 +645,21 @@ def build_gt_spatial_relations(
 # -------------------------- Debug Visualization Helpers -----------------------
 
 @torch.no_grad()
-def _render_textured_rgb(meshes, cameras, H, W, device):
-    """
-    Render a textured 3RScan mesh using PyTorch3D at full resolution.
+def _render_textured_rgb(meshes: "Meshes", cameras: "PerspectiveCameras", H: int, W: int, device: torch.device) -> np.ndarray:
+    """Render a textured 3RScan mesh using PyTorch3D at full resolution.
 
     Lighting is kept ambient-only to match the baked texture as closely as
-    possible. The function is primarily used for debug side-by-side comparisons.
+    possible.
 
     Args:
-        meshes (Meshes): PyTorch3D mesh batch (single mesh expected).
-        cameras (PerspectiveCameras): Camera aligned with the RGB frame.
-        H, W (int): Output resolution.
-        device (torch.device): Device to run the renderer on.
+        meshes: PyTorch3D mesh batch (single mesh expected).
+        cameras: Camera aligned with the RGB frame.
+        H: Output height in pixels.
+        W: Output width in pixels.
+        device: Device to run the renderer on.
 
     Returns:
-        np.ndarray: (H, W, 3) float image in [0, 1].
+        ``(H, W, 3)`` float image in [0, 1].
     """
     raster_settings = RasterizationSettings(
         image_size=(H, W),
@@ -691,16 +683,15 @@ def _render_textured_rgb(meshes, cameras, H, W, device):
     img = renderer(meshes, cameras=cameras)[0, ..., :3].clamp(0, 1).cpu().numpy()
     return img
 
-def _save_side_by_side(rgb_path: Path, rendered_rgb: np.ndarray, title_left: str, title_right: str, out_path: Path):
-    """
-    Save a diagnostic figure comparing dataset RGB and PyTorch3D render.
+def _save_side_by_side(rgb_path: Path, rendered_rgb: np.ndarray, title_left: str, title_right: str, out_path: Path) -> None:
+    """Save a diagnostic figure comparing dataset RGB and PyTorch3D render.
 
     Args:
-        rgb_path (Path): Path to the original RGB frame.
-        rendered_rgb (np.ndarray): Rendered view in [0, 1].
-        title_left (str): Title for the dataset image.
-        title_right (str): Title for the rendered image.
-        out_path (Path): Destination PNG path.
+        rgb_path: Path to the original RGB frame.
+        rendered_rgb: Rendered view in [0, 1].
+        title_left: Title for the dataset image.
+        title_right: Title for the rendered image.
+        out_path: Destination PNG path.
     """
     rgb = np.array(Image.open(rgb_path))
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -709,14 +700,13 @@ def _save_side_by_side(rgb_path: Path, rendered_rgb: np.ndarray, title_left: str
     plt.subplot(1, 2, 2); plt.imshow(rendered_rgb); plt.title(title_right); plt.axis("off")
     plt.tight_layout(); plt.savefig(out_path, dpi=100); plt.close()
 
-def _save_overlay(rgb_path: Path, pix_to_face: torch.Tensor, out_path: Path):
-    """
-    Overlay the rasterized silhouette on top of the RGB frame for alignment checks.
+def _save_overlay(rgb_path: Path, pix_to_face: torch.Tensor, out_path: Path) -> None:
+    """Overlay the rasterized silhouette on top of the RGB frame for alignment checks.
 
     Args:
-        rgb_path (Path): Path to the RGB frame to use as the background.
-        pix_to_face (torch.Tensor): Rasterizer output with face indices.
-        out_path (Path): Destination PNG path for the overlay.
+        rgb_path: Path to the RGB frame to use as the background.
+        pix_to_face: Rasterizer output with face indices.
+        out_path: Destination PNG path for the overlay.
     """
     rgb = np.array(Image.open(rgb_path))
     vis = pix_to_face.detach().cpu().numpy()
@@ -748,31 +738,22 @@ def _save_overlay(rgb_path: Path, pix_to_face: torch.Tensor, out_path: Path):
 
 # ------------------------------- Main ----------------------------------
 
-def main(scene_id: str, cfg: DictConfig, device_str=None,
-         debug=False, auto_clean=False,
-         save_semantic_masks=False, save_instance_masks=False,
-         allow_partial: bool = False):
-    """
-    Entry point for selecting representative 3RScan frames and exporting assets.
-
-    Steps performed:
-        1. Load mesh, annotations, and camera intrinsics/poses.
-        2. Filter frames by BRISQUE quality and optional subsampling.
-        3. Rasterize downsampled visibility to compute per-object coverage.
-        4. Run greedy next-best-view selection and K-means clustering.
-        5. Copy RGB/Depth/Pose files for the selected frames.
-        6. Optionally export semantic/instance masks and render debug visualizations.
+def main(scene_id: str, cfg: DictConfig, device_str: str | None = None,
+         debug: bool = False, auto_clean: bool = False,
+         save_semantic_masks: bool = False, save_instance_masks: bool = False,
+         allow_partial: bool = False) -> None:
+    """Select representative 3RScan frames and export assets.
 
     Args:
-        scene_id (str): UUID of the 3RScan scene.
+        scene_id: UUID of the 3RScan scene.
         cfg: Hydra DictConfig with ``dataset`` and ``paths`` groups.
-        device_str (str | None): Optional override for the compute device
-            (e.g., "cuda:0" or "cpu"). Defaults to CUDA if available.
-        debug (bool): If True, generate PyTorch3D vs RGB comparisons.
-        auto_clean (bool): If True, removes raw frames once outputs are saved.
-        save_semantic_masks (bool): Export semantic 16-bit PNG masks if True.
-        save_instance_masks (bool): Export instance 16-bit PNG masks if True.
-        allow_partial (bool): If True, process scenes listed in the partial
+        device_str: Optional override for the compute device
+            (e.g., ``"cuda:0"`` or ``"cpu"``). Defaults to CUDA if available.
+        debug: If True, generate PyTorch3D vs RGB comparisons.
+        auto_clean: If True, removes raw frames once outputs are saved.
+        save_semantic_masks: Export semantic 16-bit PNG masks if True.
+        save_instance_masks: Export instance 16-bit PNG masks if True.
+        allow_partial: If True, process scenes listed in the partial
             scan blocklist.
     """
 
@@ -1425,6 +1406,7 @@ def main(scene_id: str, cfg: DictConfig, device_str=None,
 
 @hydra.main(version_base=None, config_path="../../../configs", config_name="config")
 def cli(cfg: DictConfig) -> None:
+    """Hydra CLI entry point for 3RScan best-view selection."""
     main(
         scene_id=cfg.scan_id,
         cfg=cfg,

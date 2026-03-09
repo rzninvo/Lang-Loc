@@ -19,7 +19,7 @@ class Node:
         features: Combined feature vector (label + optional mean attributes).
     """
 
-    def __init__(self, idx, label_features, attribute_features, use_attributes, label=None, attributes=None):
+    def __init__(self, idx: int, label_features: list | np.ndarray, attribute_features: list, use_attributes: bool, label: str | None = None, attributes: list | None = None) -> None:
         self.idx = idx
         self.label_features = label_features
         self.attribute_features = attribute_features
@@ -29,7 +29,7 @@ class Node:
         assert type(self.label_features) in (list, np.ndarray), "label_features must be a list or ndarray"
         self.features = self.set_features(label_features, attribute_features, use_attributes=use_attributes)
 
-    def set_features(self, labels, attributes, use_attributes):
+    def set_features(self, labels: list | np.ndarray, attributes: list, use_attributes: bool) -> np.ndarray:
         """Combines label and attribute embeddings into a single feature vector.
 
         Args:
@@ -61,7 +61,7 @@ class Edge:
         features: Embedding vector for the relationship.
     """
 
-    def __init__(self, from_idx, to_idx, features):
+    def __init__(self, from_idx: int, to_idx: int, features: list | np.ndarray) -> None:
         self.from_idx = from_idx
         self.to_idx = to_idx
         self.features = features
@@ -81,7 +81,7 @@ class SceneGraph:
         edge_features: List of relation embedding vectors.
     """
 
-    def __init__(self, scene_id, txt_id=None, graph_type=None, graph=None, max_dist=None, embedding_type='ada', use_attributes=True):
+    def __init__(self, scene_id: str, txt_id: str | int | None = None, graph_type: str | None = None, graph: dict | None = None, max_dist: float | None = None, embedding_type: str = 'ada', use_attributes: bool = True) -> None:
         self.scene_id = scene_id
         if graph_type == '3dssg':
             self.nodes = self.extract_nodes_3dssg(graph['objects'], use_attributes, embedding_type)
@@ -101,7 +101,7 @@ class SceneGraph:
             self.scene_id = scene_id
             self.txt_id = txt_id
 
-    def extract_nodes_3dssg(self, objects, use_attributes, embedding_type='ada'):
+    def extract_nodes_3dssg(self, objects: dict, use_attributes: bool, embedding_type: str = 'ada') -> dict[int, Node]:
         """Extracts nodes from a 3DSSG object dictionary.
 
         Args:
@@ -124,7 +124,7 @@ class SceneGraph:
             nodes[int(obj['id'])] = node
         return nodes
 
-    def extract_nodes_scanscribe(self, objects, use_attributes, embedding_type='ada'):
+    def extract_nodes_scanscribe(self, objects: list[dict], use_attributes: bool, embedding_type: str = 'ada') -> dict[int, Node]:
         """Extracts nodes from a ScanScribe/human node list.
 
         Args:
@@ -145,7 +145,7 @@ class SceneGraph:
             nodes[int(obj['id'])] = node
         return nodes
 
-    def extract_edges_3dssg(self, edge_lists, max_dist, embedding_type='ada'):
+    def extract_edges_3dssg(self, edge_lists: dict, max_dist: float, embedding_type: str = 'ada') -> tuple[list[list[int]], list[str], list]:
         """Extracts edges from a 3DSSG edge list, filtering by distance.
 
         Args:
@@ -174,7 +174,7 @@ class SceneGraph:
         edge_idx.append(to_edge)
         return edge_idx, edge_attributes, edge_attributes_embedding
 
-    def extract_edges_scanscribe(self, edges, embedding_type='ada'):
+    def extract_edges_scanscribe(self, edges: list[dict], embedding_type: str = 'ada') -> tuple[list[list[int]], list[str], list]:
         """Extracts edges from a ScanScribe/human edge list.
 
         Args:
@@ -201,7 +201,7 @@ class SceneGraph:
         edge_idx.append(to_edge)
         return edge_idx, edge_attributes, edge_attributes_embedding
 
-    def get_subgraph(self, node_ids, return_graph=False):
+    def get_subgraph(self, node_ids: list[int], return_graph: bool = False) -> "tuple[dict, list, list, list] | SceneGraph | None":
         """Extracts a subgraph containing only the specified nodes and their edges.
 
         Args:
@@ -247,7 +247,7 @@ class SceneGraph:
             return new_graph
         return subgraph_nodes, subgraph_node_features, subgraph_edge_ids, subgraph_edge_features
 
-    def to_pyg(self):
+    def to_pyg(self) -> tuple[list, list[list[int]], list]:
         """Converts the scene graph to PyG-compatible tensors with remapped node IDs.
 
         Remaps original node IDs to contiguous 0-based indices for use with
@@ -277,7 +277,7 @@ class SceneGraph:
         node_features = [self.nodes[node_id].features for node_id in self.nodes]
         return node_features, edge_ids_remap, self.edge_features
 
-    def get_node_features(self):
+    def get_node_features(self) -> list:
         """Returns the feature vectors for all nodes in the graph.
 
         Returns:

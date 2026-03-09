@@ -363,8 +363,14 @@ def greedy_map_dpp_conditioned(
 
 
 def _gaussian_similarity(distance: float, sigma: float) -> float:
-    """
-    Convert a distance into a similarity in (0, 1] using an RBF kernel.
+    """Convert a distance into a similarity in (0, 1] using an RBF kernel.
+
+    Args:
+        distance: Non-negative distance value.
+        sigma: RBF bandwidth parameter.
+
+    Returns:
+        Similarity score in (0, 1].
     """
     sigma = max(float(sigma), 1e-6)
     return float(np.exp(-(distance ** 2) / (2.0 * sigma ** 2)))

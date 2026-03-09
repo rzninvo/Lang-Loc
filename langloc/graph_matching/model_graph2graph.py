@@ -21,12 +21,12 @@ class SimpleTConv(MessagePassing):
         dropout: Dropout probability for attention weights.
     """
 
-    def __init__(self, in_n, in_e, out_n, heads, dropout=0.5):
+    def __init__(self, in_n: int, in_e: int, out_n: int, heads: int, dropout: float = 0.5) -> None:
         super().__init__(aggr='add')
         self.TConv = TransformerConv(in_n, out_n, concat=False, heads=heads, dropout=dropout, edge_dim=in_e)
         self.act = nn.LeakyReLU()
 
-    def forward(self, x, edge_index, edge_attr):
+    def forward(self, x: torch.Tensor, edge_index: torch.Tensor, edge_attr: torch.Tensor) -> torch.Tensor:
         """Applies Transformer convolution and activation.
 
         Args:
@@ -56,7 +56,7 @@ class BigGNN(nn.Module):
         dropout: Dropout probability for attention weights.
     """
 
-    def __init__(self, N, heads, embed_dim=300, dropout=0.5):
+    def __init__(self, N: int, heads: int, embed_dim: int = 300, dropout: float = 0.5) -> None:
         super().__init__()
         self.N = N
         in_n, in_e, out_n = embed_dim, embed_dim, embed_dim
@@ -74,9 +74,15 @@ class BigGNN(nn.Module):
             nn.Sigmoid()
         )
 
-    def forward(self, x_1, x_2,
-                      edge_idx_1, edge_idx_2,
-                      edge_attr_1, edge_attr_2):
+    def forward(
+        self,
+        x_1: torch.Tensor,
+        x_2: torch.Tensor,
+        edge_idx_1: torch.Tensor,
+        edge_idx_2: torch.Tensor,
+        edge_attr_1: torch.Tensor,
+        edge_attr_2: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Computes a matching score between two graphs.
 
         Args:

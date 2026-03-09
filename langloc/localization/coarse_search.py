@@ -147,13 +147,14 @@ def coarse_to_fine_arrow_search(verts: np.ndarray,
                                 keep_ratio: float,
                                 top_k: int,
                                 apply_nms: bool = True) -> Tuple[List[np.ndarray],
-                                                     List[np.ndarray],
-                                                     List[float],
-                                                     float,
-                                                     np.ndarray,
-                                                     np.ndarray,
-                                                     np.ndarray,
-                                                     np.ndarray]:
+                                                                 List[np.ndarray],
+                                                                 List[float],
+                                                                 float,
+                                                                 np.ndarray,
+                                                                 np.ndarray,
+                                                                 np.ndarray,
+                                                                 np.ndarray,
+                                                                 np.ndarray]:
     """Iteratively refine around the highest FOV-weighted arrows.
 
     Level 0 covers the full mesh with spacing ``base_step``.  At each

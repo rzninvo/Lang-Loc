@@ -1,8 +1,7 @@
-"""
-Precompute embeddings for cache-based evaluation (Table 3).
+"""Precompute embeddings for cache-based evaluation (Table 3).
 
 Encodes all database and query graphs through the model, saves caches
-for fast evaluation with eval.py retrieval.eval.protocol=table3.
+for fast evaluation with ``eval.py retrieval.eval.protocol=table3``.
 """
 
 import torch
@@ -22,7 +21,12 @@ from langloc.retrieval.eval import (
 
 
 @hydra.main(config_path="../../configs", config_name="config", version_base=None)
-def main(cfg: DictConfig):
+def main(cfg: DictConfig) -> None:
+    """Hydra CLI entry point for precomputing embeddings.
+
+    Args:
+        cfg: Merged Hydra configuration.
+    """
     rcfg = cfg.retrieval
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
@@ -31,11 +35,9 @@ def main(cfg: DictConfig):
     assert rcfg.cache_dir, "Set retrieval.cache_dir"
     cache_dir = rcfg.cache_dir
 
-    # Load CLIP
     print("Loading CLIP...")
     clip_model, _ = clip.load("ViT-B/32", device=device)
 
-    # Load graphs
     print("Loading graphs...")
     raw_3dssg = torch.load(
         f"{cache_dir}/3dssg_graphs_518D.pt", weights_only=False, map_location="cpu"
@@ -64,7 +66,6 @@ def main(cfg: DictConfig):
     query_graphs = {k: v for k, v in query_graphs.items() if len(v.edge_idx[0]) >= 1}
     print(f"DB: {len(db_graphs)}, Queries: {len(query_graphs)}")
 
-    # Build CLIP caches
     all_graphs = {**query_graphs, **{sid: g for sid, g in db_graphs.items()}}
     node_clip, rel_clip, scene_clip = build_clip_caches(all_graphs, clip_model, device)
 
@@ -74,7 +75,6 @@ def main(cfg: DictConfig):
     )
     print(f"Saved clip_embedding_cache.pt")
 
-    # Load model
     print("Loading model...")
     model = DualSceneAligner(
         node_input_dim=rcfg.node_input_dim,
@@ -86,7 +86,6 @@ def main(cfg: DictConfig):
     model.eval()
     print(f"Model: {sum(p.numel() for p in model.parameters()):,} parameters")
 
-    # Precompute DB embeddings
     print("Precomputing DB embeddings...")
     db_emb_cache = {}
     with torch.no_grad():
@@ -101,7 +100,6 @@ def main(cfg: DictConfig):
     torch.save(db_emb_cache, f"{cache_dir}/db_emb_cache.pt")
     print(f"Saved db_emb_cache.pt ({len(db_emb_cache)} scenes)")
 
-    # Precompute query embeddings
     print("Precomputing query embeddings...")
     query_emb_cache = {}
     with torch.no_grad():

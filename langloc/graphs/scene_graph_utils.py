@@ -1,7 +1,7 @@
 """Validation utilities for scene graph data structures."""
 
 
-def check_valid_graph(nodes, edge_idx):
+def check_valid_graph(nodes: dict, edge_idx: list[list[int]]) -> bool:
     """Checks that every node referenced by an edge exists in the node set.
 
     Args:

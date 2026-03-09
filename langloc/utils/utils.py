@@ -1,6 +1,7 @@
 """Shared utility functions: text parsing, spaCy embeddings, and PyG graph helpers."""
 
-# Python suppress warnings from spaCy
+from __future__ import annotations
+
 import warnings
 warnings.filterwarnings("ignore", message=r"\[W095\]", category=UserWarning)
 
@@ -16,8 +17,8 @@ SPACY_EMBED_DIM = 300
 # Lazy-loaded spaCy model
 _nlp = None
 
-def _get_nlp():
-    """Returns the lazily-loaded spaCy ``en_core_web_lg`` model."""
+def _get_nlp() -> object:
+    """Return the lazily-loaded spaCy ``en_core_web_lg`` model."""
     global _nlp
     if _nlp is None:
         import spacy
@@ -25,7 +26,7 @@ def _get_nlp():
     return _nlp
 
 
-def load_text_dataset(filename):
+def load_text_dataset(filename: str) -> tuple[set, dict] | None:
     """Loads a ScanScribe text dataset from the bundled scripts directory.
 
     Args:
@@ -60,7 +61,7 @@ def load_text_dataset(filename):
     return scan_ids, dict_of_texts
 
 
-def verify_subgraph(text_graph, subgraph, og_graph, output, clusters):
+def verify_subgraph(text_graph: object, subgraph: object, og_graph: object, output: dict, clusters: dict) -> None:
     """Prints debug info about matched nodes between a text graph and scene subgraph.
 
     Args:
@@ -86,7 +87,7 @@ def verify_subgraph(text_graph, subgraph, og_graph, output, clusters):
     print("--------------------------")
 
 
-def txt_to_json(text):
+def txt_to_json(text: str) -> dict | list:
     """Cleans raw text and parses it as JSON.
 
     Removes newlines, unescapes quotes, and collapses whitespace before parsing.
@@ -104,7 +105,7 @@ def txt_to_json(text):
     return json_data
 
 
-def noun_in_list_of_nouns(noun, nouns, threshold=0.5):
+def noun_in_list_of_nouns(noun: str, nouns: list[str], threshold: float = 0.5) -> tuple[str | None, bool]:
     """Finds the most similar noun in a list using spaCy similarity.
 
     Args:
@@ -125,7 +126,7 @@ def noun_in_list_of_nouns(noun, nouns, threshold=0.5):
     return max_sim_noun, max_sim > threshold
 
 
-def vectorize_word(word):
+def vectorize_word(word: str) -> np.ndarray:
     """Converts a word to its spaCy word2vec embedding.
 
     Args:
@@ -139,7 +140,7 @@ def vectorize_word(word):
     return _get_nlp()(word)[0].vector
 
 
-def recover_word(vector, top_n=3):
+def recover_word(vector: np.ndarray, top_n: int = 3) -> list[str]:
     """Recovers the closest words to a given embedding vector.
 
     Args:
@@ -158,7 +159,7 @@ def recover_word(vector, top_n=3):
     return words
 
 
-def print_closest_words(out, x, first_n=5):
+def print_closest_words(out: np.ndarray, x: np.ndarray, first_n: int = 5) -> None:
     """Prints the closest recovered words for each row of two embedding matrices.
 
     Args:
@@ -176,7 +177,7 @@ def print_closest_words(out, x, first_n=5):
         print("Closest words to " + str(x_word) + ": " + str(out_word))
 
 
-def print_word_distances(word1, word2):
+def print_word_distances(word1: str, word2: str) -> None:
     """Prints the L2 distance between two words' spaCy embeddings.
 
     Args:
@@ -188,7 +189,7 @@ def print_word_distances(word1, word2):
     print("Distance between " + word1 + " and " + word2 + ": " + str(np.linalg.norm(word1_vec - word2_vec)))
 
 
-def print_word_similarity(word1, word2):
+def print_word_similarity(word1: str, word2: str) -> None:
     """Prints the spaCy similarity score between two words.
 
     Args:
@@ -198,7 +199,7 @@ def print_word_similarity(word1, word2):
     print("Similarity between " + word1 + " and " + word2 + ": " + str(_get_nlp()(word1).similarity(_get_nlp()(word2))))
 
 
-def word_similarity(word1, word2):
+def word_similarity(word1: str, word2: str) -> float:
     """Computes the spaCy similarity between two words.
 
     Args:
@@ -211,7 +212,7 @@ def word_similarity(word1, word2):
     return _get_nlp()(word1).similarity(_get_nlp()(word2))
 
 
-def make_cross_graph(x_1_dim, x_2_dim):
+def make_cross_graph(x_1_dim: tuple, x_2_dim: tuple) -> tuple[torch.Tensor, torch.Tensor]:
     """Builds a fully-connected bipartite cross-graph between two node sets.
 
     Creates edges from every node in graph 1 to every node in graph 2,
@@ -242,7 +243,7 @@ def make_cross_graph(x_1_dim, x_2_dim):
     return edge_index_cross, edge_attr_cross
 
 
-def mask_node(x, p=0.1):
+def mask_node(x: torch.Tensor, p: float = 0.1) -> tuple[torch.Tensor, torch.Tensor | None]:
     """Randomly masks a fraction of node features by zeroing them out.
 
     Args:
@@ -264,7 +265,7 @@ def mask_node(x, p=0.1):
     return x_clone, rows_to_mask
 
 
-def accuracy_score(y_pred, y_true, top_n=3, thresh=0.8):
+def accuracy_score(y_pred: np.ndarray, y_true: np.ndarray, top_n: int = 3, thresh: float = 0.8) -> float:
     """Computes word-recovery accuracy between predicted and true embeddings.
 
     For each row, recovers the top-n closest words and checks if the true

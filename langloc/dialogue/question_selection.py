@@ -67,7 +67,6 @@ def compute_ig_for_question(
     """
     H0 = entropy(p)
     Py, Pn, Pu = ynu_likelihood_from_prob(p_true, p_ans, alpha, p_u_base, p_u_unanswerable)
-    # P(answer)
     P_y = float(np.dot(p, Py))
     P_n = float(np.dot(p, Pn))
     P_u = float(np.dot(p, Pu))
@@ -130,6 +129,7 @@ def pick_next_question_system(
     best_lab: Tuple[Optional[Question], float] = (None, -1e18)
 
     def passes_thresholds(p_yes: float, p_ans: float, is_rel: bool) -> bool:
+        """Check whether a question meets the ask-probability and answerability filters."""
         if not (cfg.ask_min_p <= p_yes <= cfg.ask_max_p):
             return False
         if is_rel and p_ans < cfg.rel_min_answerable:

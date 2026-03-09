@@ -164,7 +164,6 @@ def run_dialogue_one_backend(
             print("No more questions that satisfy thresholds.")
             break
 
-        # render
         if q.qtype == "label":
             lab = label_pool[q.idx]
             p_true, p_ans = backend.label_prob_yes(lab)
@@ -189,7 +188,6 @@ def run_dialogue_one_backend(
             else:
                 ans = input("[y/n/u/q/tf/tc/tp/o/h] > ").strip().lower()
 
-        # commands
         if ans in ("h", "?"):
             print(HELP_TEXT)
             continue
@@ -226,13 +224,11 @@ def run_dialogue_one_backend(
 
         asked += 1
 
-        # update
         if q.qtype == "label":
             backend.update_label(label_pool[q.idx], ans)
         else:
             backend.update_rel(rel_item_to_tuple(rel_pool[q.idx]), ans)
 
-        # remove asked
         questions = [qq for qq in questions if not (qq.qtype == q.qtype and qq.idx == q.idx)]
 
     return asked

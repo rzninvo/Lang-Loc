@@ -46,28 +46,15 @@ client = OpenAI()
 # ---------------------------------------------------------------------
 
 def call_gpt(prompt: str, model: str = "gpt-4o-mini") -> str:
-    """
-    Query the OpenAI GPT API to generate a natural-language description
-    from a text prompt summarizing object and spatial information.
+    """Query the OpenAI GPT API to generate a natural-language scene description.
 
-    Parameters
-    ----------
-    prompt : str
-        The text prompt describing the scene contents and relationships.
-    model : str, optional
-        Name of the OpenAI model to use. Default is "gpt-4o-mini".
+    Args:
+        prompt: Text prompt describing the scene contents and relationships.
+        model: Name of the OpenAI model to use.
 
-    Returns
-    -------
-    str
-        The model-generated description text. If the request fails,
-        a placeholder string "[Error generating description]" is returned.
-
-    Notes
-    -----
-    - Requires a valid `OPENAI_API_KEY` loaded from `.env` or the environment.
-    - Uses `temperature=0.5` for moderate creativity while maintaining factual tone.
-    - Truncates output at 500 tokens for consistency across frames.
+    Returns:
+        The model-generated description text, or
+        ``"[Error generating description]"`` on failure.
     """
     try:
         response = client.chat.completions.create(
@@ -99,11 +86,16 @@ def call_gpt(prompt: str, model: str = "gpt-4o-mini") -> str:
 
 
 def extract_color_hint(obj_meta: dict) -> str | None:
-    """
-    Extract a concise color hint from object metadata.
+    """Extract a concise color hint from object metadata.
 
     Reads the literal color name from ``attributes.color`` (populated from
-    objects.json during the visibility pass in 3rscan_best_views.py).
+    ``objects.json`` during the visibility pass).
+
+    Args:
+        obj_meta: Object metadata dict with optional ``attributes`` sub-dict.
+
+    Returns:
+        Lowercase color string, or ``None`` if no color is available.
     """
     if not isinstance(obj_meta, dict):
         return None
@@ -138,15 +130,16 @@ _INVERSE_PRED_IDS = {
 
 
 def _dedup_relations_for_prompt(spatial_relations: list) -> list:
-    """
-    Remove symmetric/inverse duplicates from spatial relations so the
-    GPT prompt is concise.  Only used for prompt construction — the full
-    relation list is preserved in the saved output.
+    """Remove symmetric/inverse duplicates from spatial relations for prompt brevity.
 
-    Rules:
-      - Directional inverses (left↔right, front↔behind): keep whichever
-        appears first; the reverse pair adds no information for a human.
-      - Other predicates: keep one per unordered (subject, object, pred_id).
+    Only used for prompt construction; the full relation list is preserved
+    in the saved output.
+
+    Args:
+        spatial_relations: List of relation dicts with subject/object/predicate fields.
+
+    Returns:
+        De-duplicated list with directional inverses and symmetric pairs removed.
     """
     seen: set = set()
     deduped: list = []
@@ -175,30 +168,20 @@ def _dedup_relations_for_prompt(spatial_relations: list) -> list:
 
 
 def build_prompt(fid: str, visible_objects: dict, spatial_relations: list) -> str:
-    """
-    Construct a descriptive text prompt from the cached visibility
-    and spatial metadata of one keyframe.
+    """Construct a GPT prompt from visibility and spatial metadata of one keyframe.
 
-    This structured prompt is what the GPT model receives as input.
-    It lists all visible objects and describes their qualitative relations
-    (e.g., "the fridge is right_of the sink").
+    Lists all visible objects and their spatial relations in a format
+    suitable for the GPT system prompt.
 
-    Parameters
-    ----------
-    fid : str
-        The frame (image) identifier (e.g., "000123").
-    visible_objects : dict
-        Mapping from object ID → metadata dictionary containing at least
-        a 'label' field and optionally centroid/bbox data.
-    spatial_relations : list
-        List of pairwise spatial relations between visible objects,
-        each entry having fields {'subject', 'object', 'relation'}.
+    Args:
+        fid: Frame (image) identifier (e.g., ``"000123"``).
+        visible_objects: Mapping from object ID to metadata dict containing
+            at least a ``label`` field and optionally centroid/bbox data.
+        spatial_relations: List of pairwise spatial relation dicts with
+            ``subject``, ``object``, and ``relation`` fields.
 
-    Returns
-    -------
-    str
-        A formatted English prompt string to be fed to the GPT model.
-
+    Returns:
+        Formatted English prompt string for the GPT model.
     """
     obj_list = [f"{v['label'] or f'object {oid}'}" for oid, v in visible_objects.items()]
     color_hints = []
@@ -241,27 +224,19 @@ def build_prompt(fid: str, visible_objects: dict, spatial_relations: list) -> st
 # Main Routine
 # ---------------------------------------------------------------------
 
-def main(scene_id: str, dataset: str, cfg: DictConfig):
-    """
-    Generate GPT-based scene descriptions for all **selected keyframes** of a given scene.
-    Only frames that were chosen during the NBV + clustering step (those listed in
-    `output/camera_pose.json`) will be described.
+def main(scene_id: str, dataset: str, cfg: DictConfig) -> None:
+    """Generate GPT-based descriptions for selected keyframes of a scene.
 
-    Parameters
-    ----------
-    scene_id : str
-        Identifier of the scene (e.g., "scene0000_00" or a 3RScan UUID).
-    dataset : str
-        Dataset type: "scannet" or "3RScan".
-    cfg : DictConfig
-        Hydra DictConfig with ``dataset`` and ``paths`` groups.
+    Only frames listed in ``output/camera_pose.json`` (chosen during the
+    NBV + clustering step) are described.
 
-    Workflow
-    --------
-    1. Loads per-frame visibility & relation data from cache.
-    2. Loads `camera_pose.json` to get the list of selected keyframes.
-    3. Builds GPT prompts for only those keyframes.
-    4. Saves results in `output/descriptions/` as per-frame and combined files.
+    Args:
+        scene_id: Scene identifier (e.g., ``"scene0000_00"`` or a 3RScan UUID).
+        dataset: Dataset type: ``"scannet"`` or ``"3RScan"``.
+        cfg: Hydra DictConfig with ``dataset`` and ``paths`` groups.
+
+    Raises:
+        FileNotFoundError: If the visibility cache or camera pose file is missing.
     """
     dataset_key = "scannetpp" if dataset.lower() == "scannet" else "3rscan"
     dataset_cfg = cfg.dataset[dataset_key]
@@ -341,6 +316,7 @@ def main(scene_id: str, dataset: str, cfg: DictConfig):
 
 @hydra.main(version_base=None, config_path="../../../configs", config_name="config")
 def cli(cfg: DictConfig) -> None:
+    """Hydra CLI entry point for description generation."""
     main(
         scene_id=cfg.scan_id,
         dataset=cfg.dataset.get("target", "3RScan"),

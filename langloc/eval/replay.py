@@ -49,6 +49,14 @@ RE_BASELINE = re.compile(
 
 
 def safe_float(s: str) -> Optional[float]:
+    """Convert a string to float, returning ``None`` on NaN or parse failure.
+
+    Args:
+        s: The string to convert.
+
+    Returns:
+        The parsed float, or ``None`` if the value is NaN or unparseable.
+    """
     try:
         v = float(s)
         return None if v != v else v
@@ -64,7 +72,19 @@ from langloc.eval import import_module_from_path as import_module
 # ── Mesh discovery extension for ScanNet ─────────────────────────────────────
 
 def discover_mesh_extended(scene_dir: Path) -> Path:
-    """Extend mesh discovery to also find ScanNet-style *_vh_clean_2.ply files."""
+    """Extend mesh discovery to also find ScanNet-style ``*_vh_clean_2.ply`` files.
+
+    Falls back to glob patterns when the standard mesh names are absent.
+
+    Args:
+        scene_dir: Directory to search for mesh files.
+
+    Returns:
+        Path to the discovered mesh file.
+
+    Raises:
+        FileNotFoundError: If no mesh file is found.
+    """
     try:
         return discover_mesh(scene_dir)
     except FileNotFoundError:
@@ -81,23 +101,47 @@ def discover_mesh_extended(scene_dir: Path) -> Path:
 # ── IoU computer ─────────────────────────────────────────────────────────────
 
 class IoUComputer:
-    """Cached View IoU computation wrapper."""
+    """Cached View IoU computation wrapper.
+
+    Lazily loads and caches per-scene raycasting contexts so that
+    multiple IoU queries against the same scene reuse the mesh.
+
+    Args:
+        hfov_deg: Horizontal field-of-view in degrees.
+        vfov_deg: Vertical field-of-view in degrees.
+        near: Near-plane distance in metres.
+        far: Optional far-plane distance in metres.
+    """
 
     def __init__(self, hfov_deg: float = 39.31, vfov_deg: float = 64.76,
-                 near: float = 0.05, far: Optional[float] = None):
+                 near: float = 0.05, far: Optional[float] = None) -> None:
         self.hfov_rad = math.radians(hfov_deg)
         self.vfov_rad = math.radians(vfov_deg)
         self.near = near
         self.far = far
         self._cache: Dict[str, Any] = {}
 
-    def _ctx(self, scene_dir: Path):
+    def _ctx(self, scene_dir: Path) -> Tuple:
+        """Return the cached raycasting context for *scene_dir*, loading if needed."""
         key = str(scene_dir)
         if key not in self._cache:
             self._cache[key] = build_iou_context(scene_dir)
         return self._cache[key]
 
-    def compute(self, scene_dir: Path, gt_pos, gt_dir, pred_pos, pred_dir) -> Optional[float]:
+    def compute(self, scene_dir: Path, gt_pos: np.ndarray, gt_dir: np.ndarray,
+                pred_pos: np.ndarray, pred_dir: np.ndarray) -> Optional[float]:
+        """Compute View IoU between ground-truth and predicted camera poses.
+
+        Args:
+            scene_dir: Scene root directory containing mesh data.
+            gt_pos: Ground-truth camera position, shape ``(3,)``.
+            gt_dir: Ground-truth viewing direction, shape ``(3,)``.
+            pred_pos: Predicted camera position, shape ``(3,)``.
+            pred_dir: Predicted viewing direction, shape ``(3,)``.
+
+        Returns:
+            IoU value in ``[0, 1]``, or ``None`` on failure.
+        """
         try:
             ray_scene, mesh_id, tri_pts, tri_cen, tri_areas = self._ctx(scene_dir)
             return compute_view_iou(
@@ -112,7 +156,15 @@ class IoUComputer:
             return None
 
 
-def _dir_valid(v) -> bool:
+def _dir_valid(v: Any) -> bool:
+    """Check whether *v* is a finite, non-zero 3D direction vector.
+
+    Args:
+        v: Value to check (array-like or ``None``).
+
+    Returns:
+        ``True`` if *v* is a valid direction vector.
+    """
     if v is None:
         return False
     v = np.asarray(v, dtype=np.float64).reshape(3)
@@ -130,11 +182,21 @@ _state: Dict[str, Any] = {
 }
 
 
-def install_pose_hooks(dlg):
-    """Patch predict_pose on each backend class to capture predicted poses."""
-    def _make_patched(cls, tag: str):
+def install_pose_hooks(dlg: Any) -> None:
+    """Patch ``predict_pose`` on each backend class to capture predicted poses.
+
+    Wraps ``CandidateBackendA1``, ``ParticleBackendA2``, and
+    ``FrameBackendA3`` so that their MAP/Mean pose outputs are stored
+    in ``_state["pose_store"]`` for later IoU computation.
+
+    Args:
+        dlg: The imported dialogue module whose backend classes will be patched.
+    """
+    def _make_patched(cls: type, tag: str) -> None:
+        """Replace ``cls.predict_pose`` with a wrapper that stores results."""
         orig = cls.predict_pose
-        def patched(self_inner, *a, **kw):
+        def patched(self_inner: Any, *a: Any, **kw: Any) -> Any:
+            """Wrapper that delegates to the original and records the pose."""
             result = orig(self_inner, *a, **kw)
             try:
                 mp, md, sp, sd = result
@@ -158,17 +220,38 @@ def install_pose_hooks(dlg):
 
 def replay_scene(
     sid: str,
-    qa_log: List[Dict],
+    qa_log: List[Dict[str, Any]],
     gt_pos: np.ndarray,
     gt_dir: np.ndarray,
     scene_dir: Path,
-    dlg,
+    dlg: Any,
     iou_comp: Optional[IoUComputer],
     dataset_root: Path,
     candidates_json: Path,
-    orig_print,
-) -> Dict:
-    """Re-run one scene's dialogue with cached answers; return metrics dict."""
+    orig_print: Any,
+) -> Dict[Tuple[str, str], Dict[str, Any]]:
+    """Re-run one scene's dialogue with cached answers and return metrics.
+
+    Installs temporary ``print``/``input`` hooks that replay answers from
+    *qa_log* instead of querying the user or LLM. After the dialogue run,
+    parses summary lines and optionally computes View IoU for each backend.
+
+    Args:
+        sid: Scene identifier string.
+        qa_log: List of Q&A log entries (each with an ``"answer"`` key).
+        gt_pos: Ground-truth camera position, shape ``(3,)``.
+        gt_dir: Ground-truth viewing direction, shape ``(3,)``.
+        scene_dir: Filesystem path to the scene data directory.
+        dlg: The imported dialogue module.
+        iou_comp: Optional IoU computer instance (``None`` to skip IoU).
+        dataset_root: Root directory containing all scene folders.
+        candidates_json: Path to the evaluation candidates JSON.
+        orig_print: The original ``builtins.print`` function.
+
+    Returns:
+        Dict mapping ``(backend, estimator)`` tuples to metric dicts
+        containing ``"pos"``, ``"rot"``, ``"iou"``, and ``"iou_error"`` keys.
+    """
 
     _state["answer_queue"] = deque(qa["answer"] for qa in qa_log)
     _state["last_q_line"] = ""
@@ -178,14 +261,16 @@ def replay_scene(
 
     orig_print_builtin = builtins.print
 
-    def hooked_print(*a, **kw):
+    def hooked_print(*a: Any, **kw: Any) -> None:
+        """Capture printed output into ``_state``."""
         orig_print_builtin(*a, **kw)
         sep = kw.get("sep", " ")
         end = kw.get("end", "\n")
         line = sep.join(str(x) for x in a) + end
         _state["output_lines"].append(line)
 
-    def hooked_input(prompt=""):
+    def hooked_input(prompt: str = "") -> str:
+        """Return the next cached answer from the replay queue."""
         orig_print_builtin(prompt, end="", flush=True)
         ans = _state["answer_queue"].popleft() if _state["answer_queue"] else "u"
         orig_print_builtin(f"[replay -> {ans}]")
@@ -273,7 +358,18 @@ def replay_scene(
 
 # ── aggregate stats ──────────────────────────────────────────────────────────
 
-def stats(vals: List) -> Dict:
+def stats(vals: List[Optional[float]]) -> Dict[str, Any]:
+    """Compute summary statistics for a list of numeric values.
+
+    ``None`` entries are excluded before computation.
+
+    Args:
+        vals: List of float values (may contain ``None``).
+
+    Returns:
+        Dict with keys ``valid``, ``mean``, ``median``, ``std``, ``min``,
+        ``max``, ``p25``, ``p75``.
+    """
     arr = np.array([v for v in vals if v is not None], dtype=np.float64)
     n = len(arr)
     if n == 0:
@@ -284,7 +380,17 @@ def stats(vals: List) -> Dict:
                 p25=float(np.percentile(arr, 25)), p75=float(np.percentile(arr, 75)))
 
 
-def thresh(vals: List, t: float, above: bool = False) -> Tuple[int, float]:
+def thresh(vals: List[Optional[float]], t: float, above: bool = False) -> Tuple[int, float]:
+    """Count how many values pass a threshold and return the percentage.
+
+    Args:
+        vals: List of float values (may contain ``None``).
+        t: Threshold value.
+        above: If ``True``, count values ``>= t``; otherwise count ``<= t``.
+
+    Returns:
+        A ``(count, percentage)`` tuple.
+    """
     v = [x for x in vals if x is not None]
     if not v:
         return 0, float("nan")
@@ -292,7 +398,19 @@ def thresh(vals: List, t: float, above: bool = False) -> Tuple[int, float]:
     return n, 100.0 * n / len(v)
 
 
-def build_row(backend: str, which: str, scene_data: List[Dict], total: int) -> Dict:
+def build_row(backend: str, which: str, scene_data: List[Dict[str, Any]], total: int) -> Dict[str, Any]:
+    """Build an aggregate CSV row for one backend/estimator combination.
+
+    Args:
+        backend: Backend identifier (e.g. ``"A1"``, ``"Baseline"``).
+        which: Estimator type (e.g. ``"MAP"``, ``"MEAN"``).
+        scene_data: Per-scene metric dicts with ``"pos"``, ``"rot"``,
+            ``"iou"``, and ``"iou_error"`` keys.
+        total: Total number of successfully replayed scenes.
+
+    Returns:
+        Flat dict whose keys match :data:`COLUMNS`.
+    """
     ps = stats([d["pos"] for d in scene_data])
     rs = stats([d["rot"] for d in scene_data])
     is_ = stats([d["iou"] for d in scene_data])
@@ -350,6 +468,11 @@ COLUMNS = [
 # ── main ─────────────────────────────────────────────────────────────────────
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments for the replay CLI.
+
+    Returns:
+        Parsed argument namespace.
+    """
     ap = argparse.ArgumentParser(
         description="Replay cached LLM answers and compute View IoU metrics."
     )
@@ -373,10 +496,10 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Replay all scenes from saved LLM results and write aggregate metrics CSV."""
     args = parse_args()
     orig_print = builtins.print
 
-    # Load inputs
     qwen_results = json.loads(Path(args.qwen_json).read_text())
     cands_raw = json.loads(Path(args.candidates).read_text())
     dataset_root = Path(args.dataset_root)

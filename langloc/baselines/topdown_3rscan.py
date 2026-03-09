@@ -52,6 +52,7 @@ def discover_scan_dirs(dataset_root: Path) -> List[Path]:
 
 
 def _default_colors(num_points: int) -> np.ndarray:
+    """Return a uniform mid-gray color array as a fallback for missing vertex colors."""
     return np.tile(np.array([[0.45, 0.45, 0.45]], dtype=np.float32), (num_points, 1))
 
 
@@ -180,7 +181,17 @@ def load_mesh(mesh_path: Path) -> Tuple[o3d.geometry.TriangleMesh,
 
 
 def plane_to_axes(plane: str) -> Tuple[int, int, int]:
-    """Map plane name to plotted axes and filtered height axis."""
+    """Map a projection plane name to its two display axes and height axis.
+
+    Args:
+        plane: One of ``"xy"``, ``"xz"``, ``"yz"``.
+
+    Returns:
+        Tuple ``(axis_u, axis_v, height_axis)`` as integer indices.
+
+    Raises:
+        ValueError: If the plane name is not recognized.
+    """
     if plane == "xy":
         return 0, 1, 2
     if plane == "xz":
@@ -196,7 +207,19 @@ def filter_faces_by_height(vertices: np.ndarray,
                            floor_percentile: float,
                            ceiling_percentile: float,
                            cutoff_above_ground_m: float | None = None) -> np.ndarray:
-    """Return a face mask for triangles whose all three vertices fall in height range."""
+    """Return a boolean face mask keeping only triangles within a height range.
+
+    Args:
+        vertices: ``(N, 3)`` vertex positions.
+        faces: ``(F, 3)`` face indices.
+        height_axis: Index of the vertical axis (0, 1, or 2).
+        floor_percentile: Lower height percentile cutoff.
+        ceiling_percentile: Upper height percentile cutoff.
+        cutoff_above_ground_m: Optional absolute cap above estimated ground.
+
+    Returns:
+        ``(F,)`` boolean array; ``True`` for faces to keep.
+    """
     heights = vertices[:, height_axis]
     lo = float(np.percentile(heights, floor_percentile))
     hi = float(np.percentile(heights, ceiling_percentile))
@@ -219,7 +242,20 @@ def build_filtered_mesh(mesh_full: o3d.geometry.TriangleMesh,
                         faces_full: np.ndarray,
                         face_mask: np.ndarray,
                         vertex_colors_full: np.ndarray) -> o3d.geometry.TriangleMesh:
-    """Create filtered mesh while preserving UV textures if present."""
+    """Create a new mesh containing only the faces selected by ``face_mask``.
+
+    Preserves UV textures when available; otherwise copies vertex colors.
+
+    Args:
+        mesh_full: Original Open3D triangle mesh.
+        vertices_full: ``(N, 3)`` full vertex array.
+        faces_full: ``(F, 3)`` full face index array.
+        face_mask: ``(F,)`` boolean mask of faces to keep.
+        vertex_colors_full: ``(N, 3)`` vertex colors in [0, 1].
+
+    Returns:
+        A new Open3D mesh with only the selected faces.
+    """
     faces = faces_full[face_mask]
     used = np.unique(faces)
     remap = np.full(len(vertices_full), -1, dtype=np.int32)
@@ -283,8 +319,16 @@ def render_topdown_mesh(mesh: o3d.geometry.TriangleMesh,
                         plane: str,
                         output: Path,
                         dpi: int) -> None:
-    """
-    Render top-down 2D image using the same Open3D textured mesh pipeline as 3D viewer.
+    """Render a top-down 2D image and save camera intrinsics/extrinsics.
+
+    Uses the Open3D offscreen renderer with a white background to produce
+    a floor-plan-style image from the specified projection plane.
+
+    Args:
+        mesh: Filtered Open3D triangle mesh to render.
+        plane: Projection plane (``"xy"``, ``"xz"``, or ``"yz"``).
+        output: Destination path for the rendered PNG image.
+        dpi: Output image DPI (controls render resolution).
     """
     size = max(1024, int(dpi * 4))
     vis = o3d.visualization.Visualizer()
@@ -376,6 +420,7 @@ def make_topdown(scan_dir: Path,
 
 
 def parse_args() -> argparse.Namespace:
+    """Build and return the CLI argument parser for top-down view generation."""
     parser = argparse.ArgumentParser(description="Create top-down views for 3RScan scenes.")
     parser.add_argument("--root", required=True, type=Path,
                         help="3RScan root directory with <scan_id>/ subfolders.")
@@ -417,6 +462,14 @@ def parse_args() -> argparse.Namespace:
 
 
 def validate_args(args: argparse.Namespace) -> None:
+    """Validate mutually exclusive flags and numeric ranges in parsed arguments.
+
+    Args:
+        args: Parsed CLI arguments.
+
+    Raises:
+        ValueError: If argument combinations are invalid.
+    """
     if args.scan_id and args.all_scans:
         raise ValueError("Choose either --scan-id or --all-scans, not both.")
     if not args.scan_id and not args.all_scans:
@@ -429,6 +482,7 @@ def validate_args(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
+    """Parse arguments and render top-down views for single or batch scans."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
     args = parse_args()
     validate_args(args)

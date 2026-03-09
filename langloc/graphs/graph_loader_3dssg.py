@@ -17,7 +17,7 @@ _scans_dict = None
 _relationships_dict = None
 
 
-def _load_3dssg_data():
+def _load_3dssg_data() -> tuple[dict, dict]:
     """Lazily loads and caches 3DSSG objects.json and relationships.json.
 
     Returns:
@@ -45,7 +45,7 @@ def _load_3dssg_data():
     return _scans_dict, _relationships_dict
 
 
-def process_scenes(dir_to_scenes, plot=False, dist_thr=1.0):
+def process_scenes(dir_to_scenes: str, plot: bool = False, dist_thr: float = 1.0) -> dict:
     """Processes all 3RScan scenes into graph dictionaries.
 
     Args:
@@ -73,7 +73,7 @@ def process_scenes(dir_to_scenes, plot=False, dist_thr=1.0):
     return scenes
 
 
-def process_objects_and_relationships(dir_to_objects, scene_id, plot=False, dist_thr=1.0):
+def process_objects_and_relationships(dir_to_objects: str, scene_id: str, plot: bool = False, dist_thr: float = 1.0) -> tuple[dict, dict]:
     """Processes objects and relationships for a single 3RScan scene.
 
     Args:
@@ -137,7 +137,7 @@ def process_objects_and_relationships(dir_to_objects, scene_id, plot=False, dist
     return objects_in_scan, graph_adj
 
 
-def add_edge_list(all_scenes, output_path=None):
+def add_edge_list(all_scenes: dict, output_path: str | None = None) -> None:
     """Adds edge lists with embeddings to each scene in ``all_scenes``.
 
     Args:
@@ -176,7 +176,7 @@ def add_edge_list(all_scenes, output_path=None):
         torch.save(all_scenes, output_path)
 
 
-def add_node_features(all_scenes, output_path=None):
+def add_node_features(all_scenes: dict, output_path: str | None = None) -> None:
     """Adds label and attribute embeddings to each node in ``all_scenes``.
 
     Args:
@@ -209,7 +209,7 @@ def add_node_features(all_scenes, output_path=None):
         torch.save(all_scenes, output_path)
 
 
-def check_num_edges(all_scenes):
+def check_num_edges(all_scenes: dict) -> None:
     """Verifies that edge list counts match adjacency list counts.
 
     Args:
@@ -232,7 +232,7 @@ def check_num_edges(all_scenes):
     assert all(num_edges[i] == adj_num_edges[i] for i in range(len(num_edges)))
 
 
-def change_w2v_word2vec(all_scenes, p):
+def change_w2v_word2vec(all_scenes: dict, p: str) -> None:
     """Renames ``attributes_w2v`` keys to ``attributes_word2vec``. Deprecated."""
     for scene_id in tqdm(all_scenes):
         for node_id in all_scenes[scene_id]['objects']:

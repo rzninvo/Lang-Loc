@@ -185,6 +185,7 @@ def build_metrics_table_standard(metrics_list: List[SceneMetrics],
             col_widths[idx] = max(col_widths[idx], len(cell))
 
     def fmt_row(cells: List[str]) -> str:
+        """Format a single row with left-justified, padded cells."""
         return " | ".join(cell.ljust(col_widths[i]) for i, cell in enumerate(cells))
 
     separator = "-+-".join("-" * w for w in col_widths)
@@ -283,6 +284,7 @@ def build_metrics_table_simple(metrics_list: List[SceneMetrics],
             col_widths[idx] = max(col_widths[idx], len(cell))
 
     def fmt_row(cells: List[str]) -> str:
+        """Format a single row with left-justified, padded cells."""
         return " | ".join(cell.ljust(col_widths[i]) for i, cell in enumerate(cells))
 
     separator = "-+-".join("-" * w for w in col_widths)

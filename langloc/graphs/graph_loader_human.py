@@ -8,7 +8,7 @@ from tqdm import tqdm
 from langloc.graphs.graph_loader_utils import get_ada, get_word2vec
 
 
-def process_scenes_to_dict(dir_to_scenes):
+def process_scenes_to_dict(dir_to_scenes: str) -> dict:
     """Loads all JSON scene files from a directory into a dictionary.
 
     Args:
@@ -33,7 +33,7 @@ def process_scenes_to_dict(dir_to_scenes):
     return scenes
 
 
-def add_edge_features(all_scenes):
+def add_edge_features(all_scenes: dict) -> dict:
     """Adds Ada and word2vec embeddings to all edges.
 
     Args:
@@ -51,7 +51,7 @@ def add_edge_features(all_scenes):
     return all_scenes
 
 
-def add_node_features(all_scenes):
+def add_node_features(all_scenes: dict) -> dict:
     """Adds Ada and word2vec embeddings to all nodes and their attributes.
 
     Args:

@@ -214,7 +214,7 @@ def load_scannet_labelmap_tsv(tsv_path: Path, semantic_id_key: str = "nyu40id") 
 # -------------------------- Debug visualization helper ------------------------
 
 @torch.no_grad()
-def render_rgb_with_camera(V, F, VC, cameras, H: int, W: int, device):
+def render_rgb_with_camera(V: np.ndarray, F: np.ndarray, VC: np.ndarray, cameras: "PerspectiveCameras", H: int, W: int, device: torch.device) -> np.ndarray:
     """
     Render the mesh with vertex colors from the given camera.
 
@@ -234,7 +234,7 @@ def render_rgb_with_camera(V, F, VC, cameras, H: int, W: int, device):
 
     vc = VC.astype(np.float32)
     if vc.max() > 1.0:
-        vc = vc / 255.0  # normalize if colors were stored 0..255
+        vc = vc / 255.0
     verts_rgb = torch.from_numpy(vc).float().unsqueeze(0).to(device)
 
     mesh = Meshes(verts=[verts], faces=[faces], textures=TexturesVertex(verts_features=verts_rgb))
@@ -270,9 +270,12 @@ def show_side_by_side(fid: str, rgb_path: Path, rendered: np.ndarray):
     plt.subplot(1, 2, 2); plt.imshow(rendered); plt.title("PyTorch3D render"); plt.axis("off")
     plt.tight_layout(); plt.show()
 
-def plot_clusters(camera_poses: List[np.ndarray], cluster_labels: List[int]):
-    """
-    Plot the camera poses in 3D with color mapping for each cluster.
+def plot_clusters(camera_poses: List[np.ndarray], cluster_labels: List[int]) -> None:
+    """Plot camera poses in 3D with color mapping for each cluster.
+
+    Args:
+        camera_poses: List of (4,4) cam2world pose matrices.
+        cluster_labels: Cluster assignment for each pose.
     """
     # Extract positions (translation vectors) from the camera poses
     positions = np.stack([pose[:3, 3] for pose in camera_poses], axis=0)  # (N,3)
@@ -844,6 +847,7 @@ def main(scene_id: str, cfg: DictConfig, device_str: str | None = None,
 
 @hydra.main(version_base=None, config_path="../../../configs", config_name="config")
 def cli(cfg: DictConfig) -> None:
+    """Hydra CLI entry point for ScanNet++ best-view selection."""
     main(
         scene_id=cfg.scan_id,
         cfg=cfg,

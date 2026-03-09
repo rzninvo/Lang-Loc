@@ -1,4 +1,8 @@
-"""Image Quality Assessment (IQA) filtering using pyiqa."""
+"""Image Quality Assessment (IQA) filtering using pyiqa.
+
+Provides GPU-accelerated quality scoring of RGB frames to filter out
+blurry or low-quality images before downstream view selection.
+"""
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
@@ -10,16 +14,18 @@ from torchvision import transforms
 from tqdm import tqdm
 
 
-def load_iqa_model(metric_name: str = "qualiclip", device: str = "cuda"):
-    """
-    Load an IQA model from pyiqa.
+def load_iqa_model(metric_name: str = "qualiclip", device: str = "cuda") -> tuple:
+    """Load an IQA model from pyiqa.
 
     Args:
-        metric_name: IQA metric to use (e.g., "qualiclip", "brisque", "niqe").
-        device: Device to use ("cuda" or "cpu").
+        metric_name: IQA metric to use (e.g., ``"qualiclip"``, ``"brisque"``).
+        device: Device to use (``"cuda"`` or ``"cpu"``).
 
     Returns:
-        (model, device, higher_better) tuple.
+        Tuple of ``(model, device, higher_better)``.
+
+    Raises:
+        ImportError: If pyiqa is not installed.
     """
     try:
         import pyiqa

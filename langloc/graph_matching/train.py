@@ -18,7 +18,7 @@ from langloc.graph_matching.model_graph2graph import BigGNN
 from langloc.graph_matching.train_utils import cross_entropy, k_fold_by_scene
 
 
-def format_to_latex(acc):
+def format_to_latex(acc: dict[int, tuple[float, float]]) -> str:
     """Formats an accuracy dictionary as LaTeX-style percentage strings.
 
     Args:
@@ -33,7 +33,7 @@ def format_to_latex(acc):
     return acc_string
 
 
-def train(model, optimizer, database_3dssg, dataset, batch_size, fold, cfg, device='cuda'):
+def train(model: BigGNN, optimizer: torch.optim.Optimizer, database_3dssg: dict, dataset: list, batch_size: int, fold: int | None, cfg: DictConfig, device: str = 'cuda') -> BigGNN:
     """Runs one epoch of contrastive training over batched graph pairs.
 
     For each batch, computes pairwise cosine similarity and matching probability
@@ -47,6 +47,7 @@ def train(model, optimizer, database_3dssg, dataset, batch_size, fold, cfg, devi
         batch_size: Number of graphs per batch.
         fold: Current fold index (for wandb logging).
         cfg: Hydra DictConfig.
+        device: Torch device string.
 
     Returns:
         The trained model.
@@ -124,7 +125,7 @@ def train(model, optimizer, database_3dssg, dataset, batch_size, fold, cfg, devi
     return model
 
 
-def eval_loss(model, database_3dssg, dataset, fold, cfg, device='cuda'):
+def eval_loss(model: BigGNN, database_3dssg: dict, dataset: list, fold: int, cfg: DictConfig, device: str = 'cuda') -> float:
     """Evaluates the model loss on a validation dataset.
 
     Computes contrastive loss (cosine similarity + matching probability)
@@ -136,6 +137,7 @@ def eval_loss(model, database_3dssg, dataset, fold, cfg, device='cuda'):
         dataset: List of validation SceneGraph objects.
         fold: Current fold index (for wandb logging).
         cfg: Hydra DictConfig.
+        device: Torch device string.
 
     Returns:
         Mean loss across all batches.
@@ -228,7 +230,7 @@ def eval_loss(model, database_3dssg, dataset, fold, cfg, device='cuda'):
     return torch.tensor(loss_across_batches).mean().item()
 
 
-def eval_acc(model, database_3dssg, dataset, fold, cfg, mode='scanscribe', eval_iter_count=None, out_of=None, valid_top_k=[1, 2, 3, 5], timer=None, device='cuda'):
+def eval_acc(model: BigGNN, database_3dssg: dict, dataset: list, fold: int | None, cfg: DictConfig, mode: str = 'scanscribe', eval_iter_count: int | None = None, out_of: int | None = None, valid_top_k: list[int] = [1, 2, 3, 5], timer: object | None = None, device: str = 'cuda') -> dict[int, tuple[float, float]]:
     """Evaluates top-k retrieval accuracy by sampling scene subsets.
 
     For each evaluation iteration, samples ``out_of`` scenes, scores the query
@@ -246,6 +248,7 @@ def eval_acc(model, database_3dssg, dataset, fold, cfg, mode='scanscribe', eval_
         out_of: Number of candidate scenes per sample set (overrides config).
         valid_top_k: List of k values for top-k accuracy.
         timer: Optional Timer instance for benchmarking.
+        device: Torch device string.
 
     Returns:
         Dictionary mapping each k to ``(mean_accuracy, std_accuracy)``.
@@ -364,7 +367,7 @@ def eval_acc(model, database_3dssg, dataset, fold, cfg, mode='scanscribe', eval_
     return accuracy
 
 
-def train_with_cross_val(dataset, database_3dssg, model, folds, epochs, batch_size, entire_training_set, cfg, device='cuda'):
+def train_with_cross_val(dataset: list, database_3dssg: dict, model: BigGNN, folds: int, epochs: int, batch_size: int, entire_training_set: bool, cfg: DictConfig, device: str = 'cuda') -> BigGNN:
     """Trains the model with optional k-fold cross-validation.
 
     If ``entire_training_set`` is True, trains on all data without validation.
@@ -379,6 +382,7 @@ def train_with_cross_val(dataset, database_3dssg, model, folds, epochs, batch_si
         batch_size: Number of graphs per batch.
         entire_training_set: If True, skip cross-validation and train on all data.
         cfg: Hydra DictConfig.
+        device: Torch device string.
 
     Returns:
         The trained model.
@@ -561,7 +565,6 @@ def run_training(cfg: DictConfig) -> None:
                                    embedding_type=cfg.graph.embedding_type,
                                    use_attributes=cfg.graph.use_attributes) for k in h_graphs_test}
 
-    ###################### MEMORY SIZE ANALYSIS ######################
     b_n = 0
     b_e = 0
     b_f = 0
@@ -611,7 +614,6 @@ def run_training(cfg: DictConfig) -> None:
                                         cfg=cfg,
                                         device=device)
 
-    ######### SAVE MODEL #########
     model_name = cfg.train.model_name
     cfg_str = OmegaConf.to_yaml(cfg)
     with open(ckpt_dir / f'{model_name}_args.txt', 'w') as f: f.write(cfg_str)

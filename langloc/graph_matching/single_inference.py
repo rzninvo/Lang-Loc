@@ -36,7 +36,7 @@ from langloc.graphs.create_text_embeddings import (
 )
 
 
-def embed_word(word: str, embedding_type="word2vec"):
+def embed_word(word: str, embedding_type: str = "word2vec") -> list[float]:
     """Embeds a single word using the specified backend.
 
     Args:
@@ -139,9 +139,9 @@ def parse_text_to_json(query_text: str, debug: bool = False) -> dict:
 
 
 def text_to_scenegraph(query_text: str,
-                       embedding_type="word2vec",
-                       use_attributes=True,
-                       scene_id="query_0001", debug: bool = False):
+                       embedding_type: str = "word2vec",
+                       use_attributes: bool = True,
+                       scene_id: str = "query_0001", debug: bool = False) -> SceneGraph:
     """Converts a natural language query into a SceneGraph.
 
     Parses the text with GPT, embeds all node labels, attributes, and edge

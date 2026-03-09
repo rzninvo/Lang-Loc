@@ -105,7 +105,6 @@ def run_entry(
     scene = load_scene_data(Path(cfg.dataset_root), scene_id, dict(DEFAULT_ALIASES))
     frames_all = scene.frames
 
-    # gt + predicted baseline
     gt_pos, gt_dir, _ = get_pose(entry, "gt_pose")
     pred_pos, pred_dir, pred_meta = get_pose(entry, "predicted_pose")
 
@@ -113,7 +112,6 @@ def run_entry(
         print(f"[{scene_id}] Missing gt_pose; skipping.")
         return None
 
-    # candidates
     cand_pos, cand_dir, cand_prior = extract_candidates(
         entry,
         candidate_set=cfg.candidate_set,
@@ -121,7 +119,6 @@ def run_entry(
         pred_prior=cfg.pred_candidate_prior,
     )
 
-    # mapping
     c2f_map = build_cand_to_frame_map(
         cand_pos=cand_pos,
         cand_dir=cand_dir,
@@ -135,19 +132,15 @@ def run_entry(
     frame_subset = top_frames_by_mapping(c2f_map, max_frames=cfg.max_pool_frames)
     frames_pool = [frames_all[i] for i in frame_subset]
 
-    # dense W for pooled frames
     c2f_full = c2f_to_dense(c2f_map, num_cands=int(cand_pos.shape[0]), num_frames=int(scene.frame_pos.shape[0]))
     W = c2f_full[:, frame_subset]  # (N, F_pool)
 
-    # pooled frame pose
     pool_pos = np.asarray([scene.frame_pos[i] for i in frame_subset], dtype=np.float64)
     pool_dir = np.asarray([_normalize(scene.frame_dir[i]) for i in frame_subset], dtype=np.float64)
 
-    # pooled semantics
     pool_label_dicts = [frame_label_salience(fr) for fr in frames_pool]
     pool_rel_sets = [frame_relations(fr) for fr in frames_pool]
 
-    # pools
     label_pool, rel_pool = build_pools(
         frames_all=frames_all,
         frame_subset=frame_subset,
@@ -156,17 +149,14 @@ def run_entry(
         rel_unique_only=cfg.rel_unique_only,
         allowed_rels=cfg.allowed_rels,
     )
-    # label ignore list normalize
     label_pool = [lab for lab in label_pool if lab not in set([x.strip().lower() for x in cfg.ignore_labels])]
 
-    # idf
     idf = compute_label_idf(label_pool, pool_label_dicts)
 
     # initial A3 posterior: pf0 ∝ W^T * cand_prior
     pf0 = (W.T @ cand_prior).reshape(-1)
     pf0 = pf0 / max(float(pf0.sum()), 1e-12)
 
-    # baseline errors
     pred_pos_err = pred_rot_err = float("nan")
     if pred_pos is not None:
         pred_pos_err, pred_rot_err = pose_errors(pred_pos, pred_dir, gt_pos, gt_dir)
@@ -205,8 +195,12 @@ def run_entry(
     # question list (same pool; each backend will use its own selection)
     questions_init = [Question("rel", i) for i in range(len(rel_pool))] + [Question("label", i) for i in range(len(label_pool))]
 
-    # helper to create fresh backends
     def fresh_backends() -> Dict[str, Any]:
+        """Create fresh backend instances for all three architectures.
+
+        Returns:
+            Dictionary mapping backend names to initialised backend objects.
+        """
         a1 = CandidateBackendA1(
             cand_pos=cand_pos,
             cand_dir=cand_dir,
@@ -261,7 +255,6 @@ def run_entry(
         )
         return {"a1": a1, "a2": a2, "a3": a3}
 
-    # sequential / shared
     out: Dict[str, Tuple[float, float, float, float]] = {}
     cache: Dict[Tuple, str] = {}
 
@@ -379,7 +372,6 @@ def run_batch(cfg: DialogueConfig) -> None:
     Args:
         cfg: Populated dialogue configuration.
     """
-    # load relaxed JSON
     try:
         data = load_relaxed_json(Path(cfg.candidates_json))
     except Exception:
@@ -400,11 +392,9 @@ def run_batch(cfg: DialogueConfig) -> None:
         print("No entries selected.")
         return
 
-    # aggregate (MAP only)
     agg: Dict[str, Dict[str, List[float]]] = {name: {"pos": [], "rot": []} for name in ("PRED", "A1", "A2", "A3")}
 
     for e in entries:
-        # baseline predicted_pose errors
         gt_pos, gt_dir, _ = get_pose(e, "gt_pose")
         pred_pos, pred_dir, _ = get_pose(e, "predicted_pose")
         if gt_pos is not None and pred_pos is not None:

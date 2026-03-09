@@ -1,8 +1,7 @@
-"""
-NBV Pipeline Configuration.
+"""NBV pipeline configuration dataclass and extraction helpers.
 
-This module provides a dataclass and extraction function for NBV pipeline
-configuration parameters, reducing boilerplate in the main pipeline scripts.
+Provides a dataclass and extraction function for NBV pipeline configuration
+parameters, reducing boilerplate in the main pipeline scripts.
 """
 from __future__ import annotations
 
@@ -13,14 +12,12 @@ from typing import Any, Dict, Optional
 
 @dataclass
 class NBVConfig:
-    """
-    Configuration parameters for the NBV (Next-Best-View) pipeline.
+    """Configuration parameters for the NBV (Next-Best-View) pipeline.
 
-    This dataclass consolidates all the configuration knobs used by both
-    ScanNet and 3RScan processing pipelines into a single, type-safe structure.
+    Consolidates all configuration knobs used by both ScanNet and 3RScan
+    processing pipelines into a single, type-safe structure.
 
     Attributes:
-        # Rasterization settings
         image_downsample_factor: Downsampling factor for visibility pass.
         subsample_factor: Frame subsampling factor (take every Nth frame).
         faces_per_pixel: Number of faces to keep per pixel during rasterization.
@@ -28,31 +25,25 @@ class NBVConfig:
         max_faces_per_bin: Maximum faces per bin (None = auto).
         blur_radius: Soft rasterization blur radius (0 = hard).
         limit_images: Maximum number of frames to process (None = all).
-
-        # NBV selection
         max_best: Maximum number of best views to select (None = unlimited).
         min_gain_pixels: Minimum pixel gain to continue NBV selection.
         kmeans_n_clusters: Number of clusters for K-means pose clustering.
-        iqa_metric: IQA metric to use (e.g., "qualiclip", "brisque").
+        iqa_metric: IQA metric to use (e.g. ``"qualiclip"``, ``"brisque"``).
         iqa_threshold: Quality threshold (interpretation depends on metric).
-        iqa_device: Device for IQA model ("cuda" or "cpu").
-
-        # Object visibility thresholds
-        coverage_threshold: Minimum coverage (0-1) for object visibility.
+        iqa_device: Device for IQA model (``"cuda"`` or ``"cpu"``).
+        coverage_threshold: Minimum coverage (0--1) for object visibility.
         min_pixel_count: Minimum absolute pixel count for object visibility.
-        min_obj_pixels_for_presence: Min pixels to count object as "present".
-
-        # FOV and depth settings
+        min_obj_pixels_for_presence: Min pixels to count object as present.
         fov_depth_clip_min: Minimum depth (meters) for object visibility.
         fov_depth_clip_max: Maximum depth (meters) for object visibility.
-
-        # NBV algorithm parameters
+        depth_visibility_enabled: Enable depth-aware visibility filtering.
+        depth_vis_threshold: Depth consistency threshold.
+        depth_consistent_ratio_threshold: Min ratio of depth-consistent pixels.
+        min_depth_consistent_pixels: Min absolute depth-consistent pixel count.
         nbv_alpha: Balance between coverage (1.0) and diversity (0.0).
         nbv_min_position_distance: Min distance (m) between selected views.
         nbv_min_angle_distance: Min angle (degrees) between selected views.
         nbv_enable_pose_filtering: Enable spatial diversity filtering.
-
-        # DPP selection parameters
         dpp_enabled: Enable DPP-based view selection.
         dpp_total_views: Final output count (Stage 2 target).
         dpp_seed_size: Stage-1 semantic DPP seed count.
@@ -62,29 +53,25 @@ class NBVConfig:
         dpp_stage2_sigma_position: Position RBF sigma (meters).
         dpp_stage2_sigma_angle: Angle RBF sigma (degrees).
         dpp_stage2_iou_gamma: Exponent on pixel IoU for Stage 2 (< 1 softens).
-
-        # Spatial relations parameters
         spatial_max_distance: Max distance (m) for spatial relations.
         spatial_size_ratio_threshold: Max size ratio for spatial relations.
         spatial_eps: Min displacement (m) for directional relations.
-
-        # Scene-level graph generation
+        spatial_max_surface_distance: Max surface distance (m) for spatial
+            relations.
         build_scene_graph: Whether to build a 3DSSG-compatible scene graph.
-        scene_graph_max_distance: Max centroid distance (m) for scene graph edges.
+        scene_graph_max_distance: Max centroid distance (m) for scene graph
+            edges.
         scene_graph_add_embeddings: Whether to add word2vec/clip embeddings.
-        scene_graph_embedding_type: Embedding type ("word2vec" or "clip").
-        gravity_axis: Scene gravity convention ("y_up" for ScanNet, "z_up" for 3RScan).
-
-        # Parallelism / batching
+        scene_graph_embedding_type: Embedding type (``"word2vec"`` or
+            ``"clip"``).
+        gravity_axis: Scene gravity convention (``"y_up"`` for ScanNet,
+            ``"z_up"`` for 3RScan).
         iqa_batch_size: Batch size for IQA model inference (1 = sequential).
-        rasterization_batch_size: Batch size for PyTorch3D GPU rasterization (1 = sequential).
-
-        # Mask export settings
+        rasterization_batch_size: Batch size for PyTorch3D GPU rasterization
+            (1 = sequential).
         mask_downsample_factor: Downsampling factor for mask export.
         semantic_id_key: TSV column for semantic IDs (ScanNet only).
         labelmap_tsv: Path to label map TSV file (ScanNet only).
-
-        # Output directories (relative to output_dir)
         cache_dir: Cache directory name.
         raster_out_dir: Raster output directory name.
         output_folder: Main output folder name.
@@ -173,15 +160,14 @@ class NBVConfig:
 
 
 def extract_nbv_config(cfg: Dict[str, Any], dataset: str = "scannetpp") -> NBVConfig:
-    """
-    Extract NBV configuration from a loaded YAML config dictionary.
+    """Extract NBV configuration from a loaded YAML config dictionary.
 
-    This function reads the dataset-specific section of the config and
-    returns a typed NBVConfig dataclass with all parameters.
+    Reads the dataset-specific section of the config and returns a typed
+    NBVConfig dataclass with all parameters.
 
     Args:
-        cfg: Loaded configuration dictionary (from load_config()).
-        dataset: Dataset key in the config ('scannetpp' or '3rscan').
+        cfg: Loaded configuration dictionary (from ``load_config()``).
+        dataset: Dataset key in the config (``'scannetpp'`` or ``'3rscan'``).
 
     Returns:
         NBVConfig dataclass with all extracted parameters.

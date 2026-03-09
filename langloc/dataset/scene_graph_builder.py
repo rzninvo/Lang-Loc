@@ -411,7 +411,7 @@ def add_embeddings_to_scene_graph(
 # I/O
 # ---------------------------------------------------------------------------
 
-def save_scene_graph(graph: Dict, output_path) -> None:
+def save_scene_graph(graph: Dict, output_path: "Path | str") -> None:
     """Save a scene graph to JSON.
 
     Args:

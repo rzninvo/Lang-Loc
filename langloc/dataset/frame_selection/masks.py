@@ -1,4 +1,8 @@
-"""Instance and semantic mask rendering and 16-bit PNG export."""
+"""Instance and semantic mask rendering and 16-bit PNG export.
+
+Converts per-pixel rasterized face indices into labeled instance or
+semantic class masks and exports them as lossless 16-bit PNGs.
+"""
 from __future__ import annotations
 
 from pathlib import Path

@@ -71,7 +71,6 @@ def build_pools(
     """
     frames_sub = [frames_all[i] for i in frame_subset]
 
-    # labels
     try:
         label_pool = list(label_pool_from_frames(frames_all, frame_subset))
         label_pool = [str(x).strip().lower() for x in label_pool]
@@ -81,7 +80,6 @@ def build_pools(
             s |= set(frame_label_salience(fr).keys())
         label_pool = sorted(list(s))
 
-    # relations
     rel_pool = call_with_supported_kwargs(
         rel_pool_from_frames,
         frames_all,
@@ -127,7 +125,6 @@ def compute_label_idf(
         for lab in d.keys():
             if lab in df:
                 df[lab] += 1
-    # idf = log((F+1)/(df+1))
     out: Dict[str, float] = {}
     for lab in label_pool:
         out[lab] = float(math.log((F + 1.0) / (df.get(lab, 0) + 1.0)))

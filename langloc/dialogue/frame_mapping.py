@@ -35,6 +35,11 @@ class NNIndex:
     """
 
     def __init__(self, X: np.ndarray) -> None:
+        """Build a NN index from a point cloud, using cKDTree if available.
+
+        Args:
+            X: Point cloud of shape ``(M, D)``.
+        """
         self.X = X.astype(np.float32)
         self._kdtree = None
         try:

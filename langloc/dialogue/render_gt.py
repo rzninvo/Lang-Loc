@@ -189,6 +189,7 @@ class Open3DRenderer(BaseRenderer):
     """
 
     def __init__(self) -> None:
+        """Initialise the Open3D renderer backend."""
         import open3d as o3d  # noqa
         from open3d.visualization import rendering  # noqa
         self.o3d = o3d
@@ -257,6 +258,7 @@ class PyrenderRenderer(BaseRenderer):
     """
 
     def __init__(self) -> None:
+        """Initialise the pyrender renderer backend."""
         import trimesh  # noqa
         import pyrender  # noqa
         self.trimesh = trimesh

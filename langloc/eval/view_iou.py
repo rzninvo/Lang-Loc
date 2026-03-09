@@ -39,6 +39,15 @@ PREFERRED_MESH_FILES = (
 
 
 def normalize(v: np.ndarray, eps: float = 1e-9) -> Optional[np.ndarray]:
+    """Return the unit-length version of *v*, or ``None`` if near-zero.
+
+    Args:
+        v: Input vector.
+        eps: Minimum norm threshold below which ``None`` is returned.
+
+    Returns:
+        Unit vector, or ``None`` if the norm is below *eps*.
+    """
     n = float(np.linalg.norm(v))
     if n < eps:
         return None
@@ -46,6 +55,17 @@ def normalize(v: np.ndarray, eps: float = 1e-9) -> Optional[np.ndarray]:
 
 
 def discover_mesh(scene_dir: Path) -> Path:
+    """Find the first available mesh file in *scene_dir* by priority order.
+
+    Args:
+        scene_dir: Directory to search for mesh files.
+
+    Returns:
+        Path to the discovered mesh file.
+
+    Raises:
+        FileNotFoundError: If none of the preferred mesh filenames exist.
+    """
     for name in PREFERRED_MESH_FILES:
         mesh_path = scene_dir / name
         if mesh_path.exists():
@@ -54,6 +74,22 @@ def discover_mesh(scene_dir: Path) -> Path:
 
 
 def load_gt_from_frame(scene_dir: Path, frame_index: int) -> Tuple[str, Path, np.ndarray, Optional[np.ndarray]]:
+    """Load ground-truth camera pose from a frame description JSON.
+
+    Args:
+        scene_dir: Scene root directory containing ``output/descriptions/``.
+        frame_index: Zero-based index into the sorted frame JSON files.
+
+    Returns:
+        A 4-tuple ``(frame_id, frame_path, gt_position, gt_direction)``
+        where *gt_direction* may be ``None`` if the forward vector is
+        degenerate.
+
+    Raises:
+        FileNotFoundError: If no frame JSONs exist.
+        IndexError: If *frame_index* is out of range.
+        ValueError: If the ``scene_pose`` matrix is not 4x4.
+    """
     desc_dir = scene_dir / "output" / "descriptions"
     frame_paths = sorted(desc_dir.glob("frame-*.json"))
     if not frame_paths:
@@ -74,6 +110,20 @@ def load_gt_from_frame(scene_dir: Path, frame_index: int) -> Tuple[str, Path, np
 
 
 def build_iou_context(scene_dir: Path) -> Tuple[o3d.t.geometry.RaycastingScene, int, np.ndarray, np.ndarray, np.ndarray]:
+    """Load a scene mesh and build a raycasting context for IoU queries.
+
+    Args:
+        scene_dir: Scene root directory containing a mesh file.
+
+    Returns:
+        A 5-tuple ``(raycasting_scene, mesh_id, tri_points, tri_centroids,
+        tri_areas)`` ready for use by :func:`compute_view_iou`.
+
+    Raises:
+        RuntimeError: If Open3D is not installed.
+        FileNotFoundError: If no mesh file is found.
+        ValueError: If the mesh is empty or has no usable geometry.
+    """
     if o3d is None:
         raise RuntimeError("open3d is required for IoU computation but is not installed.")
 
@@ -100,6 +150,15 @@ def build_iou_context(scene_dir: Path) -> Tuple[o3d.t.geometry.RaycastingScene, 
 
 
 def _camera_axes_from_forward(forward: np.ndarray) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
+    """Derive an orthonormal camera frame from a forward direction vector.
+
+    Args:
+        forward: Desired forward (look-at) direction.
+
+    Returns:
+        A ``(forward, right, up)`` tuple of unit vectors, or ``None`` if
+        the input is degenerate.
+    """
     fwd = normalize(np.asarray(forward, dtype=np.float64))
     if fwd is None:
         return None
@@ -131,6 +190,27 @@ def _visible_triangles_from_view(
     near: float,
     far: Optional[float],
 ) -> set[int]:
+    """Return the set of triangle indices visible from a camera frustum.
+
+    Triangles are first culled by the analytic frustum (near/far planes and
+    FOV half-angles), then verified with Open3D ray-casts from the camera
+    through each candidate triangle centroid.
+
+    Args:
+        cam: Camera position, shape ``(3,)``.
+        forward: Viewing direction, or ``None`` (returns empty set).
+        hfov: Horizontal field-of-view in radians.
+        vfov: Vertical field-of-view in radians.
+        raycasting_scene: Pre-built Open3D raycasting scene.
+        mesh_id: Geometry ID of the mesh within *raycasting_scene*.
+        tri_points: Per-triangle vertex positions, shape ``(T, 3, 3)``.
+        tri_centroids: Per-triangle centroids, shape ``(T, 3)``.
+        near: Near-plane distance in metres.
+        far: Optional far-plane distance in metres.
+
+    Returns:
+        Set of visible triangle indices.
+    """
     if o3d is None:
         raise RuntimeError("open3d is required for IoU computation but is not installed.")
 
@@ -197,6 +277,27 @@ def compute_view_iou(
     near: float,
     far: Optional[float],
 ) -> Optional[float]:
+    """Compute area-weighted IoU of visible triangle sets between two views.
+
+    Args:
+        gt_cam: Ground-truth camera position, shape ``(3,)``.
+        gt_dir: Ground-truth viewing direction, or ``None``.
+        pred_cam: Predicted camera position, shape ``(3,)``.
+        pred_dir: Predicted viewing direction, or ``None``.
+        hfov_rad: Horizontal field-of-view in radians.
+        vfov_rad: Vertical field-of-view in radians.
+        raycasting_scene: Pre-built Open3D raycasting scene.
+        mesh_id: Geometry ID of the mesh within *raycasting_scene*.
+        tri_points: Per-triangle vertex positions, shape ``(T, 3, 3)``.
+        tri_centroids: Per-triangle centroids, shape ``(T, 3)``.
+        tri_areas: Per-triangle areas, shape ``(T,)``.
+        near: Near-plane distance in metres.
+        far: Optional far-plane distance in metres.
+
+    Returns:
+        The IoU value in ``[0, 1]``, or ``None`` if either direction is
+        missing or no triangles are visible.
+    """
     if gt_dir is None or pred_dir is None:
         return None
 
@@ -222,6 +323,11 @@ def compute_view_iou(
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments for the view IoU CLI.
+
+    Returns:
+        Parsed argument namespace.
+    """
     parser = argparse.ArgumentParser(
         description="Compute angular error and view IoU for a predicted world-space pose."
     )
@@ -262,6 +368,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """CLI entry point: compute angular error and view IoU for a predicted pose."""
     args = parse_args()
     scene_dir = args.dataset_root / args.scene_id
     if not scene_dir.exists():

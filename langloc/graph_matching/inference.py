@@ -45,14 +45,14 @@ def compute_match_score(model: BigGNN | None,
     """
     q_sub, s_sub = get_matching_subgraph(qg, sg, dbscan_eps, dbscan_min_samples)
 
-    def bad(g):
+    def bad(g: SceneGraph | None) -> bool:
         return (g is None or len(g.nodes) <= 1
                 or (hasattr(g, "edge_idx") and len(g.edge_idx[0]) < 1))
 
     if bad(q_sub) or bad(s_sub):
         q_sub, s_sub = qg, sg
 
-    def prep(g: SceneGraph):
+    def prep(g: SceneGraph) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         n, e, f = g.to_pyg()
         return (torch.tensor(np.array(n), dtype=torch.float32, device=device),
                 torch.tensor(np.array(e[0:2]), dtype=torch.int64, device=device),

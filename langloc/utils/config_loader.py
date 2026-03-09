@@ -6,6 +6,8 @@ automatically.  This helper exists for standalone scripts (e.g. in
 and dataset parameters without running inside Hydra.
 """
 
+from __future__ import annotations
+
 import json
 import os
 from pathlib import Path
@@ -16,14 +18,15 @@ from omegaconf import OmegaConf
 _CONFIGS_DIR = Path(__file__).resolve().parents[2] / "configs"
 
 
-def load_config(config_dir=None):
+def load_config(config_dir: str | Path | None = None) -> dict:
     """Compose and resolve the Hydra config tree, returning a plain dict.
 
-    Parameters
-    ----------
-    config_dir : str | Path | None
-        Override for the ``configs/`` directory.  Defaults to the repo's
-        ``configs/`` relative to this file's location.
+    Args:
+        config_dir: Override for the ``configs/`` directory. Defaults to the
+            repo's ``configs/`` relative to this file's location.
+
+    Returns:
+        Fully resolved configuration as a nested plain dict.
     """
     cfg_dir = Path(config_dir) if config_dir else _CONFIGS_DIR
     paths = OmegaConf.load(cfg_dir / "paths" / "default.yaml")
@@ -33,8 +36,14 @@ def load_config(config_dir=None):
     return OmegaConf.to_container(cfg, resolve=True)
 
 
-def get_download_config():
-    """Return (base_dir, label_map_path, file_types) for ScanNet downloads."""
+def get_download_config() -> tuple[str, str, list[str]]:
+    """Return ScanNet download configuration parameters.
+
+    Returns:
+        Tuple of (base_dir, label_map_path, file_types) where base_dir is
+        the data root directory, label_map_path is the full path to the
+        label map file, and file_types is a list of file type strings.
+    """
     cfg = load_config()
     base_dir = str(cfg["paths"]["data_root"])
     label_map = os.path.join(base_dir, cfg["dataset"]["download"]["label_map_filename"])

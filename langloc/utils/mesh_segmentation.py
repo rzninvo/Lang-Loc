@@ -15,7 +15,25 @@ from sklearn.neighbors import NearestNeighbors
 def _load_segmentation(
     scene_path: Path, base_vertices: np.ndarray
 ) -> Tuple[np.ndarray, Dict[int, int], Dict[int, str]]:
-    """Assign instance IDs and semantic labels to each mesh vertex via NN transfer."""
+    """Assign instance IDs and semantic labels to each mesh vertex via NN transfer.
+
+    Reads the semantic segmentation JSON and annotated point cloud PLY, then
+    transfers per-point instance IDs to mesh vertices using nearest-neighbor
+    lookup.
+
+    Args:
+        scene_path: Path to the scene directory containing ``semseg.v2.json``
+            and ``labels.instances.annotated.v2.ply``.
+        base_vertices: (N, 3) array of mesh vertex positions.
+
+    Returns:
+        Tuple of (vert_obj, seg_to_obj, obj_to_label) where vert_obj is an
+        int32 array of per-vertex object IDs, seg_to_obj maps segment IDs to
+        object IDs, and obj_to_label maps object IDs to semantic label strings.
+
+    Raises:
+        FileNotFoundError: If the required annotation files are missing.
+    """
     semseg_json = scene_path / "semseg.v2.json"
     ply_path = scene_path / "labels.instances.annotated.v2.ply"
     if not semseg_json.exists() or not ply_path.exists():
@@ -45,7 +63,24 @@ def build_segmented_mesh(
     seed: int = 7,
     only_ids: Optional[Sequence[int]] = None,
 ) -> Tuple[o3d.geometry.TriangleMesh, List[Dict[str, object]]]:
-    """Construct an Open3D mesh with per-vertex colors encoding instance IDs."""
+    """Construct an Open3D mesh with per-vertex colors encoding instance IDs.
+
+    Loads the refined mesh, expands vertices to handle UV seams, assigns
+    random colors per instance, and computes bounding boxes and centroids
+    for each object.
+
+    Args:
+        scene_path: Path to the scene directory containing
+            ``mesh.refined.v2.obj``.
+        seed: Random seed for deterministic color assignment.
+        only_ids: If provided, restrict object statistics to these IDs only.
+
+    Returns:
+        Tuple of (mesh_vis, obj_stats) where mesh_vis is the colored Open3D
+        triangle mesh and obj_stats is a list of dicts with keys
+        ``object_id``, ``label``, ``centroid``, ``bbox``, ``color``, and
+        ``vertex_indices``.
+    """
     mesh_path = scene_path / "mesh.refined.v2.obj"
     mesh = o3d.io.read_triangle_mesh(str(mesh_path), enable_post_processing=True)
     mesh.compute_vertex_normals()

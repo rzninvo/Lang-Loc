@@ -112,6 +112,7 @@ class DialogueSemanticFallback:
         rel_pool: Sequence[Tuple[str, str, str]],
         ignore_labels: Sequence[str],
     ) -> None:
+        """Initialise the dialogue engine and precompute projection matrices."""
         p = cand_prob.astype(np.float64)
         self.p = p / max(p.sum(), 1e-12)
 
@@ -120,12 +121,10 @@ class DialogueSemanticFallback:
 
         ignore = set(s.strip().lower() for s in ignore_labels if s.strip())
 
-        # labels
         self.labels = [l for l in sorted(set(label_pool)) if l and l not in ignore]
         self.asked_labels = np.zeros((len(self.labels),), dtype=bool)
         self.label_index = {l: i for i, l in enumerate(self.labels)}
 
-        # relations
         rels: List[RelTriple] = []
         for s, r, o in rel_pool:
             if not s or not o:
@@ -456,7 +455,6 @@ def run_entry_interactive(
 
     sd = load_scene_data(args.dataset_root, scene_id, aliases)
 
-    # candidates
     if args.use_candidates == "fov":
         cands = entry.get("fov_pose_candidates", [])
         cand_pos = np.array([c["position"] for c in cands], dtype=np.float32)
@@ -518,6 +516,7 @@ def run_entry_interactive(
         print(f"GT pos: {gt_pos.tolist()} (debug)")
 
     def show_help() -> None:
+        """Print available interactive commands."""
         print("\nCommands: y=yes, n=no, u=unknown/skip, q=quit this entry")
         print("          tf=top frames, tc=top candidates, o=list suggestions, h=help\n")
 

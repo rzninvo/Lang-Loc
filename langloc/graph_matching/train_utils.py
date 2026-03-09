@@ -11,7 +11,7 @@ import random
 from langloc.graphs.scene_graph import SceneGraph
 
 
-def k_fold(dataset, folds):
+def k_fold(dataset: object, folds: int) -> tuple[list[torch.Tensor], list[torch.Tensor], list[torch.Tensor]]:
     """Splits a dataset into k folds using KFold (non-stratified).
 
     Args:
@@ -36,7 +36,7 @@ def k_fold(dataset, folds):
     return train_indices, test_indices, val_indices
 
 
-def cross_entropy(preds, targets, reduction='none', dim=-1):
+def cross_entropy(preds: torch.Tensor, targets: torch.Tensor, reduction: str = 'none', dim: int = -1) -> torch.Tensor:
     """Computes cross-entropy loss between predictions and soft targets.
 
     Args:
@@ -57,7 +57,7 @@ def cross_entropy(preds, targets, reduction='none', dim=-1):
         return loss.mean()
 
 
-def k_fold_by_scene(dataset, folds: int):
+def k_fold_by_scene(dataset: list, folds: int) -> zip:
     """Splits a dataset into k folds ensuring all graphs from the same scene
     stay in the same fold.
 

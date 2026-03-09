@@ -62,7 +62,27 @@ class CandidateBackendA1:
         vis_tau: float,
         ans_tau: float,
         eps: float = 1e-12,
-    ):
+    ) -> None:
+        """Initialise the candidate posterior backend.
+
+        Args:
+            cand_pos: Candidate positions, shape ``(N, 3)``.
+            cand_dir: Candidate directions, shape ``(N, 3)`` or ``None``.
+            cand_prior: Prior distribution over candidates, shape ``(N,)``.
+            c2f_pool: Raw candidate-to-frame mapping matrix, shape
+                ``(N, F_pool)``.
+            frame_label_dicts: Per-frame ``label -> salience`` dictionaries.
+            frame_rel_sets: Per-frame sets of ``(subj, rel, obj)`` tuples.
+            frame_dirs: Frame forward directions, shape ``(F_pool, 3)``.
+            alpha_label: Likelihood calibration for label questions.
+            alpha_rel: Likelihood calibration for relation questions.
+            p_u_label: Base unknown probability for labels.
+            p_u_rel: Base unknown probability for relations.
+            p_u_unanswerable: Unknown probability for unanswerable hypotheses.
+            vis_tau: Salience-to-visibility scale parameter.
+            ans_tau: Salience-to-answerable scale parameter.
+            eps: Numerical floor for normalisation.
+        """
         self.cand_pos = cand_pos.astype(np.float64)
         self.cand_dir = None if cand_dir is None else cand_dir.astype(np.float64)
         self.p = cand_prior.astype(np.float64).copy()
@@ -206,7 +226,25 @@ class FrameBackendA3:
         vis_tau: float,
         ans_tau: float,
         eps: float = 1e-12,
-    ):
+    ) -> None:
+        """Initialise the frame posterior backend.
+
+        Args:
+            p0: Initial prior over frames, shape ``(F_pool,)``.
+            frames_pool: Frame objects in the pool.
+            frame_label_dicts: Per-frame ``label -> salience`` dictionaries.
+            frame_rel_sets: Per-frame sets of ``(subj, rel, obj)`` tuples.
+            frame_pos: Frame positions, shape ``(F_pool, 3)``.
+            frame_dir: Frame forward directions, shape ``(F_pool, 3)``.
+            alpha_label: Likelihood calibration for label questions.
+            alpha_rel: Likelihood calibration for relation questions.
+            p_u_label: Base unknown probability for labels.
+            p_u_rel: Base unknown probability for relations.
+            p_u_unanswerable: Unknown probability for unanswerable hypotheses.
+            vis_tau: Salience-to-visibility scale parameter.
+            ans_tau: Salience-to-answerable scale parameter.
+            eps: Numerical floor for normalisation.
+        """
         self.frames = list(frames_pool)
         self.p = np.asarray(p0, dtype=np.float64).copy()
         self.p = self.p / max(float(self.p.sum()), eps)
@@ -343,7 +381,32 @@ class ParticleBackendA2:
         ans_tau: float,
         seed: int = 0,
         eps: float = 1e-12,
-    ):
+    ) -> None:
+        """Initialise the particle filter backend.
+
+        Args:
+            cand_pos: Candidate positions for seeding particles, shape
+                ``(N, 3)``.
+            cand_dir: Candidate directions, shape ``(N, 3)`` or ``None``.
+            cand_prior: Prior distribution over candidates, shape ``(N,)``.
+            frame_label_dicts: Per-frame ``label -> salience`` dictionaries.
+            frame_rel_sets: Per-frame sets of ``(subj, rel, obj)`` tuples.
+            frame_pos: Frame positions, shape ``(F_pool, 3)``.
+            frame_dir: Frame forward directions, shape ``(F_pool, 3)``.
+            n_particles: Number of particles to create.
+            k_nn: Number of nearest-neighbour frames for proxy semantics.
+            sigma: Gaussian kernel bandwidth for KNN weighting.
+            jitter_pos: Positional jitter added at resampling.
+            alpha_label: Likelihood calibration for label questions.
+            alpha_rel: Likelihood calibration for relation questions.
+            p_u_label: Base unknown probability for labels.
+            p_u_rel: Base unknown probability for relations.
+            p_u_unanswerable: Unknown probability for unanswerable hypotheses.
+            vis_tau: Salience-to-visibility scale parameter.
+            ans_tau: Salience-to-answerable scale parameter.
+            seed: Random seed for reproducibility.
+            eps: Numerical floor for normalisation.
+        """
         self.frame_label_dicts = frame_label_dicts
         self.frame_rel_sets = frame_rel_sets
         self.frame_pos = np.asarray(frame_pos, dtype=np.float64)

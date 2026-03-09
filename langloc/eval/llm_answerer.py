@@ -33,8 +33,13 @@ _model = None
 _device = "cpu"
 
 
-def load_model(model_name: str, load_in_4bit: bool = False):
-    """Load a HuggingFace causal LM and tokenizer globally."""
+def load_model(model_name: str, load_in_4bit: bool = False) -> None:
+    """Load a HuggingFace causal LM and tokenizer into module globals.
+
+    Args:
+        model_name: HuggingFace model name or local path.
+        load_in_4bit: If ``True``, quantize to 4-bit via bitsandbytes.
+    """
     global _tokenizer, _model, _device
     import torch
     from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
@@ -57,7 +62,15 @@ def load_model(model_name: str, load_in_4bit: bool = False):
 
 
 def ask_llm(prompt: str, max_new_tokens: int = 8) -> str:
-    """Generate a short answer from the loaded LLM."""
+    """Generate a short answer from the loaded LLM.
+
+    Args:
+        prompt: The user prompt to send to the model.
+        max_new_tokens: Maximum number of tokens to generate.
+
+    Returns:
+        The decoded, lowercased, stripped model output.
+    """
     import torch
     messages = [{"role": "user", "content": prompt}]
     text = _tokenizer.apply_chat_template(
@@ -78,7 +91,14 @@ def ask_llm(prompt: str, max_new_tokens: int = 8) -> str:
 
 
 def parse_llm_answer(raw: str) -> str:
-    """Parse raw LLM output into y/n/u."""
+    """Parse raw LLM output into a single-character answer code.
+
+    Args:
+        raw: Raw text output from the LLM.
+
+    Returns:
+        ``"y"`` for yes, ``"n"`` for no, or ``"u"`` for uncertain/unknown.
+    """
     r = raw.lower().strip()
     if r.startswith("yes"): return "y"
     if r.startswith("no"):  return "n"
@@ -89,8 +109,15 @@ def parse_llm_answer(raw: str) -> str:
 
 # ── Scene description helpers ────────────────────────────────────────────────
 
-def load_scene_descriptions(scene_dir: Path) -> List[Dict]:
-    """Load all frame description JSONs from a scene directory."""
+def load_scene_descriptions(scene_dir: Path) -> List[Dict[str, Any]]:
+    """Load all frame description JSONs from a scene directory.
+
+    Args:
+        scene_dir: Scene root directory containing ``output/descriptions/``.
+
+    Returns:
+        List of frame description dicts, one per JSON file entry.
+    """
     desc_dir = scene_dir / "output" / "descriptions"
     frames = []
     for p in sorted(desc_dir.glob("*.json")):
@@ -105,8 +132,18 @@ def load_scene_descriptions(scene_dir: Path) -> List[Dict]:
     return frames
 
 
-def build_scene_context(frames: List[Dict]) -> str:
-    """Build a compact context string from all scene frames (fallback)."""
+def build_scene_context(frames: List[Dict[str, Any]]) -> str:
+    """Build a compact context string from all scene frames.
+
+    Used as a fallback when the specific reference frame is unavailable.
+
+    Args:
+        frames: List of frame description dicts.
+
+    Returns:
+        A multi-line context string summarising descriptions, objects,
+        and spatial relations across all frames.
+    """
     if not frames:
         return "No scene descriptions available."
 
@@ -149,8 +186,19 @@ def build_scene_context(frames: List[Dict]) -> str:
     return "\n\n".join(parts)
 
 
-def load_reference_frame(scene_dir: Path, frame_id: str) -> Optional[Dict]:
-    """Load a specific reference frame JSON by frame_id."""
+def load_reference_frame(scene_dir: Path, frame_id: str) -> Optional[Dict[str, Any]]:
+    """Load a specific reference frame JSON by frame ID.
+
+    First tries a direct filename match, then falls back to scanning all
+    description JSONs for a matching ``image_index`` field.
+
+    Args:
+        scene_dir: Scene root directory containing ``output/descriptions/``.
+        frame_id: Frame identifier to look up.
+
+    Returns:
+        The frame description dict, or ``None`` if not found.
+    """
     desc_dir = scene_dir / "output" / "descriptions"
     candidate = desc_dir / f"{frame_id}.json"
     if candidate.exists():
@@ -173,8 +221,16 @@ def load_reference_frame(scene_dir: Path, frame_id: str) -> Optional[Dict]:
     return None
 
 
-def build_frame_context(frame: Dict) -> str:
-    """Build a compact context string from a single reference frame."""
+def build_frame_context(frame: Dict[str, Any]) -> str:
+    """Build a compact context string from a single reference frame.
+
+    Args:
+        frame: A frame description dict with optional ``description``,
+            ``visible_objects``, and ``spatial_relations`` keys.
+
+    Returns:
+        A multi-line context string for LLM prompting.
+    """
     parts = []
 
     desc = frame.get("description", "").strip()
@@ -203,7 +259,15 @@ def build_frame_context(frame: Dict) -> str:
 
 
 def build_llm_prompt(question_text: str, context: str) -> str:
-    """Build the yes/no/uncertain prompt for the LLM."""
+    """Build the yes/no/uncertain prompt for the LLM.
+
+    Args:
+        question_text: The disambiguating question to pose.
+        context: Scene context string (objects, relations, descriptions).
+
+    Returns:
+        The full prompt string ready for LLM inference.
+    """
     return (
         "You are looking at a single camera view inside a room.\n\n"
         f"{context}\n\n"
@@ -237,6 +301,11 @@ _state: Dict[str, Any] = {
 # ── CLI ──────────────────────────────────────────────────────────────────────
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments for the LLM answerer CLI.
+
+    Returns:
+        Parsed argument namespace.
+    """
     ap = argparse.ArgumentParser(
         description="Replace oracle with a local LLM for dialogue question answering."
     )
@@ -263,12 +332,11 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Run the LLM answerer over all scenes and save per-scene results."""
     args = parse_args()
 
-    # 1. Load LLM once
     load_model(args.model_name, load_in_4bit=args.load_in_4bit)
 
-    # 2. Load scene IDs + build frame_id lookup
     raw = json.loads(args.candidates_json.read_text())
     scene_ids: List[str] = []
     scene_frame_id: Dict[str, str] = {}
@@ -291,7 +359,8 @@ def main() -> None:
     orig_print = builtins.print
     orig_input = builtins.input
 
-    def hooked_print(*a, **kw):
+    def hooked_print(*a: Any, **kw: Any) -> None:
+        """Intercept print calls to capture output and detect question lines."""
         orig_print(*a, **kw)
         sep = kw.get("sep", " ")
         end = kw.get("end", "\n")
@@ -301,7 +370,8 @@ def main() -> None:
         if stripped.startswith("Ask[label]") or stripped.startswith("Ask[rel"):
             _state["last_question_line"] = stripped
 
-    def hooked_input(prompt=""):
+    def hooked_input(prompt: str = "") -> str:
+        """Intercept input calls, query the LLM, and return the parsed answer."""
         orig_print(prompt, end="", flush=True)
         question_line = _state["last_question_line"]
 
@@ -334,7 +404,8 @@ def main() -> None:
     # 5. Wrap run_entry to reset state per scene
     orig_run_entry = dlg.run_entry
 
-    def run_entry_wrapped(entry, dargs):
+    def run_entry_wrapped(entry: Dict[str, Any], dargs: Any) -> Any:
+        """Reset per-scene state and load context before delegating to the original entry."""
         sid = entry.get("scene_id", "")
         fid = scene_frame_id.get(sid, "")
         _state["scene_id"] = sid

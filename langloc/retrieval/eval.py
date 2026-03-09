@@ -1,10 +1,10 @@
-"""
-Unified evaluation script for scene retrieval (Tables 1, 2, 3).
+"""Unified evaluation script for scene retrieval (Tables 1, 2, 3).
 
-Usage:
-  python -m langloc.retrieval.eval retrieval.eval.protocol=table1 retrieval.checkpoint=<path>
-  python -m langloc.retrieval.eval retrieval.eval.protocol=table2 retrieval.checkpoint=<path>
-  python -m langloc.retrieval.eval retrieval.eval.protocol=table3 retrieval.cache_dir=<path>
+Usage::
+
+    python -m langloc.retrieval.eval retrieval.eval.protocol=table1 retrieval.checkpoint=<path>
+    python -m langloc.retrieval.eval retrieval.eval.protocol=table2 retrieval.checkpoint=<path>
+    python -m langloc.retrieval.eval retrieval.eval.protocol=table3 retrieval.cache_dir=<path>
 """
 
 import torch
@@ -21,10 +21,15 @@ from langloc.graphs.scene_graph import SceneGraph
 from langloc.retrieval.models.dual_scene_aligner import DualSceneAligner
 
 
-# ── Helpers ───────────────────────────────────────────────────
+def get_base_label(label: str) -> str:
+    """Removes spatial modifiers (e.g. north, upper) from a label string.
 
-def get_base_label(label):
-    """Remove spatial modifiers from label."""
+    Args:
+        label: Underscore-separated label string.
+
+    Returns:
+        Base label with spatial suffixes stripped.
+    """
     parts = label.split("_")
     spatial = {"north", "south", "east", "west", "center", "upper", "middle", "lower"}
     base = []
@@ -35,7 +40,17 @@ def get_base_label(label):
     return "_".join(base) if base else label
 
 
-def get_clip_embedding(text, clip_model, device):
+def get_clip_embedding(text: str, clip_model: torch.nn.Module, device: torch.device) -> torch.Tensor:
+    """Computes an L2-normalized CLIP text embedding.
+
+    Args:
+        text: Text string to embed.
+        clip_model: Pre-loaded CLIP model.
+        device: Device for inference.
+
+    Returns:
+        CPU tensor of shape ``(512,)``.
+    """
     with torch.no_grad():
         tokens = clip.tokenize([text]).to(device)
         emb = clip_model.encode_text(tokens)
@@ -43,8 +58,23 @@ def get_clip_embedding(text, clip_model, device):
     return emb[0].cpu()
 
 
-def score_pair(q_cache, db_cache, w_emb, w_scene, w_jac):
-    """Compute Eq.8 scoring between query and database entry."""
+def score_pair(
+    q_cache: dict, db_cache: dict, w_emb: float, w_scene: float, w_jac: float
+) -> float:
+    """Computes Eq.8 scoring between a query and a database entry.
+
+    Blends embedding similarity, scene CLIP similarity, and label-set F1.
+
+    Args:
+        q_cache: Query embedding cache with ``"emb"``, ``"scene_clip"``, ``"labels"``.
+        db_cache: Database embedding cache with same keys.
+        w_emb: Weight for embedding similarity.
+        w_scene: Weight for scene CLIP similarity.
+        w_jac: Weight for label-set F1 overlap.
+
+    Returns:
+        Weighted score.
+    """
     emb_sim = (q_cache["emb"] * db_cache["emb"]).sum().item()
     scene_sim = F.cosine_similarity(
         q_cache["scene_clip"], db_cache["scene_clip"]
@@ -59,11 +89,29 @@ def score_pair(q_cache, db_cache, w_emb, w_scene, w_jac):
     return w_emb * emb_sim + w_scene * scene_sim + w_jac * f1
 
 
-# ── Build batch for single graph ─────────────────────────────
+def build_single_batch(
+    graph: object,
+    node_clip_cache: dict[str, torch.Tensor],
+    rel_clip_cache: dict[str, torch.Tensor],
+    scene_clip_cache: dict[str, torch.Tensor],
+    graph_key: str,
+    device: torch.device,
+) -> dict[str, torch.Tensor]:
+    """Builds a batch dictionary for a single graph for on-the-fly embedding.
 
-def build_single_batch(graph, node_clip_cache, rel_clip_cache,
-                       scene_clip_cache, graph_key, device):
-    """Build a batch dict for a single graph (for on-the-fly embedding)."""
+    Args:
+        graph: SceneGraph instance with ``nodes``, ``edge_idx``, and
+            optionally ``edge_relations``.
+        node_clip_cache: Mapping from node label to CLIP embedding tensor.
+        rel_clip_cache: Mapping from relation string to CLIP embedding tensor.
+        scene_clip_cache: Mapping from graph key to scene CLIP embedding tensor.
+        graph_key: Key for looking up the scene CLIP embedding.
+        device: Target device for all tensors.
+
+    Returns:
+        Dictionary with all keys expected by DualSceneAligner (duplicated
+        as both src and ref).
+    """
     node_feats = []
     for nid in graph.nodes:
         label = graph.nodes[nid].label
@@ -115,10 +163,21 @@ def build_single_batch(graph, node_clip_cache, rel_clip_cache,
     }
 
 
-# ── CLIP caching ──────────────────────────────────────────────
+def build_clip_caches(
+    graphs_dict: dict[str, object],
+    clip_model: torch.nn.Module,
+    device: torch.device,
+) -> tuple[dict[str, torch.Tensor], dict[str, torch.Tensor], dict[str, torch.Tensor]]:
+    """Builds node CLIP, relation CLIP, and scene CLIP embedding caches.
 
-def build_clip_caches(graphs_dict, clip_model, device):
-    """Build node CLIP, relation CLIP, and scene CLIP caches."""
+    Args:
+        graphs_dict: Mapping from graph key to SceneGraph instances.
+        clip_model: Pre-loaded CLIP model.
+        device: Device for CLIP inference.
+
+    Returns:
+        Tuple of (node_clip, rel_clip, scene_clip) dictionaries.
+    """
     all_labels, all_relations = set(), set()
     for g in graphs_dict.values():
         for nid in g.nodes:
@@ -144,10 +203,28 @@ def build_clip_caches(graphs_dict, clip_model, device):
     return node_clip, rel_clip, scene_clip
 
 
-# ── Embed all graphs ──────────────────────────────────────────
+def embed_graphs(
+    model: DualSceneAligner,
+    graphs: dict[str, object],
+    node_clip: dict[str, torch.Tensor],
+    rel_clip: dict[str, torch.Tensor],
+    scene_clip: dict[str, torch.Tensor],
+    device: torch.device,
+) -> dict[str, dict]:
+    """Computes embeddings for all graphs through the model.
 
-def embed_graphs(model, graphs, node_clip, rel_clip, scene_clip, device):
-    """Compute embeddings for all graphs, return cache dict."""
+    Args:
+        model: Trained DualSceneAligner model (in eval mode).
+        graphs: Mapping from graph key to SceneGraph instances.
+        node_clip: Node label CLIP embedding cache.
+        rel_clip: Relation string CLIP embedding cache.
+        scene_clip: Scene-level CLIP embedding cache.
+        device: Device for inference.
+
+    Returns:
+        Dictionary mapping each graph key to its embedding cache containing
+        ``"emb"``, ``"scene_clip"``, and ``"labels"``.
+    """
     cache = {}
     with torch.no_grad():
         for key, g in tqdm(graphs.items(), desc="Embedding"):
@@ -161,12 +238,37 @@ def embed_graphs(model, graphs, node_clip, rel_clip, scene_clip, device):
     return cache
 
 
-# ── Evaluation loop ───────────────────────────────────────────
+def eval_sampled(
+    query_emb: dict,
+    db_emb: dict,
+    query_buckets: dict[str, list[str]],
+    pool_buckets: dict[str, list[str]],
+    out_of: int,
+    valid_top_k: list[int],
+    eval_iters: int,
+    eval_iter_count: int,
+    w_emb: float,
+    w_scene: float,
+    w_jac: float,
+) -> dict[int, tuple[float, float]]:
+    """Sampled evaluation: picks 1 correct + (out_of-1) random candidates.
 
-def eval_sampled(query_emb, db_emb, query_buckets, pool_buckets,
-                 out_of, valid_top_k, eval_iters, eval_iter_count,
-                 w_emb, w_scene, w_jac):
-    """Sampled evaluation: pick 1 correct + (out_of-1) random candidates."""
+    Args:
+        query_emb: Query embedding cache.
+        db_emb: Database embedding cache.
+        query_buckets: Mapping from scene ID to query keys.
+        pool_buckets: Mapping from scene ID to pool keys.
+        out_of: Number of candidate scenes per sample set.
+        valid_top_k: List of k values for top-k accuracy.
+        eval_iters: Number of outer evaluation rounds.
+        eval_iter_count: Number of queries per round.
+        w_emb: Embedding similarity weight.
+        w_scene: Scene CLIP similarity weight.
+        w_jac: Label-set F1 weight.
+
+    Returns:
+        Dictionary mapping each k to ``(mean_accuracy, std_accuracy)``.
+    """
     all_valid = {k: [] for k in valid_top_k}
 
     for _ in tqdm(range(eval_iters), desc="Eval rounds"):
@@ -205,10 +307,33 @@ def eval_sampled(query_emb, db_emb, query_buckets, pool_buckets,
     return {k: (np.mean(v), np.std(v)) for k, v in all_valid.items() if v}
 
 
-def eval_full_pool(query_emb, db_emb, query_buckets,
-                   valid_top_k, eval_iters, eval_iter_count,
-                   w_emb, w_scene, w_jac):
-    """Full-pool evaluation: rank against ALL database scenes."""
+def eval_full_pool(
+    query_emb: dict,
+    db_emb: dict,
+    query_buckets: dict[str, list[str]],
+    valid_top_k: list[int],
+    eval_iters: int,
+    eval_iter_count: int,
+    w_emb: float,
+    w_scene: float,
+    w_jac: float,
+) -> dict[int, tuple[float, float]]:
+    """Full-pool evaluation: ranks against ALL database scenes.
+
+    Args:
+        query_emb: Query embedding cache.
+        db_emb: Database embedding cache.
+        query_buckets: Mapping from scene ID to query keys.
+        valid_top_k: List of k values for top-k accuracy.
+        eval_iters: Number of outer evaluation rounds.
+        eval_iter_count: Number of queries per round.
+        w_emb: Embedding similarity weight.
+        w_scene: Scene CLIP similarity weight.
+        w_jac: Label-set F1 weight.
+
+    Returns:
+        Dictionary mapping each k to ``(mean_accuracy, std_accuracy)``.
+    """
     all_valid = {k: [] for k in valid_top_k}
     db_keys = list(db_emb.keys())
 
@@ -236,10 +361,13 @@ def eval_full_pool(query_emb, db_emb, query_buckets,
     return {k: (np.mean(v), np.std(v)) for k, v in all_valid.items() if v}
 
 
-# ── Main ──────────────────────────────────────────────────────
-
 @hydra.main(config_path="../../configs", config_name="config", version_base=None)
-def main(cfg: DictConfig):
+def main(cfg: DictConfig) -> None:
+    """Hydra CLI entry point for scene retrieval evaluation.
+
+    Args:
+        cfg: Merged Hydra configuration.
+    """
     rcfg = cfg.retrieval
     ecfg = rcfg.eval
     protocol = ecfg.protocol
@@ -256,7 +384,6 @@ def main(cfg: DictConfig):
     proto = ecfg[protocol]
 
     if protocol == "table3":
-        # ── Cache-based evaluation (Table 3) ──
         cache_dir = rcfg.cache_dir
         assert cache_dir, "Set retrieval.cache_dir for table3 evaluation"
 
@@ -264,7 +391,6 @@ def main(cfg: DictConfig):
         query_emb = torch.load(f"{cache_dir}/query_emb_cache.pt", weights_only=False)
         print(f"DB: {len(db_emb)} scenes, Queries: {len(query_emb)}")
 
-        # Load pool graphs for bucket building
         pool_data = torch.load(
             f"{cache_dir}/scanscribe_graphs_test_518D.pt",
             weights_only=False, map_location="cpu",
@@ -296,13 +422,11 @@ def main(cfg: DictConfig):
             w_emb=rcfg.w_emb, w_scene=rcfg.w_scene, w_jac=rcfg.w_jac,
         )
     else:
-        # ── Model-based evaluation (Tables 1 & 2) ──
         assert rcfg.checkpoint, "Set retrieval.checkpoint"
 
         print("Loading CLIP...")
         clip_model, _ = clip.load("ViT-B/32", device=device)
 
-        # Load model
         model = DualSceneAligner(
             node_input_dim=rcfg.node_input_dim,
             hidden_dim=rcfg.hidden_dim,
@@ -313,7 +437,6 @@ def main(cfg: DictConfig):
         model.eval()
         print(f"Model loaded: {sum(p.numel() for p in model.parameters()):,} params")
 
-        # Load 3DSSG database graphs
         assert rcfg.graphs_3dssg, "Set retrieval.graphs_3dssg"
         raw_3dssg = torch.load(rcfg.graphs_3dssg, weights_only=False, map_location="cpu")
         db_graphs = {}
@@ -324,7 +447,6 @@ def main(cfg: DictConfig):
                 use_attributes=True,
             )
 
-        # Load query graphs
         assert rcfg.graphs_scanscribe_test, "Set retrieval.graphs_scanscribe_test"
         raw_test = torch.load(rcfg.graphs_scanscribe_test, weights_only=False, map_location="cpu")
         query_graphs = {}
@@ -339,14 +461,11 @@ def main(cfg: DictConfig):
         query_graphs = {k: v for k, v in query_graphs.items() if len(v.edge_idx[0]) >= 1}
         print(f"DB: {len(db_graphs)}, Queries: {len(query_graphs)}")
 
-        # Build CLIP caches
         all_graphs = {**db_graphs, **query_graphs}
         node_clip, rel_clip, scene_clip = build_clip_caches(all_graphs, clip_model, device)
 
-        # Embed all graphs
         db_emb = embed_graphs(model, db_graphs, node_clip, rel_clip, scene_clip, device)
         query_emb = embed_graphs(model, query_graphs, node_clip, rel_clip, scene_clip, device)
-        # Add scene_id to query cache
         for key, g in query_graphs.items():
             query_emb[key]["scene_id"] = g.scene_id
 
@@ -374,7 +493,6 @@ def main(cfg: DictConfig):
                 w_emb=rcfg.w_emb, w_scene=rcfg.w_scene, w_jac=rcfg.w_jac,
             )
 
-    # Print results
     table_name = {"table1": "Table 1 (10-scene pool)",
                   "table2": "Table 2 (full pool)",
                   "table3": "Table 3 (image-generated)"}
