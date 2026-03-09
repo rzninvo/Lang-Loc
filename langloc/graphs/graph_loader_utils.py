@@ -158,7 +158,7 @@ def get_ada(desc: str, hash: dict) -> tuple[list[float], dict]:
     return hash[desc], hash
 
 
-def get_word2vec(desc: str, hash: dict) -> tuple[np.ndarray, dict] | np.ndarray:
+def get_word2vec(desc: str, hash: dict) -> tuple[np.ndarray, dict]:
     """Returns a cached spaCy word2vec embedding, computing it if missing.
 
     Args:
@@ -166,11 +166,11 @@ def get_word2vec(desc: str, hash: dict) -> tuple[np.ndarray, dict] | np.ndarray:
         hash: Dictionary of previously computed embeddings.
 
     Returns:
-        Tuple of (300-dim numpy array, updated_hash), or a zero vector
-        if ``desc`` is empty.
+        Tuple of (300-dim numpy array, updated_hash). Returns a zero
+        vector paired with the unchanged hash if ``desc`` is empty.
     """
     if desc == "":
-        return np.zeros(300)
+        return np.zeros(300), hash
     if desc in hash:
         return hash[desc], hash
     else:

@@ -86,6 +86,7 @@ class SceneGraph:
         if graph_type == '3dssg':
             self.nodes = self.extract_nodes_3dssg(graph['objects'], use_attributes, embedding_type)
             self.edge_idx, self.edge_relations, self.edge_features = self.extract_edges_3dssg(graph['edge_lists'], max_dist, embedding_type)
+            self.txt_id = txt_id
             assert len(self.edge_idx[0]) == len(self.edge_features), "Edge count mismatch"
             assert check_valid_graph(self.nodes, self.edge_idx), "Invalid graph: edge references missing node"
         elif graph_type == 'scanscribe' or graph_type == 'human':
@@ -97,6 +98,7 @@ class SceneGraph:
         elif graph_type is None:
             self.nodes = None
             self.edge_idx = None
+            self.edge_relations = None
             self.edge_features = None
             self.scene_id = scene_id
             self.txt_id = txt_id

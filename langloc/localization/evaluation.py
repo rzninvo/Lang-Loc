@@ -451,7 +451,8 @@ def evaluate_scene(scene_id: str,
             pred_dir = mean_dir / norm_dir
 
     pred_source = f"{candidate_source}:{prediction_strategy}"
-    metrics.distance_error = float(np.linalg.norm(pred_cam - gt_cam))
+    if metrics is not None:
+        metrics.distance_error = float(np.linalg.norm(pred_cam - gt_cam))
 
     # Standard mode: angular error + IoU
     if mode == EvalMode.STANDARD:
@@ -504,7 +505,8 @@ def evaluate_scene(scene_id: str,
                         edgecolors="black", linewidths=0.6, s=32,
                         label=f"Refined grid ({arrow_step_used:.2f} m)")
         plt.axis("equal"); plt.xlabel("X (m)"); plt.ylabel("Y (m)")
-        plt.title(f"{scene_id} · {metrics.frame_id} · grid {grid_step:.2f} m")
+        frame_label = metrics.frame_id if metrics is not None else ""
+        plt.title(f"{scene_id} · {frame_label} · grid {grid_step:.2f} m")
         add_heatmap_markers(gt_cam, pred_grid=pred_cam, label_grid=f"Pred ({pred_source})")
         plt.tight_layout(); plt.show()
 

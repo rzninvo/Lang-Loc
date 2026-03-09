@@ -55,6 +55,8 @@ def cross_entropy(preds: torch.Tensor, targets: torch.Tensor, reduction: str = '
         return loss
     elif reduction == "mean":
         return loss.mean()
+    else:
+        raise ValueError(f"Unknown reduction: {reduction!r}")
 
 
 def k_fold_by_scene(dataset: list, folds: int) -> zip:

@@ -102,7 +102,7 @@ def main() -> None:
     # Evaluation parameters
     parser.add_argument('--eval_iter', type=int, default=10000,
                         help='Number of iterations to evaluate')
-    parser.add_argument('--top', type=int, default=[1, 2, 3, 5],
+    parser.add_argument('--top', type=int, nargs='+', default=[1, 2, 3, 5],
                         help='Top-k values for evaluation')
     parser.add_argument('--out_of', type=int, default=10,
                         help='Number of candidates to rank among')
