@@ -15,7 +15,15 @@ import clip
 from tqdm import tqdm
 
 device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
-clip_model, _ = clip.load("ViT-B/32", device=device)
+_clip_model = None
+
+
+def _get_clip_model():
+    """Lazily loads the CLIP model on first use."""
+    global _clip_model
+    if _clip_model is None:
+        _clip_model, _ = clip.load("ViT-B/32", device=device)
+    return _clip_model
 
 def get_clip_embedding(label: str) -> np.ndarray:
     """Computes a CLIP text embedding for a single label.
@@ -28,7 +36,7 @@ def get_clip_embedding(label: str) -> np.ndarray:
     """
     with torch.no_grad():
         tokens = clip.tokenize([label]).to(device)
-        emb = clip_model.encode_text(tokens)
+        emb = _get_clip_model().encode_text(tokens)
         emb = emb / emb.norm(dim=-1, keepdim=True)
     return emb[0].cpu().numpy()
 
@@ -49,7 +57,7 @@ def get_scene_clip_embedding(labels_list: list[str]) -> np.ndarray:
     scene_desc = f"A room with {', '.join(unique_labels)}"
     with torch.no_grad():
         tokens = clip.tokenize([scene_desc]).to(device)
-        emb = clip_model.encode_text(tokens)
+        emb = _get_clip_model().encode_text(tokens)
         emb = emb / emb.norm(dim=-1, keepdim=True)
     return emb[0].cpu().numpy()
 
@@ -120,7 +128,7 @@ class ScanScribe3DSSGDataset(Dataset):
                 for i in range(0, len(rel_strings), 64):
                     chunk = rel_strings[i:i+64]
                     tokens = clip.tokenize(chunk).to(device)
-                    embs = clip_model.encode_text(tokens)
+                    embs = _get_clip_model().encode_text(tokens)
                     embs = embs / embs.norm(dim=-1, keepdim=True)
                     for j, rel in enumerate(chunk):
                         self.rel_clip_cache[rel] = embs[j].cpu().numpy().astype(np.float32)
@@ -158,7 +166,7 @@ class ScanScribe3DSSGDataset(Dataset):
                 try:
                     with open(json_path) as f:
                         self.dssg_cache[scene_id] = json.load(f)
-                except:
+                except (json.JSONDecodeError, OSError):
                     pass
         print(f"  Pre-loaded {len(self.dssg_cache)} 3DSSG scenes into memory")
         

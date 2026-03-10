@@ -13,6 +13,9 @@
 # Localization mode (see above).
 mode: standard
 
+# Dataset type: "3rscan" or "scannet". Controls mesh loading and label parsing.
+dataset: 3rscan
+
 # Grid resolution (metres) for sampling camera positions within the scene.
 # Smaller = more positions = finer spatial resolution, but slower.
 grid_step: 0.25
@@ -22,6 +25,19 @@ eye_height: 1.6
 
 # Number of top-scoring scene graphs to consider when aggregating scores.
 top_k: 25
+
+# Object matching strategy:
+#   global_topk     — simple global top-k from cosine similarity (default)
+#   per_node        — per-query-node best match, prevents label duplication
+#   relation_aware  — per-node + relation consistency re-ranking
+matching_strategy: global_topk
+
+# Blend weight for relation_aware matching (0 = pure node sim, 1 = pure relation).
+relation_alpha: 0.5
+
+# Downweight generic labels (wall, floor, ceiling) during visibility scoring.
+# When true, generic objects contribute 0.1 instead of 1.0 to the visibility count.
+use_distinctiveness_weighting: false
 
 # Temperature parameter for softmax score normalisation.
 score_tau: 0.5

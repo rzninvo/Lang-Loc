@@ -1,46 +1,24 @@
 """Grid sampling, raycasting, and visibility utilities for localization.
 
-Provides functions for loading 3RScan scene meshes, sampling dense camera
-grids over the mesh footprint, performing single-ray visibility tests, and
-computing per-camera visible object directions.
+Provides functions for loading 3RScan and ScanNet scene meshes, sampling
+dense camera grids over the mesh footprint, performing single-ray visibility
+tests, and computing per-camera visible object directions.
 """
 from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Literal, Optional, Tuple
 
 import numpy as np
 import open3d as o3d
 import open3d.core as o3c
 
+DatasetName = Literal["3rscan", "scannet"]
 
-def load_scene(scan_dir: Path) -> Tuple[o3d.geometry.TriangleMesh, np.ndarray, Dict[int, np.ndarray]]:
-    """Load a 3RScan scene mesh and build per-triangle / per-object maps.
 
-    Reads the annotated PLY file, extracts per-vertex object IDs from PLY
-    vertex colours using the ``objects.json`` colour-to-ID mapping, and
-    assigns each triangle to its majority-vote object.
-
-    Args:
-        scan_dir: Path to the individual scan directory (e.g.
-            ``<3RScan_root>/<scan_id>``).  Must contain
-            ``labels.instances.annotated.v2.ply``, and its parent must
-            contain ``objects.json``.
-
-    Returns:
-        A 3-tuple ``(mesh, tri2obj, obj2faces)`` where
-
-        - **mesh** is the loaded ``o3d.geometry.TriangleMesh`` with vertex
-          normals computed.
-        - **tri2obj** is an ``int32`` array of shape ``(T,)`` mapping each
-          triangle index to an object ID (0 for background).
-        - **obj2faces** is a ``dict[int, np.ndarray]`` mapping non-zero
-          object IDs to their triangle-index arrays.
-
-    Raises:
-        FileNotFoundError: If the annotated PLY file does not exist.
-    """
+def _load_scene_3rscan(scan_dir: Path) -> Tuple[o3d.geometry.TriangleMesh, np.ndarray, Dict[int, np.ndarray]]:
+    """Load a 3RScan scene mesh and build per-triangle / per-object maps."""
     ply = scan_dir / "labels.instances.annotated.v2.ply"
     if not ply.exists():
         raise FileNotFoundError(ply)
@@ -60,40 +38,145 @@ def load_scene(scan_dir: Path) -> Tuple[o3d.geometry.TriangleMesh, np.ndarray, D
     tri2obj = np.array([np.bincount(v_oid[t]).argmax() for t in tris],
                        dtype=np.int32)
 
-    obj2faces = {}
+    obj2faces: Dict[int, list] = {}
     for fid, oid in enumerate(tri2obj):
         if oid != 0:
             obj2faces.setdefault(int(oid), []).append(fid)
-    obj2faces = {k: np.asarray(v, dtype=np.int32) for k, v in obj2faces.items()}
-    return mesh, tri2obj, obj2faces
+    obj2faces_arr = {k: np.asarray(v, dtype=np.int32) for k, v in obj2faces.items()}
+    return mesh, tri2obj, obj2faces_arr
+
+
+def _load_scene_scannet(scan_dir: Path) -> Tuple[o3d.geometry.TriangleMesh, np.ndarray, Dict[int, np.ndarray]]:
+    """Load a ScanNet scene mesh and build per-triangle / per-object maps.
+
+    Reads the ``*_vh_clean_2.ply`` mesh, segmentation JSON, and aggregation
+    JSON to produce the same ``(mesh, tri2obj, obj2faces)`` tuple as the
+    3RScan loader.
+    """
+    scan_id = scan_dir.name
+    ply = scan_dir / f"{scan_id}_vh_clean_2.ply"
+    if not ply.exists():
+        raise FileNotFoundError(f"ScanNet mesh not found: {ply}")
+    mesh = o3d.io.read_triangle_mesh(str(ply))
+    mesh.compute_vertex_normals()
+
+    segs_json = scan_dir / f"{scan_id}_vh_clean_2.0.010000.segs.json"
+    if not segs_json.exists():
+        segs_json = scan_dir / f"{scan_id}_vh_clean_2.segs.json"
+    if not segs_json.exists():
+        raise FileNotFoundError(f"Segs JSON not found for {scan_id}")
+
+    agg_json = scan_dir / f"{scan_id}.aggregation.json"
+    if not agg_json.exists():
+        raise FileNotFoundError(f"Aggregation JSON not found for {scan_id}")
+
+    segs = json.loads(segs_json.read_text())
+    agg = json.loads(agg_json.read_text())
+
+    vert_seg = np.array(segs["segIndices"], dtype=np.int32)
+
+    seg_to_obj: Dict[int, int] = {}
+    for g in agg["segGroups"]:
+        oid = int(g["objectId"])
+        for s in g["segments"]:
+            seg_to_obj[int(s)] = oid
+
+    v_oid = np.array([seg_to_obj.get(int(s), 0) for s in vert_seg], dtype=np.int32)
+    tris = np.asarray(mesh.triangles, dtype=np.int32)
+    tri2obj = np.array([np.bincount(v_oid[t]).argmax() for t in tris],
+                       dtype=np.int32)
+
+    obj2faces: Dict[int, list] = {}
+    for fid, oid in enumerate(tri2obj):
+        if oid != 0:
+            obj2faces.setdefault(int(oid), []).append(fid)
+    obj2faces_arr = {k: np.asarray(v, dtype=np.int32) for k, v in obj2faces.items()}
+    return mesh, tri2obj, obj2faces_arr
+
+
+def load_scene(scan_dir: Path,
+               dataset: DatasetName = "3rscan",
+               ) -> Tuple[o3d.geometry.TriangleMesh, np.ndarray, Dict[int, np.ndarray]]:
+    """Load a scene mesh and build per-triangle / per-object maps.
+
+    Dispatches to the 3RScan or ScanNet loader based on *dataset*.
+
+    Args:
+        scan_dir: Path to the individual scan directory.
+        dataset: ``"3rscan"`` or ``"scannet"``.
+
+    Returns:
+        A 3-tuple ``(mesh, tri2obj, obj2faces)`` where
+
+        - **mesh** is the loaded ``o3d.geometry.TriangleMesh`` with vertex
+          normals computed.
+        - **tri2obj** is an ``int32`` array of shape ``(T,)`` mapping each
+          triangle index to an object ID (0 for background).
+        - **obj2faces** is a ``dict[int, np.ndarray]`` mapping non-zero
+          object IDs to their triangle-index arrays.
+
+    Raises:
+        FileNotFoundError: If the expected mesh file does not exist.
+        ValueError: If *dataset* is not recognised.
+    """
+    if dataset == "3rscan":
+        return _load_scene_3rscan(scan_dir)
+    if dataset == "scannet":
+        return _load_scene_scannet(scan_dir)
+    raise ValueError(f"Unknown dataset: {dataset!r}")
+
+
+def load_object_labels(scan_dir: Path,
+                       dataset: DatasetName = "3rscan") -> Dict[int, str]:
+    """Load per-object labels from scene metadata.
+
+    Args:
+        scan_dir: Path to the individual scan directory.
+        dataset: ``"3rscan"`` or ``"scannet"``.
+
+    Returns:
+        Mapping from object ID to label string.
+    """
+    if dataset == "3rscan":
+        semseg_path = scan_dir / "semseg.v2.json"
+        if not semseg_path.exists():
+            return {}
+        groups = json.loads(semseg_path.read_text())["segGroups"]
+        return {int(g["objectId"]): g.get("label", "").strip()
+                for g in groups}
+    if dataset == "scannet":
+        scan_id = scan_dir.name
+        agg_json = scan_dir / f"{scan_id}.aggregation.json"
+        if not agg_json.exists():
+            return {}
+        agg = json.loads(agg_json.read_text())
+        return {int(g.get("objectId", g.get("id", -1))): g.get("label", "").strip()
+                for g in agg["segGroups"]}
+    raise ValueError(f"Unknown dataset: {dataset!r}")
 
 
 def extract_floor_bbox(scan_dir: Path,
                        verts: np.ndarray,
                        tris: np.ndarray,
-                       obj2faces: Dict[int, np.ndarray]) -> Optional[Dict[str, float]]:
+                       obj2faces: Dict[int, np.ndarray],
+                       dataset: DatasetName = "3rscan",
+                       ) -> Optional[Dict[str, float]]:
     """Return the axis-aligned bounding box of all floor-labelled objects.
-
-    Reads the semantic segmentation file (``semseg.v2.json``) to identify
-    floor segments, then computes the AABB of their vertices.
 
     Args:
         scan_dir: Path to the individual scan directory.
         verts: Mesh vertex positions, shape ``(V, 3)``.
         tris: Mesh triangle indices, shape ``(F, 3)``.
         obj2faces: Mapping from object ID to face index array.
+        dataset: ``"3rscan"`` or ``"scannet"``.
 
     Returns:
         Dict with keys ``x_min, x_max, y_min, y_max, z_min, z_max``,
-        or ``None`` if the semseg file is missing or contains no floor.
+        or ``None`` if the metadata is missing or contains no floor.
     """
-    semseg_path = scan_dir / "semseg.v2.json"
-    if not semseg_path.exists():
-        return None
-
-    groups = json.loads(semseg_path.read_text())["segGroups"]
-    floor_ids = {int(g["objectId"]) for g in groups
-                 if g.get("label", "").strip().lower() == "floor"}
+    labels = load_object_labels(scan_dir, dataset)
+    floor_ids = {oid for oid, lbl in labels.items()
+                 if "floor" in lbl.lower().split()}
     if not floor_ids:
         return None
 
@@ -252,3 +335,45 @@ def compute_visible_dirs(cams: np.ndarray,
                 if l > 1e-6:
                     visible_dirs[idx].append(d / l)
     return visible_dirs
+
+
+# Labels that are visible from almost anywhere and carry little
+# localization signal.
+_GENERIC_LABELS = frozenset({
+    "wall", "floor", "ceiling", "object", "doorframe", "door",
+})
+
+
+def compute_visible_dirs_weighted(
+    cams: np.ndarray,
+    centroids: Dict[int, np.ndarray],
+    rc: o3d.t.geometry.RaycastingScene,
+    tri2obj: np.ndarray,
+    oid_weights: Optional[Dict[int, float]] = None,
+) -> tuple[List[List[np.ndarray]], List[List[float]]]:
+    """Like :func:`compute_visible_dirs` but also returns per-object weights.
+
+    Args:
+        cams: Camera positions, shape ``(N, 3)``.
+        centroids: Mapping from object ID to centroid position ``(3,)``.
+        rc: Pre-built Open3D raycasting scene.
+        tri2obj: Per-triangle object-ID array.
+        oid_weights: Per-object weight.  Defaults to 1.0 for every object.
+
+    Returns:
+        ``(visible_dirs, visible_weights)`` — parallel lists of length
+        ``N``, each element being a list of direction vectors / floats.
+    """
+    if oid_weights is None:
+        oid_weights = {oid: 1.0 for oid in centroids}
+    visible_dirs: List[List[np.ndarray]] = [[] for _ in range(len(cams))]
+    visible_weights: List[List[float]] = [[] for _ in range(len(cams))]
+    for idx, cam in enumerate(cams):
+        for oid, centre in centroids.items():
+            if first_hit_is_object(cam, centre, oid, rc, tri2obj):
+                d = centre - cam
+                l = np.linalg.norm(d)
+                if l > 1e-6:
+                    visible_dirs[idx].append(d / l)
+                    visible_weights[idx].append(oid_weights.get(oid, 1.0))
+    return visible_dirs, visible_weights

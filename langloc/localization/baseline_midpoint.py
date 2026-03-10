@@ -113,7 +113,8 @@ def evaluate_scene(scene_id: str,
     gt_forward_norm = float(np.linalg.norm(gt_forward))
     gt_dir = gt_forward / gt_forward_norm if gt_forward_norm > 1e-6 else None
 
-    mesh, _tri2obj, obj2faces = load_scene(scene_dir)
+    dataset = getattr(loc, "dataset", "3rscan")
+    mesh, _tri2obj, obj2faces = load_scene(scene_dir, dataset=dataset)
     rc = o3d.t.geometry.RaycastingScene()
     mesh_id = rc.add_triangles(o3d.t.geometry.TriangleMesh.from_legacy(mesh))
     if not mesh.has_vertex_normals():
@@ -128,7 +129,8 @@ def evaluate_scene(scene_id: str,
     tri_areas = 0.5 * np.linalg.norm(tri_cross, axis=1)
     tri_centroids = tri_pts.mean(axis=1)
 
-    floor_bbox = extract_floor_bbox(scene_dir, verts, tris, obj2faces)
+    floor_bbox = extract_floor_bbox(scan_dir=scene_dir, verts=verts, tris=tris,
+                                    obj2faces=obj2faces, dataset=dataset)
     if floor_bbox is not None:
         x_mid = 0.5 * (floor_bbox["x_min"] + floor_bbox["x_max"])
         y_mid = 0.5 * (floor_bbox["y_min"] + floor_bbox["y_max"])
@@ -197,7 +199,8 @@ def run_baseline(cfg: DictConfig) -> None:
     params_text = format_args_section(OmegaConf.to_container(cfg, resolve=True))
     rng = np.random.default_rng(seed=cfg.seed)
 
-    scenes = load_scene_graphs(Path(loc.graphs))
+    dataset = getattr(loc, "dataset", "3rscan")
+    scenes = load_scene_graphs(Path(loc.graphs), dataset=dataset)
     candidate_ids = list(scenes.keys())
 
     if loc.visualize_scene:

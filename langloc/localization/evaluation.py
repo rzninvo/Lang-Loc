@@ -27,8 +27,10 @@ from langloc.localization.grid import (
     load_scene,
     sample_grid,
     compute_visible_dirs,
+    compute_visible_dirs_weighted,
+    _GENERIC_LABELS,
 )
-from langloc.localization.matching import topk_matched_objects
+from langloc.localization.matching import match_objects
 from langloc.localization.frame_io import (
     load_frame_jsons,
     select_frame,
@@ -111,7 +113,8 @@ def evaluate_scene(scene_id: str,
                    cfg: object,
                    rng: np.random.Generator,
                    *,
-                   graph_cfg: object = None) -> Optional[Union[SceneMetrics, Dict]]:
+                   graph_cfg: object = None,
+                   frame_override: object = None) -> Optional[Union[SceneMetrics, Dict]]:
     """Run localization evaluation for a single scene.
 
     Steps shared across all modes:
@@ -142,6 +145,8 @@ def evaluate_scene(scene_id: str,
         rng: NumPy random generator.
         graph_cfg: Optional graph configuration with ``embedding_type``
             and ``use_attributes``.
+        frame_override: If provided, use this :class:`FrameSelection` instead
+            of selecting one via ``frame_policy``.  Used by all-frames mode.
 
     Returns:
         - **standard / coarse_to_fine**: A :class:`SceneMetrics` instance,
@@ -165,12 +170,15 @@ def evaluate_scene(scene_id: str,
         print(f"[WARN] No frame JSONs under {desc_dir} — skipped.")
         return None
 
-    frame_policy = _cfg_get(cfg, "frame_policy", "max_visible")
-    frame_index = _cfg_get(cfg, "frame_index", 0)
-    selection = select_frame(frames, frame_policy, frame_index, rng)
-    if selection is None:
-        print(f"[WARN] Frame selection failed for {scene_id} — skipped.")
-        return None
+    if frame_override is not None:
+        selection = frame_override
+    else:
+        frame_policy = _cfg_get(cfg, "frame_policy", "max_visible")
+        frame_index = _cfg_get(cfg, "frame_index", 0)
+        selection = select_frame(frames, frame_policy, frame_index, rng)
+        if selection is None:
+            print(f"[WARN] Frame selection failed for {scene_id} — skipped.")
+            return None
 
     frame = selection.frame
     try:
@@ -201,13 +209,18 @@ def evaluate_scene(scene_id: str,
     gt_dir = forward_cv / norm_forward if norm_forward > 1e-6 else None
 
     top_k = _cfg_get(cfg, "top_k", 25)
-    obj_ids = topk_matched_objects(caption_graph, scene_graph, k=top_k)
+    matching_strategy = _cfg_get(cfg, "matching_strategy", "global_topk")
+    relation_alpha = float(_cfg_get(cfg, "relation_alpha", 0.5))
+    obj_ids = match_objects(caption_graph, scene_graph, k=top_k,
+                            strategy=matching_strategy,
+                            relation_alpha=relation_alpha)
     if not obj_ids:
         if mode != EvalMode.CANDIDATES:
             print(f"[WARN] {scene_id}: no cosine matches — skipped.")
         return None
 
-    mesh, tri2obj, obj2faces = load_scene(scene_dir)
+    dataset = _cfg_get(cfg, "dataset", "3rscan")
+    mesh, tri2obj, obj2faces = load_scene(scene_dir, dataset=dataset)
     rc = o3d.t.geometry.RaycastingScene()
     mesh_id = rc.add_triangles(o3d.t.geometry.TriangleMesh.from_legacy(mesh))
 
@@ -234,9 +247,23 @@ def evaluate_scene(scene_id: str,
             print(f"[WARN] {scene_id}: matched objects missing geometry — skipped.")
         return None
 
-    visible_dirs = compute_visible_dirs(cams, centroids, rc, tri2obj)
+    use_dw = bool(_cfg_get(cfg, "use_distinctiveness_weighting", False))
+    if use_dw:
+        oid_weights: Dict[int, float] = {}
+        for oid in centroids:
+            lbl = ""
+            if hasattr(scene_graph, "nodes") and oid in scene_graph.nodes:
+                lbl = getattr(scene_graph.nodes[oid], "label", "").lower().strip()
+            oid_weights[oid] = 0.1 if lbl in _GENERIC_LABELS else 1.0
+        visible_dirs, visible_w = compute_visible_dirs_weighted(
+            cams, centroids, rc, tri2obj, oid_weights=oid_weights)
+        scores_raw = np.array([sum(w) for w in visible_w], dtype=np.float64)
+    else:
+        visible_dirs = compute_visible_dirs(cams, centroids, rc, tri2obj)
+        scores_raw = np.array([len(v) for v in visible_dirs], dtype=np.float64)
+
     counts = np.array([len(v) for v in visible_dirs], dtype=np.int32)
-    total = counts.sum()
+    total = scores_raw.sum()
     if total == 0:
         if mode != EvalMode.CANDIDATES:
             print(f"[WARN] {scene_id}: matched objects invisible from grid — skipped.")
@@ -245,12 +272,12 @@ def evaluate_scene(scene_id: str,
     # --- Mode-specific probability computation ---
     if mode == EvalMode.STANDARD:
         tau = float(_cfg_get(cfg, "score_tau", 0.5))
-        scores_f = counts.astype(np.float32) / max(tau, 1e-6)
+        scores_f = scores_raw.astype(np.float32) / max(tau, 1e-6)
         scores_f -= scores_f.max()
         exp_scores = np.exp(scores_f)
         probs = exp_scores / exp_scores.sum()
     else:
-        probs = counts / float(total)
+        probs = scores_raw / float(total)
 
     h_fov_deg = _cfg_get(cfg, "h_fov_deg", 100.0)
     v_fov_deg = _cfg_get(cfg, "v_fov_deg", 60.0)
@@ -808,7 +835,8 @@ def run_evaluation(cfg: object, *, graph_cfg: object = None) -> None:
             embedding_type=graph_cfg.embedding_type,
             use_attributes=graph_cfg.use_attributes,
         )
-    scenes = load_scene_graphs(graphs_dir, **graph_kw)
+    dataset = _cfg_get(cfg, "dataset", "3rscan")
+    scenes = load_scene_graphs(graphs_dir, dataset=dataset, **graph_kw)
     root = Path(_cfg_get(cfg, "root"))
 
     candidate_ids = list(scenes.keys())
@@ -921,17 +949,12 @@ def _run_metrics_mode(candidate_ids: List[str],
     """
     params_text = format_args_section(cfg)
 
-    metrics_list: List[SceneMetrics] = []
-    for idx, sid in enumerate(candidate_ids, start=1):
-        print(f"[{idx:03d}/{len(candidate_ids):03d}] {sid}")
-        result = evaluate_scene(sid, scenes[sid], mode, cfg, rng, graph_cfg=graph_cfg)
-        if result is None or not isinstance(result, SceneMetrics):
-            continue
-        metrics_list.append(result)
+    frame_policy = _cfg_get(cfg, "frame_policy", "max_visible")
+    all_frames_mode = frame_policy == "all"
 
+    def _print_result(result: SceneMetrics) -> None:
         print(f"    frame: {result.frame_id}")
         print(f"    matches: {result.matched_objects} | grid pts: {result.grid_points}")
-
         if mode == EvalMode.STANDARD:
             if result.hit_masses:
                 hit_line = " | ".join(
@@ -951,6 +974,35 @@ def _run_metrics_mode(candidate_ids: List[str],
             print(f"    hit@{hit_radius:.2f}m: {result.hit_mass:.3f} | "
                   f"dist_err: {result.distance_error:.3f} m")
         print()
+
+    metrics_list: List[SceneMetrics] = []
+    for idx, sid in enumerate(candidate_ids, start=1):
+        print(f"[{idx:03d}/{len(candidate_ids):03d}] {sid}")
+        if all_frames_mode:
+            mesh_root = Path(_cfg_get(cfg, "root"))
+            query_root = ensure_query_root(_cfg_get(cfg, "query_root"), mesh_root)
+            desc_dir = query_root / sid / "output" / "descriptions"
+            if not desc_dir.exists():
+                desc_dir = mesh_root / sid / "output" / "descriptions"
+            frames = load_frame_jsons(desc_dir)
+            if not frames:
+                print(f"    no frames — skipped.")
+                continue
+            for fi, fs in enumerate(frames):
+                result = evaluate_scene(
+                    sid, scenes[sid], mode, cfg, rng,
+                    graph_cfg=graph_cfg, frame_override=fs,
+                )
+                if result is None or not isinstance(result, SceneMetrics):
+                    continue
+                metrics_list.append(result)
+                _print_result(result)
+        else:
+            result = evaluate_scene(sid, scenes[sid], mode, cfg, rng, graph_cfg=graph_cfg)
+            if result is None or not isinstance(result, SceneMetrics):
+                continue
+            metrics_list.append(result)
+            _print_result(result)
 
     if not metrics_list:
         print("No scenes produced metrics.")

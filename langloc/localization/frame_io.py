@@ -263,6 +263,112 @@ def frame_to_scenegraph(frame: dict,
 
 
 # ---------------------------------------------------------------------------
+#  Parsed-graph centroid recovery
+# ---------------------------------------------------------------------------
+
+def _cosine_sim(a: np.ndarray, b: np.ndarray) -> float:
+    """Cosine similarity between two vectors, returning 0 for degenerate inputs."""
+    na = float(np.linalg.norm(a))
+    nb = float(np.linalg.norm(b))
+    if na < 1e-9 or nb < 1e-9:
+        return 0.0
+    return float(np.dot(a, b) / (na * nb))
+
+
+def recover_centroids(parsed_graph: dict,
+                      parsed_path: Path,
+                      embedding_mode: str = "doc",
+                      similarity_threshold: float = 0.7) -> Dict[int, dict]:
+    """Match parsed-graph node labels to visible objects to recover centroids.
+
+    When a scene description is parsed by GPT into a structured graph, the
+    resulting nodes have labels but no 3D geometry.  This function matches
+    each parsed node label to the closest visible object (from the original
+    frame JSON) via word2vec cosine similarity and copies the centroid.
+
+    Args:
+        parsed_graph: Dict with ``"nodes"`` list, each having ``"id"`` and
+            ``"label"`` (and optionally ``"label_word2vec"``).
+        parsed_path: Path to the ``*_parsed.json`` file.  The corresponding
+            raw frame JSON is found by stripping the ``_parsed`` suffix.
+        embedding_mode: Word2vec mode (``"doc"`` or ``"token"``).
+        similarity_threshold: Minimum cosine similarity to accept a match.
+
+    Returns:
+        Dict mapping parsed node ID to a metadata dict with keys
+        ``"source_object_id"``, ``"label"``, ``"centroid_world"``, and
+        ``"match_similarity"``.
+    """
+    # Resolve raw frame path from parsed path
+    stem = parsed_path.stem
+    if stem.endswith("_parsed"):
+        raw_name = stem[: -len("_parsed")] + parsed_path.suffix
+    else:
+        raw_name = parsed_path.name
+    raw_path = parsed_path.with_name(raw_name)
+    if not raw_path.exists():
+        return {}
+
+    raw_frame = json.loads(raw_path.read_text())
+    visible_objects = raw_frame.get("visible_objects", {}) or {}
+    if not visible_objects:
+        return {}
+
+    # Build visible-object embeddings
+    vo_ids: List[str] = []
+    vo_labels: List[str] = []
+    vo_centroids: List[np.ndarray] = []
+    vo_embeddings: List[np.ndarray] = []
+    for raw_id, obj in visible_objects.items():
+        label = obj.get("label", "")
+        if not label:
+            continue
+        vo_ids.append(raw_id)
+        vo_labels.append(label)
+        vo_centroids.append(
+            np.asarray(obj.get("centroid_world", [0, 0, 0]), dtype=np.float32)
+        )
+        vo_embeddings.append(_embed_word2vec(label, mode=embedding_mode))
+
+    if not vo_embeddings:
+        return {}
+    vo_emb_arr = np.array(vo_embeddings, dtype=np.float32)
+
+    # Match each parsed node to the best visible object
+    meta: Dict[int, dict] = {}
+    for node in parsed_graph.get("nodes", []):
+        nid = int(node["id"])
+        label = node.get("label", "")
+        if not label:
+            continue
+
+        # Use cached embedding if available, otherwise compute
+        node_emb = node.get("label_word2vec")
+        if node_emb is not None:
+            node_emb = np.asarray(node_emb, dtype=np.float32)
+        else:
+            node_emb = _embed_word2vec(label, mode=embedding_mode)
+
+        best_idx = -1
+        best_sim = -1.0
+        for j, vo_emb in enumerate(vo_emb_arr):
+            sim = _cosine_sim(node_emb, vo_emb)
+            if sim > best_sim:
+                best_sim = sim
+                best_idx = j
+
+        if best_sim >= similarity_threshold and best_idx >= 0:
+            meta[nid] = {
+                "source_object_id": vo_ids[best_idx],
+                "label": label,
+                "centroid_world": vo_centroids[best_idx],
+                "match_similarity": best_sim,
+            }
+
+    return meta
+
+
+# ---------------------------------------------------------------------------
 #  Camera pose helper
 # ---------------------------------------------------------------------------
 
@@ -293,15 +399,17 @@ def camera_center_from_pose(pose: Iterable[Iterable[float]]) -> np.ndarray:
 def load_scene_graphs(graphs_dir: Path,
                       max_dist: float = 1.0,
                       embedding_type: str = "word2vec",
-                      use_attributes: bool = True) -> Dict[str, SceneGraph]:
-    """Load pre-processed 3D-SSG graphs into a dict keyed by scene ID.
+                      use_attributes: bool = True,
+                      dataset: str = "3rscan") -> Dict[str, SceneGraph]:
+    """Load pre-processed scene graphs into a dict keyed by scene ID.
 
     Args:
-        graphs_dir: Root of the processed-data directory, expected to
-            contain ``3dssg/3dssg_graphs_processed_edgelists_relationembed.pt``.
+        graphs_dir: Root of the processed-data directory.
         max_dist: Maximum distance for graph construction.
         embedding_type: Embedding backend name.
         use_attributes: Whether to include attribute embeddings.
+        dataset: ``"3rscan"`` or ``"scannet"``.  Controls which ``.pt`` file
+            is loaded (``3dssg/...`` vs ``scannet_scene_graphs.pt``).
 
     Returns:
         A dict mapping scene ID strings to :class:`SceneGraph` instances.
@@ -309,7 +417,10 @@ def load_scene_graphs(graphs_dir: Path,
     Raises:
         FileNotFoundError: If the expected ``.pt`` file does not exist.
     """
-    g3d_path = graphs_dir / "3dssg" / "3dssg_graphs_processed_edgelists_relationembed.pt"
+    if dataset == "scannet":
+        g3d_path = graphs_dir / "scannet_scene_graphs.pt"
+    else:
+        g3d_path = graphs_dir / "3dssg" / "3dssg_graphs_processed_edgelists_relationembed.pt"
     if not g3d_path.exists():
         raise FileNotFoundError(g3d_path)
     g3d = torch.load(g3d_path, map_location="cpu", weights_only=False)

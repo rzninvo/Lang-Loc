@@ -72,68 +72,31 @@ def detect_up_axis(mesh: o3d.geometry.TriangleMesh) -> str:
     return axis_name
 
 
-def load_scene_3rscan(scan_dir: Path):
-    """Load a 3RScan scene. Delegates to langloc.localization.grid.load_scene."""
-    from langloc.localization.grid import load_scene
-    return load_scene(scan_dir)
+def load_scene_any(scan_dir: Path, dataset: str = "3rscan"):
+    """Load a scene mesh via the localization pipeline's unified loader.
 
-
-def load_scene_scannet(scan_dir: Path, scan_id: str):
-    """Load a ScanNet scene mesh and build per-triangle / per-object maps.
-
-    Reads the *_vh_clean_2.ply mesh, segmentation JSON, and aggregation JSON
-    to produce the same (mesh, tri2obj, obj2faces) tuple as the 3RScan loader.
+    Supports both 3RScan and ScanNet datasets through a single entry point.
 
     Args:
-        scan_dir: Path to the scene directory (e.g. ``data/scans/scene0000_00``).
-        scan_id: Scene identifier string (e.g. ``scene0000_00``).
+        scan_dir: Path to the scene directory.
+        dataset: ``"3rscan"`` or ``"scannet"``.
 
     Returns:
-        (mesh, tri2obj, obj2faces) matching the 3RScan loader interface.
+        ``(mesh, tri2obj, obj2faces)`` tuple.
     """
-    ply = scan_dir / f"{scan_id}_vh_clean_2.ply"
-    if not ply.exists():
-        raise FileNotFoundError(f"ScanNet mesh not found: {ply}")
-    mesh = o3d.io.read_triangle_mesh(str(ply))
-    mesh.compute_vertex_normals()
+    from langloc.localization.grid import load_scene
+    return load_scene(scan_dir, dataset=dataset)
 
-    # Load segmentation
-    segs_json = scan_dir / f"{scan_id}_vh_clean_2.0.010000.segs.json"
-    if not segs_json.exists():
-        segs_json = scan_dir / f"{scan_id}_vh_clean_2.segs.json"
-    if not segs_json.exists():
-        raise FileNotFoundError(f"Segs JSON not found for {scan_id}")
 
-    agg_json = scan_dir / f"{scan_id}.aggregation.json"
-    if not agg_json.exists():
-        raise FileNotFoundError(f"Aggregation JSON not found for {scan_id}")
+# Keep thin aliases for backwards compatibility with callers.
+def load_scene_3rscan(scan_dir: Path):
+    """Load a 3RScan scene. Delegates to load_scene_any."""
+    return load_scene_any(scan_dir, dataset="3rscan")
 
-    segs = json.loads(segs_json.read_text())
-    agg = json.loads(agg_json.read_text())
 
-    vert_seg = np.array(segs["segIndices"], dtype=np.int32)
-
-    seg_to_obj: Dict[int, int] = {}
-    for g in agg["segGroups"]:
-        oid = int(g["objectId"])
-        for s in g["segments"]:
-            seg_to_obj[int(s)] = oid
-
-    # Per-vertex object ID
-    v_oid = np.array([seg_to_obj.get(int(s), 0) for s in vert_seg], dtype=np.int32)
-
-    # Per-triangle object ID (majority vote)
-    tris = np.asarray(mesh.triangles, dtype=np.int32)
-    tri2obj = np.array([np.bincount(v_oid[t]).argmax() for t in tris],
-                       dtype=np.int32)
-
-    obj2faces: Dict[int, np.ndarray] = {}
-    for fid, oid in enumerate(tri2obj):
-        if oid != 0:
-            obj2faces.setdefault(int(oid), []).append(fid)
-    obj2faces = {k: np.asarray(v, dtype=np.int32) for k, v in obj2faces.items()}
-
-    return mesh, tri2obj, obj2faces
+def load_scene_scannet(scan_dir: Path, scan_id: str = ""):
+    """Load a ScanNet scene. Delegates to load_scene_any."""
+    return load_scene_any(scan_dir, dataset="scannet")
 
 
 def load_semantic_vertex_colors(scan_dir: Path, scan_id: str,
@@ -2575,10 +2538,7 @@ def main() -> None:
 
     # --- 1. Load scene ---
     print(f"[1/6] Loading {args.dataset} scene: {args.scan_id}")
-    if args.dataset == "3rscan":
-        mesh, tri2obj, obj2faces = load_scene_3rscan(scan_dir)
-    else:
-        mesh, tri2obj, obj2faces = load_scene_scannet(scan_dir, args.scan_id)
+    mesh, tri2obj, obj2faces = load_scene_any(scan_dir, dataset=args.dataset)
 
     up_axis = args.up_axis if args.up_axis else detect_up_axis(mesh)
 

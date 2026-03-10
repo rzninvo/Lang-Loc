@@ -189,14 +189,15 @@ def check_and_remove_invalid_edges(all_scenes: dict) -> dict:
     """
     for scene_id in tqdm(all_scenes):
         for txt_id in all_scenes[scene_id]:
+            valid_edges = []
             for edge in all_scenes[scene_id][txt_id]['edges']:
-                source = edge['source']
-                target = edge['target']
                 try:
-                    source = int(edge['source'])
-                    target = int(edge['target'])
+                    int(edge['source'])
+                    int(edge['target'])
+                    valid_edges.append(edge)
                 except (ValueError, TypeError):
-                    print(f'Error in scene {scene_id}, txt {txt_id}, source {source}, target {target}')
+                    print(f'Error in scene {scene_id}, txt {txt_id}, '
+                          f'source {edge["source"]}, target {edge["target"]}')
                     print("Removing edge")
-                    all_scenes[scene_id][txt_id]['edges'].remove(edge)
+            all_scenes[scene_id][txt_id]['edges'] = valid_edges
     return all_scenes
