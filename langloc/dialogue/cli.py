@@ -2,7 +2,7 @@
 
 Run with::
 
-    python -m src.dialogue.cli dialogue.candidates_json=path.json dialogue.dataset_root=/path/to/3RScan
+    python -m langloc.dialogue.cli dialogue.candidates_json=path.json dialogue.dataset_root=/path/to/3RScan
 
 Or override any parameter defined in ``conf/dialogue/default.yaml``.
 """
@@ -20,7 +20,7 @@ def main(cfg: DictConfig) -> None:
     """Dialogue evaluation entry point.
 
     Reads the ``dialogue`` section from the merged Hydra config
-    and delegates to :func:`~src.dialogue.eval_runner.run_batch`.
+    and delegates to :func:`~langloc.dialogue.eval_runner.run_batch`.
 
     Args:
         cfg: Merged Hydra configuration.

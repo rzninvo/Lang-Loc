@@ -1,8 +1,8 @@
 # Dialogue disambiguation configuration (Stage 3).
 
 # I/O
-candidates_json: ""
-dataset_root: ""
+candidates_json: ${paths.eval_output_dir}/candidates.json
+dataset_root: ${paths.rscan_root}
 only_scene_id: ""
 limit: 1
 

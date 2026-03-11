@@ -6,7 +6,7 @@ as the main localization evaluator.
 
 Usage::
 
-    python -m src.localization.baseline_midpoint
+    python -m langloc.localization.baseline_midpoint
 """
 
 from __future__ import annotations

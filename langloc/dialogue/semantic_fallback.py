@@ -17,7 +17,7 @@ Key exports:
 
 Example::
 
-    python -m src.dialogue.semantic_fallback \\
+    python -m langloc.dialogue.semantic_fallback \\
         --candidates_json /path/to/candidates.json \\
         --dataset_root /path/to/3RScan \\
         --only_scene_id <scene_id> --limit 1 \\

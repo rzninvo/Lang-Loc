@@ -8,12 +8,12 @@ For every ScanScribe caption graph:
    probability computation, rendering).
 
 This module is a thin wrapper that re-exports core utilities from
-:mod:`src.localization` and provides its own ``main()`` for standalone
+:mod:`langloc.localization` and provides its own ``main()`` for standalone
 demo use.
 
 Usage::
 
-    python -m src.visualization.visualize_loc_prob \\
+    python tools/viz/visualize_loc_prob.py \\
         localization.show_heatmap=true localization.show_3d=true
 """
 from __future__ import annotations

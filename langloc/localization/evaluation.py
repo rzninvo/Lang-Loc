@@ -227,12 +227,9 @@ def evaluate_scene(scene_id: str,
     verts = np.asarray(mesh.vertices)
     grid_step = _cfg_get(cfg, "grid_step", 0.25)
     eye_height = _cfg_get(cfg, "eye_height", 1.6)
-    cams = sample_grid(verts, step=grid_step, z_eye=eye_height, mesh=mesh)
-
-    xs, ys = verts[:, 0], verts[:, 1]
-    gx = np.arange(xs.min(), xs.max() + 1e-4, grid_step)
-    gy = np.arange(ys.min(), ys.max() + 1e-4, grid_step)
-    Nx, Ny = len(gx), len(gy)
+    cams, cam_linear_indices, Nx, Ny = sample_grid(
+        verts, step=grid_step, z_eye=eye_height, mesh=mesh, return_indices=True
+    )
 
     tris_arr = np.asarray(mesh.triangles)
     centroids: Dict[int, np.ndarray] = {}
@@ -357,12 +354,14 @@ def evaluate_scene(scene_id: str,
                   f"falling back to base grid.")
             arrow_positions, arrow_dirs, arrow_weights = arrow_field_from_visibility(
                 cams, visible_dirs, Nx, Ny, hfov_rad, vfov_rad,
-                stride=max(1, int(arrow_stride)))
+                stride=max(1, int(arrow_stride)),
+                cam_linear_indices=cam_linear_indices)
             arrow_step_used = grid_step
     else:
         arrow_positions, arrow_dirs, arrow_weights = arrow_field_from_visibility(
             cams, visible_dirs, Nx, Ny, hfov_rad, vfov_rad,
-            stride=max(1, int(arrow_stride)))
+            stride=max(1, int(arrow_stride)),
+            cam_linear_indices=cam_linear_indices)
 
     # --- Candidates mode: build and return JSON record ---
     if mode == EvalMode.CANDIDATES:

@@ -63,8 +63,8 @@ sgfusion_text_graphs: ${paths.graphs_dir}/sgfusion/sgfusion_text_graphs.pt
 # Optional directory for localization query data.
 query_root: null
 
-# Directory where evaluation result files (.txt) are written.
-eval_output_dir: ${paths.data_root}/eval_outputs
+# Directory where evaluation result files are written.
+eval_output_dir: ./eval
 
 # --- Manifest files (scene lists, dataset metadata) ---
 

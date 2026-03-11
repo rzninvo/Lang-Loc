@@ -8,7 +8,7 @@ Requires OPENAI_API_KEY in .env or environment.
 
 Usage::
 
-    python -m src.visualization.visualize_loc_from_query \\
+    python tools/viz/visualize_loc_from_query.py \\
         scan_id=3RScan1234 \\
         inference.query="I can see a sofa facing a TV and a coffee table between them." \\
         localization.top_k=8 localization.show_heatmap=true localization.show_3d=true

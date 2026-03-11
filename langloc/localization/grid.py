@@ -199,7 +199,8 @@ def extract_floor_bbox(scan_dir: Path,
 
 
 def sample_grid(verts: np.ndarray, step: float, z_eye: float = 1.6,
-                mesh: Optional[o3d.geometry.TriangleMesh] = None) -> np.ndarray:
+                mesh: Optional[o3d.geometry.TriangleMesh] = None,
+                return_indices: bool = False):
     """Sample a regular XY grid of candidate camera positions over the mesh.
 
     The grid covers the axis-aligned bounding box of the mesh vertices in
@@ -214,13 +215,20 @@ def sample_grid(verts: np.ndarray, step: float, z_eye: float = 1.6,
         step: Grid spacing in metres.
         z_eye: Height above the mesh floor (minimum Z) for camera placement.
         mesh: Optional mesh used for inside-scene filtering.
+        return_indices: If ``True``, return a 4-tuple
+            ``(cams, linear_indices, Nx, Ny)`` where *linear_indices* are
+            the 0-based positions in the full ``Nx × Ny`` grid that each
+            camera in *cams* occupies.  Needed to correctly map camera-array
+            indices back to grid coordinates (e.g. for arrow-field rendering).
 
     Returns:
-        Camera positions as an ``(N, 3)`` float array.
+        ``(N, 3)`` float array of camera positions, or a 4-tuple
+        ``(cams, linear_indices, Nx, Ny)`` when *return_indices* is ``True``.
     """
     xs, ys, zs = verts[:, 0], verts[:, 1], verts[:, 2]
     gx = np.arange(xs.min(), xs.max() + 1e-4, step)
     gy = np.arange(ys.min(), ys.max() + 1e-4, step)
+    Nx, Ny = len(gx), len(gy)
     xv, yv = np.meshgrid(gx, gy, indexing="xy")
     n = xv.size
     cams = np.stack([xv.ravel(), yv.ravel(), np.full(n, zs.min() + z_eye)],
@@ -235,9 +243,14 @@ def sample_grid(verts: np.ndarray, step: float, z_eye: float = 1.6,
         rays = np.hstack([cams.astype(np.float32), dirs])
         hits = rc.cast_rays(o3c.Tensor(rays))
         t_hit = hits["t_hit"].numpy()
-        inside = np.isfinite(t_hit) & (t_hit > 0) & (t_hit < z_eye + 1.0)
-        cams = cams[inside]
+        inside_mask = np.isfinite(t_hit) & (t_hit > 0) & (t_hit < z_eye + 1.0)
+        linear_indices = np.where(inside_mask)[0]
+        cams = cams[linear_indices]
+    else:
+        linear_indices = np.arange(n)
 
+    if return_indices:
+        return cams, linear_indices, Nx, Ny
     return cams
 
 

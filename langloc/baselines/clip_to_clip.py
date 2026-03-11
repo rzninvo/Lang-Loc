@@ -88,8 +88,7 @@ def main() -> None:
 
     # Paths (replace hardcoded paths from upstream)
     parser.add_argument('--data_dir', type=str, required=True,
-                        help='Base directory for cache files and outputs '
-                             '(replaces /home/julia/Documents/h_coarse_loc/baselines/CLIP-to-CLIP/)')
+                        help='Base directory for cache files and outputs')
     parser.add_argument('--graphs_test_path', type=str, default=None,
                         help='Path to scanscribe graphs test .pt file')
     parser.add_argument('--scanscribe_cleaned_path', type=str, default=None,
@@ -674,10 +673,16 @@ def main() -> None:
             assert len(keys[0]) == 1116
 
     scene_names = os.listdir(max_scores_path)
-    if args.dataset == "human":
-        example_with_text_desc_ids = os.path.join(folder_path, '0ad2d382-79e2-2212-98b3-641bf9d552c1', 'frame-000000.color.jpg.pt')
-    elif args.dataset == "scanscribe":
-        example_with_text_desc_ids = os.path.join(folder_path, '0ad2d38f-79e2-2212-98d2-9b5060e5e9b5', 'frame-000002.color.jpg.pt')
+    # Dynamically pick the first available scene and frame .pt file
+    if args.dataset in ("human", "scanscribe"):
+        example_scene = os.listdir(folder_path)[0]
+        frame_pts = sorted(
+            f for f in os.listdir(os.path.join(folder_path, example_scene))
+            if f.endswith('.pt')
+        )
+        if not frame_pts:
+            raise RuntimeError(f"No .pt files found in {os.path.join(folder_path, example_scene)}")
+        example_with_text_desc_ids = os.path.join(folder_path, example_scene, frame_pts[0])
     else:
         print("please enter dataset name")
         exit()

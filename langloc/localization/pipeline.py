@@ -2,8 +2,8 @@
 
 Consolidates the mesh-loading, grid-sampling, ray-casting, probability
 computation, and rendering logic shared by
-:mod:`src.visualization.visualize_loc_prob` and
-:mod:`src.visualization.visualize_loc_from_query`.
+``tools/viz/visualize_loc_prob.py`` and
+``tools/viz/visualize_loc_from_query.py``.
 """
 from __future__ import annotations
 
@@ -66,12 +66,9 @@ def run_loc_pipeline(
     rc.add_triangles(o3d.t.geometry.TriangleMesh.from_legacy(mesh))
 
     verts = np.asarray(mesh.vertices)
-    cams = sample_grid(verts, step=grid_step, mesh=mesh)
-
-    xs, ys = verts[:, 0], verts[:, 1]
-    gx = np.arange(xs.min(), xs.max() + 1e-4, grid_step)
-    gy = np.arange(ys.min(), ys.max() + 1e-4, grid_step)
-    Nx, Ny = len(gx), len(gy)
+    cams, cam_linear_indices, Nx, Ny = sample_grid(
+        verts, step=grid_step, mesh=mesh, return_indices=True
+    )
 
     # Object centroids
     tris = np.asarray(mesh.triangles)
@@ -120,12 +117,14 @@ def run_loc_pipeline(
 
         Qx, Qy, U, V, W = [], [], [], [], []
         stride = max(1, int(arrow_stride))
+        grid_to_cam = {int(g): i for i, g in enumerate(cam_linear_indices)}
         for gy_i in range(0, Ny, stride):
             for gx_i in range(0, Nx, stride):
-                idx = gy_i * Nx + gx_i
-                if idx >= len(visible_dirs):
+                linear_idx = gy_i * Nx + gx_i
+                cam_idx = grid_to_cam.get(linear_idx)
+                if cam_idx is None:
                     continue
-                dirs = np.asarray(visible_dirs[idx], dtype=np.float32)
+                dirs = np.asarray(visible_dirs[cam_idx], dtype=np.float32)
                 if dirs.size == 0:
                     continue
                 yaws = np.empty(len(dirs), dtype=np.float32)
@@ -145,8 +144,8 @@ def run_loc_pipeline(
                 if nxy < 1e-8:
                     continue
                 xy_unit = xy / nxy
-                Qx.append(cams[idx, 0])
-                Qy.append(cams[idx, 1])
+                Qx.append(cams[cam_idx, 0])
+                Qy.append(cams[cam_idx, 1])
                 U.append(float(xy_unit[0]))
                 V.append(float(xy_unit[1]))
                 W.append(count)

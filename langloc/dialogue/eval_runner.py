@@ -22,7 +22,7 @@ Example
 -------
 ::
 
-    python -m src.dialogue.eval_runner \\
+    python -m langloc.dialogue.eval_runner \\
         --candidates_json data/candidates.json \\
         --dataset_root /path/to/3RScan \\
         --only_scene_id "scene-id" \\

@@ -31,6 +31,9 @@ graphs_3dssg: null         # Path to 3DSSG graphs .pt file
 graphs_scanscribe_test: null
 cache_dir: null            # Directory for precomputed embedding caches
 
+# CLIP model used for node/edge/scene embeddings across all retrieval scripts.
+clip_model: ViT-B/32
+
 # SceneGraph constructor params (selects which pre-computed embeddings to load;
 # the retrieval model itself re-encodes everything with CLIP, so this only
 # affects the legacy node.label_features / edge.features fields)
@@ -60,3 +63,6 @@ eval:
     valid_top_k: [1, 2, 3, 5]
     eval_iters: 10
     eval_iter_count: 100
+    # Filename of the ScanScribe test-graph .pt file inside cache_dir.
+    # Override with: retrieval.eval.table3.pool_graphs_filename=my_file.pt
+    pool_graphs_filename: scanscribe_graphs_test_518D.pt

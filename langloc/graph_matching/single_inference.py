@@ -2,7 +2,7 @@
 
 Usage::
 
-    python -m src.models.single_inference \
+    python -m langloc.graph_matching.single_inference \
         inference.query="There is a wooden chair next to a table." \
         inference.top_k=5
 

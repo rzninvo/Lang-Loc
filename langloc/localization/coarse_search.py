@@ -33,9 +33,11 @@ def arrow_field_from_visibility(cams: np.ndarray,
                                 Ny: int,
                                 hfov: float,
                                 vfov: float,
-                                stride: int = 1) -> Tuple[List[np.ndarray],
-                                                           List[np.ndarray],
-                                                           List[float]]:
+                                stride: int = 1,
+                                cam_linear_indices: Optional[np.ndarray] = None,
+                                ) -> Tuple[List[np.ndarray],
+                                           List[np.ndarray],
+                                           List[float]]:
     """Compute a FOV-weighted arrow field from per-camera visibility directions.
 
     Iterates over the grid in a structured pattern (respecting *stride*),
@@ -50,6 +52,14 @@ def arrow_field_from_visibility(cams: np.ndarray,
         hfov: Horizontal field-of-view in radians.
         vfov: Vertical field-of-view in radians.
         stride: Evaluate every *stride*-th grid cell in each dimension.
+        cam_linear_indices: Optional 1-D integer array of length ``N``
+            mapping each element of *cams* to its linear position in the
+            full ``Nx × Ny`` grid.  When provided the function uses this to
+            correctly correlate grid cells to camera-array positions, which
+            is necessary whenever the grid has been sparsified by floor
+            culling (i.e. *cams* is a strict subset of the full grid).
+            When ``None`` the legacy behaviour (``idx = gy_i * Nx + gx_i``)
+            is used, which is only correct for dense, unculled grids.
 
     Returns:
         A 3-tuple ``(positions, dirs, weights)`` of matching-length
@@ -60,13 +70,27 @@ def arrow_field_from_visibility(cams: np.ndarray,
     arrow_dirs: List[np.ndarray] = []
     arrow_weights: List[float] = []
 
+    # Build a reverse lookup: linear grid index → camera-array index.
+    if cam_linear_indices is not None:
+        grid_to_cam: Optional[Dict[int, int]] = {
+            int(g): i for i, g in enumerate(cam_linear_indices)
+        }
+    else:
+        grid_to_cam = None
+
     stride = max(1, int(stride))
     for gy_i in range(0, Ny, stride):
         for gx_i in range(0, Nx, stride):
-            idx = gy_i * Nx + gx_i
-            if idx >= len(cams):
-                continue
-            dirs = np.asarray(visible_dirs[idx], dtype=np.float32)
+            linear_idx = gy_i * Nx + gx_i
+            if grid_to_cam is not None:
+                cam_idx = grid_to_cam.get(linear_idx)
+                if cam_idx is None:
+                    continue
+            else:
+                cam_idx = linear_idx
+                if cam_idx >= len(cams):
+                    continue
+            dirs = np.asarray(visible_dirs[cam_idx], dtype=np.float32)
             if dirs.size == 0:
                 continue
             yaws = np.empty(len(dirs), dtype=np.float32)
@@ -81,7 +105,7 @@ def arrow_field_from_visibility(cams: np.ndarray,
             mdir = average_direction(dirs, sel)
             if mdir is None:
                 continue
-            arrow_positions.append(cams[idx])
+            arrow_positions.append(cams[cam_idx])
             arrow_dirs.append(mdir)
             arrow_weights.append(float(count))
     return arrow_positions, arrow_dirs, arrow_weights

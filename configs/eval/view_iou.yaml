@@ -10,6 +10,7 @@
 # =============================================================================
 
 # Horizontal field of view (degrees).
+# Same default for both 3RScan and ScanNet.
 h_fov_deg: 39.31
 
 # Vertical field of view (degrees).

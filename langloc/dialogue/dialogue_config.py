@@ -1,6 +1,6 @@
 """Typed configuration dataclass for the dialogue system.
 
-Follows the ``NBVConfig`` pattern from ``src.utils.nbv_config`` — a
+Follows the ``NBVConfig`` pattern from ``langloc.utils.nbv_config`` — a
 dataclass consolidating all runtime parameters with an
 ``extract_dialogue_config`` factory that marshals a Hydra
 ``DictConfig`` or ``argparse.Namespace`` into the typed container.

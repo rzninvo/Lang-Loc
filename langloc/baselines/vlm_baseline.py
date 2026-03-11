@@ -345,9 +345,6 @@ def run_qwen_inference(
         image_seq = [image_inputs]
     ensure_processor_multiple(image_seq, bundle.patch_size, bundle.merge_size)
 
-    seen = image_seq[0]
-    seen_w, seen_h = seen.size
-
     text = bundle.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     inputs = bundle.processor(
         text=[text],
@@ -366,12 +363,12 @@ def run_qwen_inference(
     if pred["u"] == 0.0 and pred["v"] == 0.0 and pred["w"] == 0.0:
         raise ValueError("Degenerate model output (u=v=w=0).")
 
-    u = pred["u"]
-    v = pred["v"]
-    if seen_w != width or seen_h != height:
-        u *= width / float(seen_w)
-        v *= height / float(seen_h)
-    u_i, v_i, w = clamp_prediction(u, v, pred["w"], width, height)
+    # The prompt explicitly instructs the model to output pixel coordinates in
+    # the ORIGINAL image space (width × height).  ensure_processor_multiple
+    # only pads (never downscales), so seen_w >= width and the model is told
+    # the original dimensions — its output is already in original coords.
+    # clamp_prediction handles any out-of-range values safely.
+    u_i, v_i, w = clamp_prediction(pred["u"], pred["v"], pred["w"], width, height)
     return u_i, v_i, w, raw_response
 
 

@@ -391,8 +391,10 @@ def main(cfg: DictConfig) -> None:
         query_emb = torch.load(f"{cache_dir}/query_emb_cache.pt", weights_only=False)
         print(f"DB: {len(db_emb)} scenes, Queries: {len(query_emb)}")
 
+        pool_graphs_filename = getattr(proto, "pool_graphs_filename",
+                                       "scanscribe_graphs_test_518D.pt")
         pool_data = torch.load(
-            f"{cache_dir}/scanscribe_graphs_test_518D.pt",
+            f"{cache_dir}/{pool_graphs_filename}",
             weights_only=False, map_location="cpu",
         )
         pool_graphs = {}

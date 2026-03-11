@@ -211,6 +211,109 @@ Cached intermediate results (visibility maps, NBV order) are stored in `cache/` 
 
 ---
 
+## Evaluation
+
+All evaluation results are saved to `eval/`. Create it if it doesn't exist: `mkdir -p eval`.
+
+### 1. Scene Retrieval (Paper Tables 1-3)
+
+Evaluates Recall@k for text-to-scene matching. Requires a trained BigGNN checkpoint in `data/model_checkpoints/graph2graph/` and processed graph `.pt` files in `data/processed_data/`.
+
+```bash
+# Table 1: 10-scene pool (Recall@1/2/3/5)
+bash scripts/retrieval/run_eval.sh
+
+# Or run directly with custom parameters:
+python -m langloc.graph_matching.eval eval.model_name=<checkpoint_name> eval.eval_iters=10
+```
+
+For the DualSceneAligner retrieval evaluation (Tables 1-3):
+
+```bash
+# Table 1: 10-scene pool
+python -m langloc.retrieval.eval retrieval.eval.protocol=table1 retrieval.checkpoint=<path>
+
+# Table 2: full 55-scene pool
+python -m langloc.retrieval.eval retrieval.eval.protocol=table2 retrieval.checkpoint=<path>
+
+# Table 3: LLM-generated queries (requires precomputed cache)
+python -m langloc.retrieval.eval retrieval.eval.protocol=table3 retrieval.cache_dir=<path>
+```
+
+### 2. Fine Localization (Paper Table 4)
+
+Evaluates position error, angular error, Hit@r, mass-radius percentiles, and 3D View IoU. Requires scene meshes and frame description JSONs.
+
+```bash
+# Standard evaluation (all metrics)
+bash scripts/localization/run_eval.sh
+
+# ScanNet instead of 3RScan:
+bash scripts/localization/run_eval.sh localization.dataset=scannet paths.rscan_root=./data/scans
+
+# With visualization:
+bash scripts/localization/visualize_eval_loc.sh
+```
+
+Key parameters (override via CLI):
+
+| Parameter | Default | Description |
+| --------- | ------- | ----------- |
+| `localization.dataset` | `3rscan` | Dataset type (`3rscan` or `scannet`) |
+| `localization.grid_step` | `0.25` | Grid spacing in metres |
+| `localization.top_k` | `25` | Number of matched objects |
+| `localization.matching_strategy` | `global_topk` | `global_topk`, `per_node`, or `relation_aware` |
+| `localization.prediction_strategy` | `weighted` | `argmax`, `random`, or `weighted` (mean-shift) |
+
+### 3. Localization Baselines (Paper Table 4)
+
+**Midpoint baseline** (floor centroid, random heading):
+
+```bash
+bash scripts/localization/baseline_midpoint.sh
+```
+
+**VLM baseline** (Qwen2.5-VL on top-down renders):
+
+```bash
+# Step 1: Render top-down images (only needed once)
+python -m langloc.baselines.topdown_3rscan --root ./data/3RScan --all-scans
+
+# Step 2: Run VLM evaluation
+bash scripts/localization/baseline_eval_qwen.sh
+
+# For ScanNet:
+DATASET=scannet SCENE_ROOT=./data/scans bash scripts/localization/baseline_eval_qwen.sh
+```
+
+### 4. Dialogue Disambiguation (Paper Table 4, "w/ dialog" rows)
+
+Runs iterative Bayesian pose refinement via yes/no questions. Requires candidate poses from localization.
+
+```bash
+# Step 1: Export candidate poses
+bash scripts/localization/run_candidates.sh
+
+# Step 2: Run dialogue evaluation
+bash scripts/dialogue/run_eval.sh
+```
+
+### Outputs
+
+All evaluation scripts write results to `eval/`:
+
+```text
+eval/
+├── eval_metrics.json                    — Fine localization metrics (per-scene)
+├── eval_loc_summary.log                 — Fine localization summary table
+├── candidates.json                      — Candidate poses for dialogue
+├── baseline_eval_metrics_mid_point.json — Midpoint baseline metrics
+├── baseline_eval_metrics_qwen_*.json    — VLM baseline metrics
+└── baseline_eval_metrics_qwen_*.log     — VLM baseline summary
+```
+
+---
+
 ## Project Structure
 
 ```text

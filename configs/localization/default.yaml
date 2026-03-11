@@ -154,12 +154,12 @@ top_candidates: 10
 top_pose_candidates: 10
 
 # Optional path to write candidate results as JSON.
-output_json: null
+output_json: ${paths.eval_output_dir}/candidates.json
 
 # --- Output paths ---
 
 # Path to save evaluation metrics as JSON.
-save_metrics: null
+save_metrics: ${paths.eval_output_dir}/eval_metrics.json
 
 # Path to write a run log file.
-log_file: null
+log_file: ${paths.eval_output_dir}/eval_loc_summary.log

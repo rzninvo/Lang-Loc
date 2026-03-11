@@ -2,7 +2,7 @@
 
 Run with::
 
-    python -m src.localization.cli mode=standard root=$RSCAN_ROOT graphs=$GRAPHS_DIR
+    python -m langloc.localization.cli mode=standard root=$RSCAN_ROOT graphs=$GRAPHS_DIR
 
 Or override any parameter defined in ``conf/localization/default.yaml``.
 """
@@ -19,7 +19,7 @@ def main(cfg: DictConfig) -> None:
     """Localization evaluation entry point.
 
     Reads the ``localization`` section from the merged Hydra config
-    and delegates to :func:`~src.localization.evaluation.run_evaluation`.
+    and delegates to :func:`~langloc.localization.evaluation.run_evaluation`.
 
     Args:
         cfg: Merged Hydra configuration.
