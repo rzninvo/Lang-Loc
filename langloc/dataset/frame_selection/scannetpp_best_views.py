@@ -632,7 +632,7 @@ def main(scene_id: str, cfg: DictConfig, device_str: str | None = None,
         print(f"[INFO] Loaded {len(camera_poses_dict)} camera poses.")
 
         # 4. Run 2-stage DPP selection
-        cluster_representatives = dpp_select_views(
+        cluster_representatives, dpp_diagnostics = dpp_select_views(
             image_stats,
             V, F, face_normals, face_obj_ids, clip_embeddings,
             visibility_masks,
@@ -643,8 +643,21 @@ def main(scene_id: str, cfg: DictConfig, device_str: str | None = None,
             stage2_sigma_position=nbv_cfg.dpp_stage2_sigma_position,
             stage2_sigma_angle=nbv_cfg.dpp_stage2_sigma_angle,
             stage2_iou_gamma=nbv_cfg.dpp_stage2_iou_gamma,
+            return_diagnostics=True,
         )
         print(f"[INFO] DPP selected {len(cluster_representatives)} views.")
+
+        # Save DPP diagnostics + all camera poses for figure generation
+        dpp_diag_path = cache_dir / f"{scene_id}_dpp_diag.json"
+        dpp_diag_out = {
+            "all_fids": [s["fid"] for s in image_stats],
+            "stage1_fids": dpp_diagnostics["stage1_fids"],
+            "stage2_fids": dpp_diagnostics["stage2_fids"],
+            "quality_scores": dpp_diagnostics["quality_scores"],
+            "camera_poses": {fid: pose.tolist() for fid, pose in camera_poses_dict.items()},
+        }
+        dpp_diag_path.write_text(json.dumps(dpp_diag_out, indent=2))
+        print(f"[INFO] Saved DPP diagnostics: {dpp_diag_path}")
 
     else:
         # ======================== LEGACY: GREEDY + K-MEANS ========================

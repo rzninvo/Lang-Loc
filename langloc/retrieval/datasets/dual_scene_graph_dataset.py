@@ -16,15 +16,16 @@ from torch.utils.data import Dataset
 import clip
 
 
-def build_rel_clip_matrix(rel2id: dict[str, int], device: str = "cpu") -> torch.Tensor:
+def build_rel_clip_matrix(rel2id: dict[str, int], device: str = "cpu", clip_model_name: str = "ViT-B/32") -> torch.Tensor:
     """Builds a CLIP embedding matrix from relation strings.
 
-    Each relation string (e.g. ``"above"``, ``"near"``) is encoded with CLIP
-    ViT-B/32. The ``"unknown"`` relation (ID 0) gets a zero vector.
+    Each relation string (e.g. ``"above"``, ``"near"``) is encoded with CLIP.
+    The ``"unknown"`` relation (ID 0) gets a zero vector.
 
     Args:
         rel2id: Mapping from relation string to integer ID.
         device: Device for CLIP inference.
+        clip_model_name: CLIP model variant to load.
 
     Returns:
         Float32 tensor of shape ``(num_relations, 512)`` on CPU.
@@ -45,7 +46,7 @@ def build_rel_clip_matrix(rel2id: dict[str, int], device: str = "cpu") -> torch.
     if not rel_strings:
         return matrix
 
-    clip_model, _ = clip.load("ViT-B/32", device=device)
+    clip_model, _ = clip.load(clip_model_name, device=device)
     with torch.no_grad():
         tokens = clip.tokenize(rel_strings).to(device)
         embs = clip_model.encode_text(tokens)
@@ -239,11 +240,13 @@ class DualSceneGraphDataset(Dataset):
         negative_ratio: float = 0.5,
         clip_model: torch.nn.Module | None = None,
         device: str = 'cpu',
+        clip_model_name: str = "ViT-B/32",
     ) -> None:
         self.dataset_dir = dataset_dir
         self.augment_ratio = augment_ratio
         self.negative_ratio = negative_ratio
         self.device = device
+        self.clip_model_name = clip_model_name
         self.clip_model = clip_model
         
         self.scene_files = sorted([
@@ -299,7 +302,7 @@ class DualSceneGraphDataset(Dataset):
                         self.rel2id[rel] = rel_idx
                         rel_idx += 1
         
-        self.rel_clip_matrix = build_rel_clip_matrix(self.rel2id)
+        self.rel_clip_matrix = build_rel_clip_matrix(self.rel2id, clip_model_name=self.clip_model_name)
 
         self.rel_clip_cache = {}
         if self.clip_model is not None:

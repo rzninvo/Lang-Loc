@@ -14,10 +14,15 @@ import clip
 from tqdm import tqdm
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
+clip_model = None
 
-print("Loading CLIP...")
-clip_model, _ = clip.load("ViT-B/32", device=device)
-print("✓ CLIP loaded\n")
+
+def _ensure_clip(model_name: str = "ViT-B/32"):
+    global clip_model
+    if clip_model is None:
+        print(f"Loading CLIP model ({model_name}) on {device}...")
+        clip_model, _ = clip.load(model_name, device=device)
+        print("✓ CLIP loaded\n")
 
 
 def convert_scanscribe_to_clip_format(scanscribe_graph, scene_id, text_id):
@@ -284,7 +289,10 @@ if __name__ == '__main__':
     parser.add_argument('--scene_graphs_dir', type=str, required=True, help='Directory with unique-label scene graphs')
     parser.add_argument('--metadata_path', type=str, required=True, help='Path to 3RScan.json metadata')
     parser.add_argument('--output_dir', type=str, required=True, help='Output directory for combined dataset')
+    parser.add_argument('--clip_model', type=str, default='ViT-B/32', help='CLIP model variant to load')
     ds_args = parser.parse_args()
+
+    _ensure_clip(ds_args.clip_model)
 
     # Create dataset
     metadata = create_combined_dataset(

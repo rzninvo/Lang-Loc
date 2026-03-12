@@ -910,7 +910,7 @@ def _run_candidates_mode(candidate_ids: List[str],
 
     output_json = _cfg_get(cfg, "output_json")
     if output_json is None:
-        output_json = Path("eval") / "eval_pose_candidates.json"
+        output_json = Path("eval") / "candidates.json"
     output_path = Path(output_json)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 

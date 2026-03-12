@@ -16,13 +16,20 @@ from tqdm import tqdm
 
 device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 _clip_model = None
+_clip_model_name = "ViT-B/32"
 
 
-def _get_clip_model():
-    """Lazily loads the CLIP model on first use."""
-    global _clip_model
+def _get_clip_model(model_name: str | None = None):
+    """Lazily loads the CLIP model on first use.
+
+    Args:
+        model_name: CLIP model variant. Only used on the first call.
+    """
+    global _clip_model, _clip_model_name
+    if model_name is not None:
+        _clip_model_name = model_name
     if _clip_model is None:
-        _clip_model, _ = clip.load("ViT-B/32", device=device)
+        _clip_model, _ = clip.load(_clip_model_name, device=device)
     return _clip_model
 
 def get_clip_embedding(label: str) -> np.ndarray:
@@ -74,10 +81,13 @@ class ScanScribe3DSSGDataset(Dataset):
         negative_ratio: Probability of returning a negative pair.
     """
 
-    def __init__(self, scanscribe_pt_path: str, dssg_json_dir: str, negative_ratio: float = 0.5) -> None:
+    def __init__(self, scanscribe_pt_path: str, dssg_json_dir: str, negative_ratio: float = 0.5, clip_model_name: str = "ViT-B/32") -> None:
         self.negative_ratio = negative_ratio
         self.dssg_json_dir = dssg_json_dir
-        
+
+        # Ensure the CLIP model is initialized with the correct variant
+        _get_clip_model(clip_model_name)
+
         print("Loading ScanScribe text graphs...")
         scanscribe_data = torch.load(scanscribe_pt_path,
                                      weights_only=False, map_location='cpu')

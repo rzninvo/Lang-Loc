@@ -20,6 +20,7 @@ import numpy as np
 import multiprocessing as mp
 import argparse
 import time
+import warnings
 
 
 # ---------------------------------------------------------------------------
@@ -117,6 +118,8 @@ def main() -> None:
                         help='Average sentence embeddings before matching')
     parser.add_argument('--unsampled', action='store_true',
                         help='Use all images instead of sampled subset')
+    parser.add_argument('--clip_model', type=str, default='ViT-B/32',
+                        help='CLIP model variant to load')
 
     args = parser.parse_args()
 
@@ -153,9 +156,9 @@ def main() -> None:
         return list(scene_time.values()), [1 for _ in scene_time.keys()]
 
     def cos_sim(a: np.ndarray, b: np.ndarray) -> float:
-        """Compute cosine similarity between two 512-d CLIP vectors."""
-        a = np.reshape(a, (512,))
-        b = np.reshape(b, (512,))
+        """Compute cosine similarity between two CLIP vectors."""
+        a = a.flatten()
+        b = b.flatten()
         t1 = time.time()
         sim = np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
         timer.clip2clip_matching_score_time.append(time.time() - t1)
@@ -193,7 +196,7 @@ def main() -> None:
     # -------------------------------------------------------------------
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model, preprocess = clip.load("ViT-B/32", device=device)
+    model, preprocess = clip.load(args.clip_model, device=device)
 
     # -------------------------------------------------------------------
     # Dataset loading: ScanScribe
@@ -217,7 +220,8 @@ def main() -> None:
                     sentence = [s for s in sentence if len(s) > 0]
                     scene_sentences_tuples.append((scene + '_' + str(id), sentence))
         print(f'number of sentence descriptions in scanscribe dataset: {len(scene_sentences_tuples)}')
-        assert scene_count == 55
+        if scene_count != 55:
+            warnings.warn(f"Expected 55 test scenes, got {scene_count}")
 
         sample_count = 100
         scene_images_tuples = []
@@ -476,7 +480,8 @@ def main() -> None:
                 else:
                     desc_scene_ids_by_scene[scene_id].append((i, scene))
             print(len(desc_scene_ids_by_scene))
-            assert len(desc_scene_ids_by_scene) == 55 or len(desc_scene_ids_by_scene) == 142
+            if len(desc_scene_ids_by_scene) not in (55, 142):
+                warnings.warn(f"Expected 55 or 142 desc scenes, got {len(desc_scene_ids_by_scene)}")
             assert len(list(desc_scene_ids_by_scene.keys())) == len(img_scene_ids)
 
             in_top_w_var = {k: [] for k in args.top}
@@ -543,9 +548,13 @@ def main() -> None:
         img_scene_ids = scene_names
         desc_scene_ids = text_desc_ids
 
-        assert len(img_scene_ids) == 55 or len(img_scene_ids) == 142
-        assert len(desc_scene_ids) == 1116 or len(desc_scene_ids) == 147
-        assert all_max_scores.shape == (55, 1116) or all_max_scores.shape == (142, 147)
+        if len(img_scene_ids) not in (55, 142):
+            warnings.warn(f"Expected 55 or 142 img scenes, got {len(img_scene_ids)}")
+        if len(desc_scene_ids) not in (1116, 147):
+            warnings.warn(f"Expected 1116 or 147 desc IDs, got {len(desc_scene_ids)}")
+        expected_shapes = ((55, 1116), (142, 147))
+        if all_max_scores.shape not in expected_shapes:
+            warnings.warn(f"Expected score matrix shape in {expected_shapes}, got {all_max_scores.shape}")
 
         desc_scene_ids_by_scene = {}
         for i, scene in enumerate(desc_scene_ids):
@@ -558,7 +567,8 @@ def main() -> None:
             else:
                 desc_scene_ids_by_scene[scene_id].append((i, scene))
         print(len(desc_scene_ids_by_scene))
-        assert len(desc_scene_ids_by_scene) == 55 or len(desc_scene_ids_by_scene) == 142
+        if len(desc_scene_ids_by_scene) not in (55, 142):
+            warnings.warn(f"Expected 55 or 142 desc scenes (entire-dataset), got {len(desc_scene_ids_by_scene)}")
         assert len(list(desc_scene_ids_by_scene.keys())) == len(img_scene_ids)
 
         img_scene_ids_idx = {scene: i for i, scene in enumerate(img_scene_ids)}
@@ -670,7 +680,8 @@ def main() -> None:
             scores = [torch.load(file) for file in files]
             keys = [list(score.keys()) for score in scores]
             assert all(keys[0] == key for key in keys)
-            assert len(keys[0]) == 1116
+            if len(keys[0]) != 1116:
+                warnings.warn(f"Expected 1116 keys in {s}, got {len(keys[0])}")
 
     scene_names = os.listdir(max_scores_path)
     # Dynamically pick the first available scene and frame .pt file

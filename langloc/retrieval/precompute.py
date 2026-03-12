@@ -36,7 +36,7 @@ def main(cfg: DictConfig) -> None:
     cache_dir = rcfg.cache_dir
 
     print("Loading CLIP...")
-    clip_model, _ = clip.load("ViT-B/32", device=device)
+    clip_model, _ = clip.load(rcfg.clip_model, device=device)
 
     print("Loading graphs...")
     raw_3dssg = torch.load(

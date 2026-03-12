@@ -12,7 +12,14 @@ import torch
 from tqdm import tqdm
 
 device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
-clip_model, _ = clip.load("ViT-B/32", device=device)
+clip_model = None
+
+
+def _ensure_clip(model_name: str = "ViT-B/32"):
+    global clip_model
+    if clip_model is None:
+        print(f"Loading CLIP model ({model_name}) on {device}...")
+        clip_model, _ = clip.load(model_name, device=device)
 
 
 def add_relation_clip_to_scene_graph(scene_path, output_path):
@@ -68,6 +75,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--input_dir", required=True)
     parser.add_argument("--output_dir", required=True)
+    parser.add_argument("--clip_model", type=str, default="ViT-B/32",
+                       help="CLIP model variant to load")
     args = parser.parse_args()
-    
+
+    _ensure_clip(args.clip_model)
     process_all_scenes(args.input_dir, args.output_dir)

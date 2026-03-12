@@ -10,6 +10,7 @@ requires-python = ">=3.10"
 dependencies = [
     # Deep learning
     "torch>=2.0",
+    "torchvision",
     "torch_geometric",
     "torch_scatter",
     "numpy",
@@ -44,6 +45,8 @@ dependencies = [
 
 [project.optional-dependencies]
 clip = ["clip @ git+https://github.com/openai/CLIP.git"]
+vlm = ["qwen-vl-utils"]
+gpu = ["pytorch3d"]
 dev = ["pytest", "ruff"]
 
 [tool.setuptools.packages.find]

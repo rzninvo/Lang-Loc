@@ -146,7 +146,7 @@ def main(cfg: DictConfig) -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
 
-    clip_model, _ = clip.load("ViT-B/32", device=device)
+    clip_model, _ = clip.load(rcfg.clip_model, device=device)
 
     dataset = DualSceneGraphDataset(
         dataset_dir=rcfg.dataset_dir,
@@ -154,6 +154,7 @@ def main(cfg: DictConfig) -> None:
         negative_ratio=0.5,
         clip_model=clip_model,
         device=device,
+        clip_model_name=rcfg.clip_model,
     )
     dataloader = DataLoader(
         dataset, batch_size=rcfg.batch_size,

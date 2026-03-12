@@ -485,7 +485,8 @@ def dpp_select_views(
     stage2_sigma_position: float = 0.75,
     stage2_sigma_angle: float = 20.0,
     stage2_iou_gamma: float = 1.0,
-) -> List[str]:
+    return_diagnostics: bool = False,
+) -> List[str] | tuple:
     """
     Two-stage DPP view selection.
 
@@ -515,9 +516,13 @@ def dpp_select_views(
         stage2_sigma_position: RBF bandwidth for position distance (meters).
         stage2_sigma_angle: RBF bandwidth for angular distance (degrees).
         stage2_iou_gamma: exponent on IoU for Stage 2 (< 1 softens).
+        return_diagnostics: if True, return (result, diagnostics_dict) tuple
+            with stage boundaries and quality scores for visualization.
 
     Returns:
         List of selected frame ID strings (length <= total_views).
+        If return_diagnostics is True, returns (result, diagnostics) where
+        diagnostics is a dict with stage1_fids, stage2_fids, quality_scores.
     """
     _ = face_obj_ids
 
@@ -658,4 +663,13 @@ def dpp_select_views(
 
     result = [image_stats[i]["fid"] for i in stage2_indices]
     print(f"[DPP] Final selection ({len(result)} views): {result}")
+
+    if return_diagnostics:
+        diagnostics = {
+            "stage1_fids": stage1_fids,
+            "stage2_fids": result,
+            "quality_scores": q_base.tolist(),
+        }
+        return result, diagnostics
+
     return result

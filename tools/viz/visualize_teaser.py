@@ -1640,9 +1640,9 @@ def overlay_direction_field(topdown_img: np.ndarray,
         seg_len = 10.0
     seg_len = max(seg_len, 3.0)
 
-    # Build line segments and colors
-    from matplotlib.collections import LineCollection
-    segments = []
+    # Build arrow origins, directions, and colors
+    arrow_x, arrow_y = [], []
+    arrow_dx, arrow_dy = [], []
     prob_norms = []
     p_max = probs[indices].max()
     cmap = plt.get_cmap("inferno")
@@ -1661,19 +1661,17 @@ def overlay_direction_field(topdown_img: np.ndarray,
 
         prob_norm = probs[idx] / p_max if p_max > 0 else 0
 
-        # Line segment centred on camera position
-        half = seg_len * 0.5
-        x0, y0 = cx - half * dx_2d, cy - half * dy_2d
-        x1, y1 = cx + half * dx_2d, cy + half * dy_2d
-        segments.append([(x0, y0), (x1, y1)])
+        arrow_x.append(cx - seg_len * 0.3 * dx_2d)
+        arrow_y.append(cy - seg_len * 0.3 * dy_2d)
+        arrow_dx.append(seg_len * dx_2d)
+        arrow_dy.append(seg_len * dy_2d)
         prob_norms.append(prob_norm)
 
-    # Color by probability: inferno colormap (dark = low, yellow = high)
-    colors = [cmap(p) for p in prob_norms]
-    linewidths = [1.0] * len(prob_norms)
-
-    if not segments:
+    if not arrow_x:
         return topdown_img.copy()
+
+    # Color by probability: inferno colormap (dark = low, yellow = high)
+    colors = np.array([cmap(p) for p in prob_norms])
 
     # Render with matplotlib
     _set_eccv_rc()
@@ -1684,16 +1682,17 @@ def overlay_direction_field(topdown_img: np.ndarray,
     fig, ax = plt.subplots(1, 1, figsize=(fig_w, fig_h), dpi=dpi)
     ax.imshow(topdown_img)
 
-    lc = LineCollection(segments, colors=colors, linewidths=linewidths,
-                        capstyle="round", zorder=3)
-    ax.add_collection(lc)
+    ax.quiver(arrow_x, arrow_y, arrow_dx, arrow_dy,
+              color=colors, angles="xy", scale_units="xy", scale=1,
+              width=seg_len * 0.06 / W, headwidth=3.5, headlength=4,
+              headaxislength=3.5, zorder=3)
 
-    # --- FOV wedge + predicted pose (grey, low opacity) ---
+    # --- FOV wedge + predicted pose (green) ---
+    legend_handles = []
     if pred_pos is not None:
         pred_px_arr, pred_py_arr = _project_to_topdown(
             pred_pos[None, :], intrinsic, extrinsic)
         pred_px, pred_py = float(pred_px_arr[0]), float(pred_py_arr[0])
-
 
         if -W * 0.1 <= pred_px < W * 1.1 and -H * 0.1 <= pred_py < H * 1.1:
             if pred_dir is not None and h_fov_deg > 0:
@@ -1716,16 +1715,16 @@ def overlay_direction_field(topdown_img: np.ndarray,
 
                 wedge = MplPolygon(
                     wedge_xy, closed=True,
-                    facecolor="#9e9e9e", edgecolor="#757575",
-                    alpha=0.40, linewidth=1.0, zorder=4)
+                    facecolor="#00e676", edgecolor="#00c853",
+                    alpha=0.35, linewidth=1.0, zorder=4)
                 ax.add_patch(wedge)
 
-            # Predicted position dot
-            ax.plot(pred_px, pred_py, marker="o", color="#616161",
+            h_pred = ax.plot(pred_px, pred_py, marker="o", color="#00e676",
                     markersize=6, markeredgecolor="white",
-                    markeredgewidth=1.0, zorder=5)
+                    markeredgewidth=1.0, zorder=5, label="Predicted")[0]
+            legend_handles.append(h_pred)
 
-    # --- Ground-truth overlay (red, low opacity) ---
+    # --- Ground-truth overlay (red) ---
     if gt_pos is not None:
         gt_px_arr, gt_py_arr = _project_to_topdown(
             gt_pos[None, :], intrinsic, extrinsic)
@@ -1754,9 +1753,10 @@ def overlay_direction_field(topdown_img: np.ndarray,
                     alpha=0.30, linewidth=1.0, zorder=4)
                 ax.add_patch(wedge_gt)
 
-            ax.plot(gt_px_v, gt_py_v, marker="o", color="#ef5350",
+            h_gt = ax.plot(gt_px_v, gt_py_v, marker="o", color="#ef5350",
                     markersize=6, markeredgecolor="white",
-                    markeredgewidth=1.0, zorder=5)
+                    markeredgewidth=1.0, zorder=5, label="Ground truth")[0]
+            legend_handles.append(h_gt)
 
     # Colorbar for probability
     sm = plt.cm.ScalarMappable(cmap="inferno", norm=plt.Normalize(0, 1))
@@ -1764,6 +1764,12 @@ def overlay_direction_field(topdown_img: np.ndarray,
     cbar = fig.colorbar(sm, ax=ax, fraction=0.03, pad=0.01, aspect=30)
     cbar.set_label("Probability", fontsize=max(8, W / dpi * 1.2))
     cbar.ax.tick_params(labelsize=max(6, W / dpi))
+
+    # Legend
+    if legend_handles:
+        leg_fs = max(7, W / dpi * 1.0)
+        ax.legend(handles=legend_handles, loc="upper right", fontsize=leg_fs,
+                  framealpha=0.8, edgecolor="none", fancybox=True)
 
     # Title
     ax.set_title("Predicted Viewing Direction Field",

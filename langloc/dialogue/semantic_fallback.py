@@ -482,14 +482,14 @@ def run_entry_interactive(
         use_direction=args.use_direction,
     )
 
-    top_frames = top_frames_by_mapping(c2f, max_frames=30)
+    top_frames = top_frames_by_mapping(c2f, max_frames=args.max_pool_frames)
 
     if args.object_pool == "scene":
         label_pool = label_pool_from_frames(sd.frames, range(len(sd.frames)))
     else:
         label_pool = label_pool_from_frames(sd.frames, top_frames)
 
-    rel_pool = rel_pool_from_frames(sd.frames, top_frames, max_rel=600)
+    rel_pool = rel_pool_from_frames(sd.frames, top_frames, max_rel=args.max_rel_pool)
 
     dlg = DialogueSemanticFallback(
         cand_prob=cand_prob,
@@ -673,7 +673,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--dataset_root", type=Path, required=True)
 
     p.add_argument("--use_candidates", choices=["grid", "fov"], default="grid")
-    p.add_argument("--k_nn", type=int, default=10)
+    p.add_argument("--k_nn", type=int, default=15)
     p.add_argument("--sigma", type=float, default=0.25)
     p.add_argument("--use_direction", action="store_true")
 
@@ -683,12 +683,15 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--conf_thresh", type=float, default=0.85)
     p.add_argument("--stop_mode", choices=["frame", "candidate", "either", "both"], default="frame")
 
-    p.add_argument("--ask_min_p", type=float, default=0.20)
-    p.add_argument("--ask_max_p", type=float, default=0.80)
-    p.add_argument("--rel_min_answerable", type=float, default=0.55)
+    p.add_argument("--ask_min_p", type=float, default=0.01)
+    p.add_argument("--ask_max_p", type=float, default=0.99)
+    p.add_argument("--rel_min_answerable", type=float, default=0.10)
 
-    p.add_argument("--ignore_labels", type=str, default="wall,floor,ceiling,object")
+    p.add_argument("--ignore_labels", type=str, default="floor,wall,ceiling,room,baseboard,carpet")
     p.add_argument("--label_aliases", type=str, default="", help="JSON or 'a=b,c=d'")
+
+    p.add_argument("--max_pool_frames", type=int, default=30)
+    p.add_argument("--max_rel_pool", type=int, default=600)
 
     p.add_argument("--dist_thresholds", type=str, default="0.5,1.0")
 

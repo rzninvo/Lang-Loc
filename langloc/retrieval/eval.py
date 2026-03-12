@@ -427,7 +427,7 @@ def main(cfg: DictConfig) -> None:
         assert rcfg.checkpoint, "Set retrieval.checkpoint"
 
         print("Loading CLIP...")
-        clip_model, _ = clip.load("ViT-B/32", device=device)
+        clip_model, _ = clip.load(rcfg.clip_model, device=device)
 
         model = DualSceneAligner(
             node_input_dim=rcfg.node_input_dim,

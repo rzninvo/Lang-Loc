@@ -41,18 +41,10 @@ cd "$REPO_ROOT" || exit 1
 CMD=(
   python3 -m langloc.baselines.vlm_baseline
   --root "$SCENE_ROOT"
-  --dataset "$DATASET"
   --seed 42
-  --frame_policy max_visible
-  --h_fov_deg "$H_FOV_DEG"
-  --v_fov_deg "$V_FOV_DEG"
   --save_metrics "${EVAL_OUTPUT_DIR:-./eval}/baseline_eval_metrics_qwen_${DATASET}.json"
   --log_file "${EVAL_OUTPUT_DIR:-./eval}/baseline_eval_metrics_qwen_${DATASET}.log"
 )
-
-if [ -n "$QUERY_ROOT" ]; then
-  CMD+=(--query_root "$QUERY_ROOT")
-fi
 
 if [ ${#SCENE_IDS[@]} -gt 0 ]; then
   CMD+=(--scene_ids "${SCENE_IDS[@]}")

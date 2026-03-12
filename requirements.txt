@@ -16,7 +16,20 @@ python-fcl>=0.7
 matplotlib>=3.7
 scikit-learn>=1.3
 scipy>=1.10
+torchvision
 git+https://github.com/openai/CLIP.git
+
+# Deep learning
+torch>=2.0
+torch_geometric
+torch_scatter
+networkx>=3.0
+
+# VLM baseline (optional — requires Qwen model)
+qwen-vl-utils
+
+# GPU rasterization (optional — install via conda or from source)
+# pytorch3d
 
 # Annotation & descriptions
 openai>=1.30.0
