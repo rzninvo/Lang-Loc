@@ -3,9 +3,13 @@
 # `data/model_checkpoints/graph2graph/canonical_v2/<ckpt>` checkpoint and
 # run Tables 1+2 evaluation.
 #
-# Cache dir is `outputs/canonical_v2_eval_caches/` (symlinks to the input
-# graph files in VLSG_TEXT_v2/VLSG_Files/). Override with CACHE_DIR=...
-# Override checkpoint via CHECKPOINT=... (default: last.pth).
+# Uses a separate cache dir (`outputs/canonical_v2_eval_caches/`) that
+# symlinks the input graph files from `data/processed_data/eval_pool/` —
+# this keeps the paper caches in `eval_pool/` (db_emb_cache.pt,
+# query_emb_cache.pt) intact while the canonical_v2 retrain produces its
+# own caches alongside.
+#
+# Override CACHE_DIR=... or CHECKPOINT=... if your data lives elsewhere.
 
 set -euo pipefail
 
@@ -14,6 +18,7 @@ cd "$REPO_DIR"
 
 CACHE_DIR="${CACHE_DIR:-outputs/canonical_v2_eval_caches}"
 CHECKPOINT="${CHECKPOINT:-data/model_checkpoints/graph2graph/canonical_v2/last.pth}"
+EVAL_POOL="data/processed_data/eval_pool"
 
 source "$HOME/miniconda3/etc/profile.d/conda.sh"
 conda activate langloc
@@ -21,14 +26,21 @@ PY="$CONDA_PREFIX/bin/python"
 
 if [ ! -f "$CHECKPOINT" ]; then
     echo "[ERROR] checkpoint not found: $CHECKPOINT" >&2
-    echo "        run langloc/retrieval/train.py first" >&2
+    echo "        run langloc.retrieval.train first" >&2
     exit 1
 fi
+
+# Set up cache dir with symlinks to eval pool inputs (idempotent)
+mkdir -p "$CACHE_DIR"
 for f in 3dssg_graphs_518D.pt scanscribe_graphs_test_518D.pt scanscribe_cleaned_original_518D.pt; do
-    if [ ! -e "$CACHE_DIR/$f" ]; then
-        echo "[ERROR] missing input graph file: $CACHE_DIR/$f" >&2
-        echo "        symlink it from VLSG_TEXT_v2/VLSG_Files/$f" >&2
+    src="$EVAL_POOL/$f"
+    dst="$CACHE_DIR/$f"
+    if [ ! -e "$src" ]; then
+        echo "[ERROR] missing input graph file: $src" >&2
         exit 1
+    fi
+    if [ ! -L "$dst" ] && [ ! -f "$dst" ]; then
+        ln -s "$(realpath "$src")" "$dst"
     fi
 done
 

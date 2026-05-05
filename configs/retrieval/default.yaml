@@ -28,8 +28,9 @@ w_scene: 0.33
 w_jac: 0.34
 
 # Data paths (override via CLI)
-dataset_dir: null          # Training data directory (scene_graph_clip/)
-metadata_path: null        # Path to metadata JSON
+dataset_dir: null          # Training data dir (combined_dataset_clip/ — built by
+                           # scripts/retrieval/build_combined_dataset_clip.py)
+metadata_path: null        # 3RScan.json (scan_id → reference_id mapping)
 save_dir: data/model_checkpoints/graph2graph
 pretrained_checkpoint: null
 
