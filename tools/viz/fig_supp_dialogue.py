@@ -579,26 +579,42 @@ def _save_single_heatmap(
 def render_dialogue_trace(
     snapshots, topdown_img, intrinsic, extrinsic, cams,
     gt_pos, gt_dir, pred_pos, pred_dir, results, anchor_probs,
-    up_axis, out_dir,
+    up_axis, out_dir, vector: bool = False,
 ):
     """Save individual heatmap images for all three backends.
 
     Directory layout under *out_dir*::
 
-        topdown.png
+        topdown.{png|pdf}
         question_log.tex
         trace/
-            a1/round0.png  round1.png  ...
-            a2/round0.png  ...
-            a3/round0.png  ...
+            a1/round0.{png|pdf}  ...
+            a2/round0.{png|pdf}  ...
+            a3/round0.{png|pdf}  ...
+
+    When ``vector=True``, outputs are PDFs with vector markers/wedges (the
+    mesh topdown remains an embedded raster).
     """
     _set_eccv_rc()
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    ext = "pdf" if vector else "png"
+
     # Save bare top-down
-    Image.fromarray(topdown_img).save(out_dir / "topdown.png", dpi=(300, 300))
-    print(f"  Saved: {out_dir / 'topdown.png'}")
+    topdown_path = out_dir / f"topdown.{ext}"
+    if vector:
+        H, W = topdown_img.shape[:2]
+        fig = plt.figure(figsize=(W / 300, H / 300), dpi=300)
+        ax = fig.add_axes([0, 0, 1, 1])
+        ax.imshow(topdown_img)
+        ax.set_axis_off()
+        fig.savefig(topdown_path, format="pdf", dpi=300,
+                    bbox_inches="tight", pad_inches=0)
+        plt.close(fig)
+    else:
+        Image.fromarray(topdown_img).save(topdown_path, dpi=(300, 300))
+    print(f"  Saved: {topdown_path}")
 
     # Save per-backend per-round heatmaps
     backend_names = ["a1", "a2", "a3"]
@@ -613,13 +629,13 @@ def render_dialogue_trace(
             # Show refined (blue) only on the final snapshot
             rp = ref_pos if si == n - 1 else None
             rd = ref_dir if si == n - 1 else None
-            fpath = bdir / f"round{si}.png"
+            fpath = bdir / f"round{si}.{ext}"
             _save_single_heatmap(
                 topdown_img, intrinsic, extrinsic, cams, grid_post,
                 anchor_probs, gt_pos, gt_dir, pred_pos, pred_dir,
                 rp, rd, up_axis, fpath,
             )
-        print(f"  Saved: {bdir}/round{{0..{n-1}}}.png  ({n} images)")
+        print(f"  Saved: {bdir}/round{{0..{n-1}}}.{ext}  ({n} images)")
 
     # Save LaTeX question log
     _save_question_log_tex(snapshots, out_dir / "question_log.tex")
@@ -643,6 +659,10 @@ def parse_args():
                     type=int, default=12)
     ap.add_argument("--topdown-size", "--topdown_size", dest="topdown_size",
                     type=int, default=2048)
+    ap.add_argument("--vector", action="store_true",
+                    help="Save outputs as vector PDF instead of raster PNG. "
+                         "Matplotlib markers, wedges, and text stay vector; the "
+                         "mesh topdown remains embedded raster.")
     return ap.parse_args()
 
 
@@ -715,6 +735,7 @@ def main():
             snapshots, topdown_img, intrinsic, extrinsic, cams,
             gt_pos, gt_dir, pred_pos, pred_dir,
             results, anchor_probs, up_axis, out_dir,
+            vector=args.vector,
         )
 
     print(f"Done. Scene: {args.scan_id} | Outputs in: {out_dir}")

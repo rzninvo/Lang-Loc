@@ -45,8 +45,13 @@ def _compute_metrics(cams, probs, cam_dirs, pred_pos, pred_dir, gt_pos, gt_dir, 
     }
 
 
-def _annotate_metrics(img, metrics, dpi=300):
-    """Burn metric text into the bottom-left corner of an image."""
+def _annotate_metrics(img, metrics, dpi=300, save_pdf_path=None):
+    """Burn metric text into the bottom-left corner of an image.
+
+    If ``save_pdf_path`` is given, the annotated figure is additionally saved
+    as a PDF with the metric text preserved as vector (the background image
+    remains an embedded raster).
+    """
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -73,6 +78,10 @@ def _annotate_metrics(img, metrics, dpi=300):
             bbox=dict(boxstyle="round,pad=0.3", fc="black", alpha=0.7, ec="none"),
             zorder=10)
 
+    if save_pdf_path is not None:
+        fig.savefig(save_pdf_path, format="pdf", dpi=dpi,
+                    bbox_inches="tight", pad_inches=0)
+
     fig.canvas.draw()
     buf = np.asarray(fig.canvas.buffer_rgba())[:, :, :3].copy()
     plt.close(fig)
@@ -98,6 +107,8 @@ def parse_args():
     ap.add_argument("--topdown-size", "--topdown_size", dest="topdown_size",
                     type=int, default=2048)
     ap.add_argument("--output", type=Path, default=Path("docs/figures"))
+    ap.add_argument("--vector", action="store_true",
+                    help="Save outputs as vector PDF instead of raster PNG.")
     return ap.parse_args()
 
 
@@ -159,6 +170,8 @@ def main():
     topdown_img, intrinsic, extrinsic = render_topdown(
         mesh, up_axis, args.topdown_size)
 
+    ext = "pdf" if args.vector else "png"
+
     # Coarse grid
     img_coarse = overlay_direction_field(
         topdown_img, intrinsic, extrinsic,
@@ -167,7 +180,10 @@ def main():
         gt_pos=gt_pos, gt_dir=gt_dir,
         up_axis=up_axis, stride=1, dpi=300,
     )
-    img_coarse = _annotate_metrics(img_coarse, metrics_coarse)
+    out_coarse = args.output / f"supp_direction_field.{ext}"
+    img_coarse = _annotate_metrics(
+        img_coarse, metrics_coarse,
+        save_pdf_path=out_coarse if args.vector else None)
 
     # Fine grid
     img_fine = overlay_direction_field(
@@ -177,24 +193,37 @@ def main():
         gt_pos=gt_pos, gt_dir=gt_dir,
         up_axis=up_axis, stride=1, dpi=300,
     )
-    img_fine = _annotate_metrics(img_fine, metrics_fine)
+    out_fine = args.output / f"supp_direction_field_fine.{ext}"
+    img_fine = _annotate_metrics(
+        img_fine, metrics_fine,
+        save_pdf_path=out_fine if args.vector else None)
 
-    # Save individual images
-    out_coarse = args.output / "supp_direction_field.png"
-    out_fine = args.output / "supp_direction_field_fine.png"
-    Image.fromarray(img_coarse).save(out_coarse, dpi=(300, 300))
-    Image.fromarray(img_fine).save(out_fine, dpi=(300, 300))
+    if not args.vector:
+        Image.fromarray(img_coarse).save(out_coarse, dpi=(300, 300))
+        Image.fromarray(img_fine).save(out_fine, dpi=(300, 300))
     print(f"  Saved: {out_coarse}")
     print(f"  Saved: {out_fine}")
 
     # Side-by-side comparison
-    h = min(img_coarse.shape[0], img_fine.shape[0])
-    w_c, w_f = img_coarse.shape[1], img_fine.shape[1]
-    combined = np.ones((h, w_c + w_f + 10, 3), dtype=np.uint8) * 255
-    combined[:h, :w_c] = img_coarse[:h]
-    combined[:h, w_c + 10:] = img_fine[:h]
-    out_combined = args.output / "supp_direction_field_comparison.png"
-    Image.fromarray(combined).save(out_combined, dpi=(300, 300))
+    out_combined = args.output / f"supp_direction_field_comparison.{ext}"
+    if args.vector:
+        import matplotlib.pyplot as plt
+        fig, axes = plt.subplots(1, 2, figsize=(16, 8), dpi=300)
+        for ax, img in [(axes[0], img_coarse), (axes[1], img_fine)]:
+            ax.imshow(img)
+            ax.set_axis_off()
+        fig.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01,
+                            wspace=0.03)
+        fig.savefig(out_combined, format="pdf", dpi=300,
+                    bbox_inches="tight", pad_inches=0.02)
+        plt.close(fig)
+    else:
+        h = min(img_coarse.shape[0], img_fine.shape[0])
+        w_c, w_f = img_coarse.shape[1], img_fine.shape[1]
+        combined = np.ones((h, w_c + w_f + 10, 3), dtype=np.uint8) * 255
+        combined[:h, :w_c] = img_coarse[:h]
+        combined[:h, w_c + 10:] = img_fine[:h]
+        Image.fromarray(combined).save(out_combined, dpi=(300, 300))
     print(f"  Saved: {out_combined}")
 
     print(f"\n  Coarse ({args.grid_step}m): {metrics_coarse['n_cells']} cells, "

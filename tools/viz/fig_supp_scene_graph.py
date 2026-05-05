@@ -68,6 +68,10 @@ def parse_args():
     ap.add_argument("--output", type=Path, default=Path("docs/figures"))
     ap.add_argument("--camera-json", "--camera_json", dest="camera_json", default=None,
                     help="Saved camera JSON {eye, center, up}. If omitted, interactive viewer opens.")
+    ap.add_argument("--vector", action="store_true",
+                    help="Save output as PDF instead of PNG. The render is "
+                         "embedded raster inside the PDF (Open3D cannot "
+                         "produce true vector).")
     return ap.parse_args()
 
 
@@ -132,8 +136,22 @@ def main():
         labels_ply=labels_ply,
     )
 
-    out_path = args.output / "supp_scene_graph.png"
-    Image.fromarray(img).save(out_path, dpi=(300, 300))
+    ext = "pdf" if args.vector else "png"
+    out_path = args.output / f"supp_scene_graph.{ext}"
+    if args.vector:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        H, W = img.shape[:2]
+        fig = plt.figure(figsize=(W / 300, H / 300), dpi=300)
+        ax = fig.add_axes([0, 0, 1, 1])
+        ax.imshow(img)
+        ax.set_axis_off()
+        fig.savefig(out_path, format="pdf", dpi=300,
+                    bbox_inches="tight", pad_inches=0)
+        plt.close(fig)
+    else:
+        Image.fromarray(img).save(out_path, dpi=(300, 300))
     print(f"  Saved: {out_path}")
     print("Done.")
 

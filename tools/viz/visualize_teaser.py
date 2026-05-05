@@ -1166,8 +1166,29 @@ def _set_eccv_rc():
     })
 
 
-def _add_title(img: np.ndarray, title: str, dpi: int = 300) -> np.ndarray:
-    """Wrap an image in a matplotlib figure with an ECCV-style title."""
+def _save_raster_pdf(img: np.ndarray, pdf_path: "Path", dpi: int = 300) -> None:
+    """Embed a raster image into a tight PDF (no vector content, just wrapping).
+
+    Use this for outputs that are fundamentally raster (e.g. pure Open3D renders
+    without any matplotlib annotations).
+    """
+    H, W = img.shape[:2]
+    fig = plt.figure(figsize=(W / dpi, H / dpi), dpi=dpi)
+    ax = fig.add_axes([0, 0, 1, 1])
+    ax.imshow(img)
+    ax.set_axis_off()
+    fig.savefig(pdf_path, format="pdf", dpi=dpi,
+                bbox_inches="tight", pad_inches=0)
+    plt.close(fig)
+
+
+def _add_title(img: np.ndarray, title: str, dpi: int = 300,
+               save_pdf_path: "Path | None" = None) -> np.ndarray:
+    """Wrap an image in a matplotlib figure with an ECCV-style title.
+
+    If ``save_pdf_path`` is provided, the figure is also saved as a PDF with the
+    title kept as vector text (the image itself remains an embedded raster).
+    """
     _set_eccv_rc()
     H, W = img.shape[:2]
     fig_w, fig_h = W / dpi, H / dpi
@@ -1180,6 +1201,9 @@ def _add_title(img: np.ndarray, title: str, dpi: int = 300) -> np.ndarray:
     ax.set_axis_off()
     ax.set_title(title, fontsize=title_fs, pad=title_fs * 0.8)
     fig.subplots_adjust(left=0, right=1, top=1 - title_h_in / total_h, bottom=0)
+    if save_pdf_path is not None:
+        fig.savefig(save_pdf_path, format="pdf", dpi=dpi,
+                    bbox_inches="tight", pad_inches=0)
     fig.canvas.draw()
     buf = np.asarray(fig.canvas.buffer_rgba())[:, :, :3].copy()
     plt.close(fig)
@@ -1225,7 +1249,8 @@ def overlay_heatmap(topdown_img: np.ndarray,
                     gt_dir: np.ndarray | None = None,
                     dialogue_pos: np.ndarray | None = None,
                     dialogue_dir: np.ndarray | None = None,
-                    anchor_probs: np.ndarray | None = None) -> np.ndarray:
+                    anchor_probs: np.ndarray | None = None,
+                    save_pdf_path: "Path | None" = None) -> np.ndarray:
     """Composite a publication-quality probability heatmap onto the top-down image.
 
     Uses KDE-based density estimation over projected grid positions, weighted
@@ -1480,6 +1505,10 @@ def overlay_heatmap(topdown_img: np.ndarray,
     ax.set_ylim(H, 0)
     fig.subplots_adjust(left=0, right=0.93, top=1 - title_h_in / fig_h, bottom=0)
 
+    if save_pdf_path is not None:
+        fig.savefig(save_pdf_path, format="pdf", dpi=dpi,
+                    bbox_inches="tight", pad_inches=0.02)
+
     fig.canvas.draw()
     buf = np.asarray(fig.canvas.buffer_rgba())[:, :, :3].copy()
     plt.close(fig)
@@ -1499,7 +1528,8 @@ def overlay_poses_only(topdown_img: np.ndarray,
                        gt_dir: np.ndarray | None,
                        h_fov_deg: float = 100.0,
                        up_axis: str = "z_up",
-                       dpi: int = 300) -> np.ndarray:
+                       dpi: int = 300,
+                       save_pdf_path: "Path | None" = None) -> np.ndarray:
     """Draw only GT and predicted pose markers on the top-down view (no heatmap)."""
     H, W = topdown_img.shape[:2]
     _set_eccv_rc()
@@ -1561,6 +1591,9 @@ def overlay_poses_only(topdown_img: np.ndarray,
     ax.set_xlim(0, W)
     ax.set_ylim(H, 0)
     fig.subplots_adjust(left=0, right=1, top=1 - title_h_in / fig_h, bottom=0)
+    if save_pdf_path is not None:
+        fig.savefig(save_pdf_path, format="pdf", dpi=dpi,
+                    bbox_inches="tight", pad_inches=0.02)
     fig.canvas.draw()
     buf = np.asarray(fig.canvas.buffer_rgba())[:, :, :3].copy()
     plt.close(fig)
@@ -1586,7 +1619,8 @@ def overlay_direction_field(topdown_img: np.ndarray,
                             stride: int = 1,
                             dpi: int = 300,
                             gt_pos: np.ndarray | None = None,
-                            gt_dir: np.ndarray | None = None) -> np.ndarray:
+                            gt_dir: np.ndarray | None = None,
+                            save_pdf_path: "Path | None" = None) -> np.ndarray:
     """Overlay a direction field on the top-down image.
 
     Each grid camera with non-zero probability is drawn as a short oriented
@@ -1779,6 +1813,10 @@ def overlay_direction_field(topdown_img: np.ndarray,
     ax.set_xlim(0, W)
     ax.set_ylim(H, 0)
     fig.subplots_adjust(left=0, right=0.93, top=1 - title_h_in / fig_h, bottom=0)
+
+    if save_pdf_path is not None:
+        fig.savefig(save_pdf_path, format="pdf", dpi=dpi,
+                    bbox_inches="tight", pad_inches=0.02)
 
     fig.canvas.draw()
     buf = np.asarray(fig.canvas.buffer_rgba())[:, :, :3].copy()
@@ -2244,7 +2282,8 @@ def compose_teaser(perspective_img: np.ndarray,
                    query: str,
                    dpi: int = 300,
                    dirfield_img: np.ndarray | None = None,
-                   scene_graph_img: np.ndarray | None = None) -> np.ndarray:
+                   scene_graph_img: np.ndarray | None = None,
+                   save_pdf_path: "Path | None" = None) -> np.ndarray:
     """Compose a multi-panel teaser figure.
 
     Layout (top row):  Query text | Scene Graph | Perspective View
@@ -2357,6 +2396,9 @@ def compose_teaser(perspective_img: np.ndarray,
         ax_legend.set_axis_off()
 
     fig.tight_layout(pad=0.5)
+    if save_pdf_path is not None:
+        fig.savefig(save_pdf_path, format="pdf", dpi=dpi,
+                    bbox_inches="tight", pad_inches=0.02)
     fig.canvas.draw()
     buf = np.asarray(fig.canvas.buffer_rgba())[:, :, :3].copy()
     plt.close(fig)
@@ -2457,6 +2499,10 @@ def parse_args() -> argparse.Namespace:
                     type=float, default=0.0,
                     help="Gaussian blur sigma for heatmap (0 = auto).")
     ap.add_argument("--dpi", type=int, default=300, help="Output DPI.")
+    ap.add_argument("--vector", action="store_true",
+                    help="Save outputs as vector PDF instead of raster PNG. "
+                         "Matplotlib overlays (wedges, markers, titles, colorbar, legend) "
+                         "stay vector; 3D mesh renders remain embedded raster.")
 
     # Direction field
     ap.add_argument("--direction-field", "--direction_field", dest="direction_field",
@@ -2705,9 +2751,13 @@ def main() -> None:
                                    camera_json=args.camera_json,
                                    interactive=args.interactive,
                                    frame_pose=frame_pose)
-    persp_titled = _add_title(persp_img, "Ground Truth View", dpi=args.dpi)
-    persp_path = out / f"{args.scan_id}_gt.png"
-    Image.fromarray(persp_titled).save(persp_path)
+    ext = "pdf" if args.vector else "png"
+    persp_path = out / f"{args.scan_id}_gt.{ext}"
+    persp_titled = _add_title(
+        persp_img, "Ground Truth View", dpi=args.dpi,
+        save_pdf_path=persp_path if args.vector else None)
+    if not args.vector:
+        Image.fromarray(persp_titled).save(persp_path)
     print(f"  Saved: {persp_path}")
 
     # --- 6. Top-down render + overlays ---
@@ -2716,9 +2766,12 @@ def main() -> None:
         render_mesh, up_axis, args.topdown_size,
         floor_pct=args.floor_pct, ceiling_pct=args.ceiling_pct,
         cutoff_m=args.cutoff_m)
-    topdown_titled = _add_title(topdown_img, "Top-Down View", dpi=args.dpi)
-    topdown_path = out / f"{args.scan_id}_topdown.png"
-    Image.fromarray(topdown_titled).save(topdown_path)
+    topdown_path = out / f"{args.scan_id}_topdown.{ext}"
+    topdown_titled = _add_title(
+        topdown_img, "Top-Down View", dpi=args.dpi,
+        save_pdf_path=topdown_path if args.vector else None)
+    if not args.vector:
+        Image.fromarray(topdown_titled).save(topdown_path)
     print(f"  Saved: {topdown_path}")
 
     cam_path = out / f"{args.scan_id}_topdown_camera.npz"
@@ -2756,9 +2809,12 @@ def main() -> None:
             if pred_persp.shape[2] == 4:
                 pred_persp = pred_persp[:, :, :3]
             pred_persp = pred_persp.astype(np.uint8)
-            pred_persp_titled = _add_title(pred_persp, "Predicted Pose View", dpi=args.dpi)
-            pred_persp_path = out / f"{args.scan_id}_predicted_perspective.png"
-            Image.fromarray(pred_persp_titled).save(pred_persp_path)
+            pred_persp_path = out / f"{args.scan_id}_predicted_perspective.{ext}"
+            pred_persp_titled = _add_title(
+                pred_persp, "Predicted Pose View", dpi=args.dpi,
+                save_pdf_path=pred_persp_path if args.vector else None)
+            if not args.vector:
+                Image.fromarray(pred_persp_titled).save(pred_persp_path)
             print(f"  Saved: {pred_persp_path}")
 
             # Dialogue-refined pose view (separate file)
@@ -2770,9 +2826,12 @@ def main() -> None:
                 if dlg_persp.shape[2] == 4:
                     dlg_persp = dlg_persp[:, :, :3]
                 dlg_persp = dlg_persp.astype(np.uint8)
-                dlg_persp_titled = _add_title(dlg_persp, "Dialogue-Refined Pose View", dpi=args.dpi)
-                dlg_persp_path = out / f"{args.scan_id}_dialogue_perspective.png"
-                Image.fromarray(dlg_persp_titled).save(dlg_persp_path)
+                dlg_persp_path = out / f"{args.scan_id}_dialogue_perspective.{ext}"
+                dlg_persp_titled = _add_title(
+                    dlg_persp, "Dialogue-Refined Pose View", dpi=args.dpi,
+                    save_pdf_path=dlg_persp_path if args.vector else None)
+                if not args.vector:
+                    Image.fromarray(dlg_persp_titled).save(dlg_persp_path)
                 print(f"  Saved: {dlg_persp_path}")
 
     # Heatmap overlay
@@ -2783,6 +2842,7 @@ def main() -> None:
             _dlg_dir = dialogue_results[1] if dialogue_results is not None else None
 
             # Original heatmap with GT + predicted pose only
+            poses_path = out / f"{args.scan_id}_poses_overlay.{ext}"
             poses_img = overlay_heatmap(
                 topdown_img, intrinsic, extrinsic,
                 cams, probs, pred_pos, pred_dir,
@@ -2790,12 +2850,14 @@ def main() -> None:
                 cmap_name=args.heatmap_cmap, sigma=args.heatmap_sigma,
                 h_fov_deg=args.h_fov, up_axis=up_axis,
                 dpi=args.dpi,
-                gt_pos=gt_pos, gt_dir=gt_dir)
-            poses_path = out / f"{args.scan_id}_poses_overlay.png"
-            Image.fromarray(poses_img).save(poses_path)
+                gt_pos=gt_pos, gt_dir=gt_dir,
+                save_pdf_path=poses_path if args.vector else None)
+            if not args.vector:
+                Image.fromarray(poses_img).save(poses_path)
             print(f"  Saved: {poses_path}")
 
             # Main heatmap overlay — use dialogue-updated probs when available
+            heatmap_path = out / f"{args.scan_id}_heatmap_overlay.{ext}"
             if dialogue_results is not None:
                 dlg_grid_posterior = dialogue_results[4]
                 # Dialogue heatmap with GT + dialogue-refined pose
@@ -2809,7 +2871,8 @@ def main() -> None:
                     dpi=args.dpi,
                     gt_pos=gt_pos, gt_dir=gt_dir,
                     dialogue_pos=_dlg_pos, dialogue_dir=_dlg_dir,
-                    anchor_probs=probs)
+                    anchor_probs=probs,
+                    save_pdf_path=heatmap_path if args.vector else None)
             else:
                 heatmap_img = overlay_heatmap(
                     topdown_img, intrinsic, extrinsic,
@@ -2818,13 +2881,15 @@ def main() -> None:
                     cmap_name=args.heatmap_cmap, sigma=args.heatmap_sigma,
                     h_fov_deg=args.h_fov, up_axis=up_axis,
                     dpi=args.dpi,
-                    gt_pos=gt_pos, gt_dir=gt_dir)
-            heatmap_path = out / f"{args.scan_id}_heatmap_overlay.png"
-            Image.fromarray(heatmap_img).save(heatmap_path)
+                    gt_pos=gt_pos, gt_dir=gt_dir,
+                    save_pdf_path=heatmap_path if args.vector else None)
+            if not args.vector:
+                Image.fromarray(heatmap_img).save(heatmap_path)
             print(f"  Saved: {heatmap_path}")
 
             # Dialogue-only heatmap (same updated probs, only GT + dialogue marker)
             if dialogue_results is not None:
+                dlg_only_path = out / f"{args.scan_id}_heatmap_dialogue.{ext}"
                 dlg_only_img = overlay_heatmap(
                     topdown_img, intrinsic, extrinsic,
                     cams, dlg_grid_posterior,
@@ -2835,14 +2900,16 @@ def main() -> None:
                     dpi=args.dpi,
                     gt_pos=gt_pos, gt_dir=gt_dir,
                     dialogue_pos=_dlg_pos, dialogue_dir=_dlg_dir,
-                    anchor_probs=probs)
-                dlg_only_path = out / f"{args.scan_id}_heatmap_dialogue.png"
-                Image.fromarray(dlg_only_img).save(dlg_only_path)
+                    anchor_probs=probs,
+                    save_pdf_path=dlg_only_path if args.vector else None)
+                if not args.vector:
+                    Image.fromarray(dlg_only_img).save(dlg_only_path)
                 print(f"  Saved: {dlg_only_path}")
 
             # Direction field overlay
             dirfield_img = None
             if args.direction_field:
+                dirfield_path = out / f"{args.scan_id}_direction_field.{ext}"
                 dirfield_img = overlay_direction_field(
                     topdown_img, intrinsic, extrinsic,
                     cams, probs, cam_dirs,
@@ -2850,9 +2917,10 @@ def main() -> None:
                     h_fov_deg=args.h_fov,
                     up_axis=up_axis, stride=args.dir_stride,
                     dpi=args.dpi,
-                    gt_pos=gt_pos, gt_dir=gt_dir)
-                dirfield_path = out / f"{args.scan_id}_direction_field.png"
-                Image.fromarray(dirfield_img).save(dirfield_path)
+                    gt_pos=gt_pos, gt_dir=gt_dir,
+                    save_pdf_path=dirfield_path if args.vector else None)
+                if not args.vector:
+                    Image.fromarray(dirfield_img).save(dirfield_path)
                 print(f"  Saved: {dirfield_path}")
 
             # Scene graph visualization (render before combined so it's available)
@@ -2876,18 +2944,23 @@ def main() -> None:
                         interactive=False,
                         gt_pos=gt_pos, gt_dir=gt_dir,
                         labels_ply=labels_ply)
-                    sg_path = out / f"{args.scan_id}_scene_graph.png"
-                    Image.fromarray(sg_img).save(sg_path)
+                    sg_path = out / f"{args.scan_id}_scene_graph.{ext}"
+                    if args.vector:
+                        _save_raster_pdf(sg_img, sg_path, dpi=args.dpi)
+                    else:
+                        Image.fromarray(sg_img).save(sg_path)
                     print(f"  Saved: {sg_path}")
 
             if args.combined:
+                teaser_path = out / f"{args.scan_id}_teaser.{ext}"
                 teaser_img = compose_teaser(
                     persp_img, heatmap_img,
                     query_text or "", dpi=args.dpi,
                     dirfield_img=dirfield_img,
-                    scene_graph_img=sg_img)
-                teaser_path = out / f"{args.scan_id}_teaser.png"
-                Image.fromarray(teaser_img).save(teaser_path)
+                    scene_graph_img=sg_img,
+                    save_pdf_path=teaser_path if args.vector else None)
+                if not args.vector:
+                    Image.fromarray(teaser_img).save(teaser_path)
                 print(f"  Saved: {teaser_path}")
         else:
             print("  Skipping heatmap — no visible matched objects.")
@@ -2911,8 +2984,11 @@ def main() -> None:
                 interactive=False,
                 gt_pos=gt_pos, gt_dir=gt_dir,
                 labels_ply=labels_ply)
-            sg_path = out / f"{args.scan_id}_scene_graph.png"
-            Image.fromarray(sg_img).save(sg_path)
+            sg_path = out / f"{args.scan_id}_scene_graph.{ext}"
+            if args.vector:
+                _save_raster_pdf(sg_img, sg_path, dpi=args.dpi)
+            else:
+                Image.fromarray(sg_img).save(sg_path)
             print(f"  Saved: {sg_path}")
 
     # --- Scene retrieval: render scene graphs for pre-computed matches ---
@@ -2989,8 +3065,11 @@ def main() -> None:
                 gt_pos=m_gt_pos, gt_dir=m_gt_dir,
                 desat=0.0,
                 labels_ply=m_labels_ply)
-            sg_path = retrieval_dir / f"{rank}_{m_scan}_scene_graph.png"
-            Image.fromarray(sg_img).save(sg_path)
+            sg_path = retrieval_dir / f"{rank}_{m_scan}_scene_graph.{ext}"
+            if args.vector:
+                _save_raster_pdf(sg_img, sg_path, dpi=args.dpi)
+            else:
+                Image.fromarray(sg_img).save(sg_path)
             print(f"    Saved: {sg_path}")
 
     # --- Pose error computation ---
