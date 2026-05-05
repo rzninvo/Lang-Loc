@@ -249,11 +249,35 @@ class DualSceneGraphDataset(Dataset):
         self.clip_model_name = clip_model_name
         self.clip_model = clip_model
         
-        self.scene_files = sorted([
+        # Skip metadata.json — it's a stats dict from create_clip_dataset.py,
+        # not a scene graph. Treating it as a sample causes
+        # KeyError("nodes") on the unlucky batch that lands on its index.
+        candidate_files = sorted([
             os.path.join(dataset_dir, f)
             for f in os.listdir(dataset_dir)
-            if f.endswith('.json')
+            if f.endswith('.json') and f != 'metadata.json'
         ])
+        # Filter out empty graphs early — `torch.stack([])` would raise from
+        # _load_scene_from_data, killing an epoch hours into training.
+        self.scene_files = []
+        skipped_empty = 0
+        for fp in candidate_files:
+            try:
+                with open(fp) as fh:
+                    n_nodes = len(json.load(fh).get('nodes') or {})
+            except Exception as exc:
+                print(f"[WARN] DualSceneGraphDataset: expected valid JSON at {fp}, "
+                      f"got={exc!r}, fallback=skip", flush=True)
+                skipped_empty += 1
+                continue
+            if n_nodes < 1:
+                skipped_empty += 1
+                continue
+            self.scene_files.append(fp)
+        if skipped_empty > 0:
+            print(f"[WARN] DualSceneGraphDataset: skipped {skipped_empty} empty/"
+                  f"unreadable scene files (kept {len(self.scene_files)} of "
+                  f"{len(candidate_files)})", flush=True)
         
         self.file_to_scene_id = {}
         self.scene_id_to_file = {}
@@ -379,8 +403,13 @@ class DualSceneGraphDataset(Dataset):
         
         ratio = random.uniform(0.4, 0.7)
         num_nodes = len(nodes)
-        num_keep = max(3, int(num_nodes * ratio))
-        
+        # Clamp to the population size — small text graphs with <3 nodes
+        # would otherwise raise ValueError("Sample larger than population")
+        # because max(3, ...) can exceed num_nodes.
+        num_keep = min(num_nodes, max(3, int(num_nodes * ratio)))
+        if num_keep <= 0:
+            return scene_data
+
         all_node_ids = list(nodes.keys())
         keep_node_ids = set(random.sample(all_node_ids, num_keep))
         

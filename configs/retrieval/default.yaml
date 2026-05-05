@@ -1,20 +1,25 @@
-# DualSceneAligner configuration (scene retrieval, Section 3.2).
+# DualSceneAlignerV2 + SimpleGraphMatcher configuration (scene retrieval, §3.2).
+# Tables 1+2 evaluation lives in `langloc/retrieval/eval.py` (argparse-based,
+# cache-driven) and is not Hydra-configured.
 
 # Model architecture
 node_input_dim: 518       # centroid(3) + color(3) + CLIP(512)
 hidden_dim: 256           # GNN hidden / output dimension
 dropout: 0.1              # Dropout rate
 
-# Training
+# Training (Shirley's `train_contrastive_2.py`, paper §4)
 lr: 0.001                 # Paper: 10^-3
 weight_decay: 0.0001      # Paper: 10^-4
-batch_size: 8
-epochs: 100               # Paper: 100 epochs
+batch_size: 16            # Shirley's batch size; paper §4.1 says batch=8 but the
+                          # actual paper checkpoint was trained at 16
+epochs: 70                # Shirley's epoch_70_163_cliprel.pth checkpoint
 temperature: 0.1          # InfoNCE temperature (paper: τ=0.1)
 warmup_ratio: 0.1         # Warmup fraction of total steps
 log_every: 10             # Print metrics every N batches
+seed: 42                  # Reproducibility
 
-# Scoring weights (Eq.8: w_emb * cos(z,z) + w_scene * cos(u,u) + w_jac * F1)
+# Scoring weights (Eq. 8: w_emb*cos(z,z) + w_scene*cos(u,u) + w_jac*F1) — used
+# only by the eval CLI; left here so configs_dataset can reference them.
 w_emb: 0.33
 w_scene: 0.33
 w_jac: 0.34
@@ -22,14 +27,8 @@ w_jac: 0.34
 # Data paths (override via CLI)
 dataset_dir: null          # Training data directory (scene_graph_clip/)
 metadata_path: null        # Path to metadata JSON
-save_dir: checkpoints      # Checkpoint output directory
+save_dir: data/model_checkpoints/graph2graph
 pretrained_checkpoint: null
-
-# Evaluation paths
-checkpoint: null           # Model checkpoint for evaluation
-graphs_3dssg: null         # Path to 3DSSG graphs .pt file
-graphs_scanscribe_test: null
-cache_dir: null            # Directory for precomputed embedding caches
 
 # CLIP model used for node/edge/scene embeddings across all retrieval scripts.
 clip_model: ViT-B/32
@@ -39,30 +38,3 @@ clip_model: ViT-B/32
 # affects the legacy node.label_features / edge.features fields)
 max_dist: 1.0
 embedding_type: word2vec
-
-# Evaluation protocol (select with retrieval.eval.protocol=table1|table2|table3)
-eval:
-  protocol: table1
-
-  # Table 1: 10-scene pool (Text2SGM Table 1 protocol)
-  table1:
-    out_of: 10
-    valid_top_k: [1, 2, 3, 5]
-    eval_iters: 10
-    eval_iter_count: 100
-
-  # Table 2: Full pool — all test scenes (Text2SGM Table 2 protocol)
-  table2:
-    valid_top_k: [5, 10, 20, 30]
-    eval_iters: 10
-    eval_iter_count: 100
-
-  # Table 3: Image-generated queries — cache-based (Text2SGM Table 4 protocol)
-  table3:
-    out_of: 10
-    valid_top_k: [1, 2, 3, 5]
-    eval_iters: 10
-    eval_iter_count: 100
-    # Filename of the ScanScribe test-graph .pt file inside cache_dir.
-    # Override with: retrieval.eval.table3.pool_graphs_filename=my_file.pt
-    pool_graphs_filename: scanscribe_graphs_test_518D.pt

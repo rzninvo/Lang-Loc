@@ -13,3 +13,15 @@ REPO_SUMMARY.pdf
 /teaser_output
 /figures
 /docs
+CLAUDE.md
+
+# Build / install artifacts
+*.egg-info/
+*.egg
+
+# External colleague archives (Shirley's Colab artefact, original VLSG-TEXT, etc.)
+VLSG.ipynb
+VLSG_Files-*.zip
+/VLSG_TEXT_v2
+/whereami-text2sgm
+/eval
