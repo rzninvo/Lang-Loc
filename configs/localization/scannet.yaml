@@ -1,0 +1,22 @@
+# =============================================================================
+# ScanNet dataset overlay for fine localization.
+#
+# Defaults to the values used to produce paper Table 4(b) and Master Table 6.5.
+# Inherits everything from configs/localization/default.yaml; overrides only
+# the dataset-specific fields.
+#
+# Run with: python -m langloc.localization.cli localization=scannet
+# =============================================================================
+
+defaults:
+  - default
+  - _self_
+
+# Dataset key consumed by mesh / label loaders.
+dataset: scannet
+
+# Camera FOV used during fine localisation (Supp Table 7 / Master Table A.4
+# list these as "Dataset Dependent"; values from mk5's invocation script for
+# the ScanNet path).
+h_fov_deg: 58.30
+v_fov_deg: 45.33

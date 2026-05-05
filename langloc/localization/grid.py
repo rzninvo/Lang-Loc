@@ -321,12 +321,19 @@ def grid_from_bounds(bounds: Tuple[float, float, float, float],
 def compute_visible_dirs(cams: np.ndarray,
                          centroids: Dict[int, np.ndarray],
                          rc: o3d.t.geometry.RaycastingScene,
-                         tri2obj: np.ndarray) -> List[List[np.ndarray]]:
-    """Compute per-camera unit direction vectors towards visible matched objects.
+                         tri2obj: np.ndarray
+                         ) -> Tuple[List[List[np.ndarray]],
+                                    List[List[float]]]:
+    """Compute per-camera direction vectors and distances to visible objects.
 
     For every camera position and every matched-object centroid, a
     visibility ray is cast.  If the first hit is the target object, the
-    unit direction from camera to centroid is recorded.
+    unit direction from camera to centroid and the camera-to-centroid
+    distance are recorded.
+
+    The distances feed Eq. 9 (paper §3.3 / Master Eq. 5.31) — the
+    proximity bonus ``Σ_o exp(-d_ko / α_d)`` that biases the score toward
+    grid cells close to the matched objects.
 
     Args:
         cams: Camera positions, shape ``(N, 3)``.
@@ -335,11 +342,15 @@ def compute_visible_dirs(cams: np.ndarray,
         tri2obj: Per-triangle object-ID array from :func:`load_scene`.
 
     Returns:
-        A list of length ``N``, where each element is a list of unit
-        direction vectors (``np.ndarray`` of shape ``(3,)``) towards
-        objects visible from that camera.
+        A 2-tuple ``(visible_dirs, visible_dists)``.  Each is a list of
+        length ``N``; the *i*-th sub-list contains unit direction vectors
+        and camera-to-centroid Euclidean distances (in metres) for the
+        objects visible from camera *i*.  The two sub-lists at index *i*
+        are aligned: ``visible_dists[i][j]`` corresponds to
+        ``visible_dirs[i][j]``.
     """
     visible_dirs: List[List[np.ndarray]] = [[] for _ in range(len(cams))]
+    visible_dists: List[List[float]] = [[] for _ in range(len(cams))]
     for idx, cam in enumerate(cams):
         for oid, centre in centroids.items():
             if first_hit_is_object(cam, centre, oid, rc, tri2obj):
@@ -347,7 +358,62 @@ def compute_visible_dirs(cams: np.ndarray,
                 l = np.linalg.norm(d)
                 if l > 1e-6:
                     visible_dirs[idx].append(d / l)
-    return visible_dirs
+                    visible_dists[idx].append(float(l))
+    return visible_dirs, visible_dists
+
+
+def proximity_bonus(distances: np.ndarray, decay: float) -> float:
+    """Eq. 9 / Master Eq. 5.31 proximity bonus: ``Σ exp(-d / α_d)``.
+
+    Closer objects contribute more.  Returns 0 when no distances are
+    given.  The decay parameter is clamped at ``1e-6`` to avoid a
+    division-by-zero when a config inadvertently sets ``α_d = 0``.
+
+    Args:
+        distances: 1-D array of camera-to-centroid Euclidean distances
+            (metres) for one grid cell.
+        decay: Decay scale ``α_d`` from Eq. 9 (paper / supp / master
+            report all default this to ``2.0`` m).
+
+    Returns:
+        The summed proximity bonus as a Python float.
+    """
+    if distances.size == 0:
+        return 0.0
+    decay = max(float(decay), 1e-6)
+    return float(np.exp(-distances / decay).sum())
+
+
+def softmax_probs(scores: np.ndarray, tau: float) -> np.ndarray:
+    """Numerically-stable softmax over scores with temperature ``tau``.
+
+    Implements ``P_k = exp(s_k / τ) / Σ_l exp(s_l / τ)`` from Eq. 9
+    (paper §3.3) / Master Eq. 5.32.  The standard "subtract max" trick
+    keeps the exponent in a safe range.  Returns a uniform distribution
+    when the denominator collapses to zero.
+
+    Args:
+        scores: 1-D array of raw scores (one per grid cell or arrow
+            hypothesis).
+        tau: Softmax temperature (paper / supp / master report all
+            default this to ``1.5``).  Clamped at ``1e-6`` to avoid
+            division by zero.
+
+    Returns:
+        Probability vector of the same length as *scores*, summing to 1
+        (or to approximately 1 when fallback to uniform was triggered).
+    """
+    scores = np.asarray(scores, dtype=np.float64)
+    if scores.size == 0:
+        return scores
+    tau = max(float(tau), 1e-6)
+    scores = scores / tau
+    scores -= scores.max()
+    exp_scores = np.exp(scores)
+    denom = exp_scores.sum()
+    if denom <= 0:
+        return np.full_like(scores, 1.0 / len(scores))
+    return exp_scores / denom
 
 
 # Labels that are visible from almost anywhere and carry little

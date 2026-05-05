@@ -28,6 +28,8 @@ from langloc.localization.grid import (
     sample_grid,
     compute_visible_dirs,
     compute_visible_dirs_weighted,
+    proximity_bonus,
+    softmax_probs,
     _GENERIC_LABELS,
 )
 from langloc.localization.matching import match_objects
@@ -211,9 +213,18 @@ def evaluate_scene(scene_id: str,
     top_k = _cfg_get(cfg, "top_k", 25)
     matching_strategy = _cfg_get(cfg, "matching_strategy", "global_topk")
     relation_alpha = float(_cfg_get(cfg, "relation_alpha", 0.5))
+    # Paper §3.3 / Supp §4.3 / Master §5.5.1 matching mechanisms.
+    score_threshold = float(_cfg_get(cfg, "score_threshold", -1.0))
+    dynamic_top_k = bool(_cfg_get(cfg, "dynamic_top_k", False))
+    ensure_query_coverage = bool(_cfg_get(cfg, "ensure_query_coverage", False))
+    homogenize_label_embeddings = bool(_cfg_get(cfg, "homogenize_label_embeddings", False))
     obj_ids = match_objects(caption_graph, scene_graph, k=top_k,
                             strategy=matching_strategy,
-                            relation_alpha=relation_alpha)
+                            relation_alpha=relation_alpha,
+                            score_threshold=score_threshold,
+                            dynamic_k=dynamic_top_k,
+                            ensure_query_coverage=ensure_query_coverage,
+                            homogenize_label_embeddings=homogenize_label_embeddings)
     if not obj_ids:
         if mode != EvalMode.CANDIDATES:
             print(f"[WARN] {scene_id}: no cosine matches — skipped.")
@@ -244,6 +255,11 @@ def evaluate_scene(scene_id: str,
             print(f"[WARN] {scene_id}: matched objects missing geometry — skipped.")
         return None
 
+    # ------------------------------------------------------------------ #
+    # Visibility ray-casting (paper §3.3) returns BOTH the per-camera     #
+    # unit-direction sets and the per-camera distance lists.  Distances   #
+    # feed Eq. 9's proximity bonus.                                       #
+    # ------------------------------------------------------------------ #
     use_dw = bool(_cfg_get(cfg, "use_distinctiveness_weighting", False))
     if use_dw:
         oid_weights: Dict[int, float] = {}
@@ -254,27 +270,54 @@ def evaluate_scene(scene_id: str,
             oid_weights[oid] = 0.1 if lbl in _GENERIC_LABELS else 1.0
         visible_dirs, visible_w = compute_visible_dirs_weighted(
             cams, centroids, rc, tri2obj, oid_weights=oid_weights)
-        scores_raw = np.array([sum(w) for w in visible_w], dtype=np.float64)
+        # Distinctiveness path is an opt-in ablation that reweights the
+        # raw count but does not currently model per-object distance.
+        # Use the camera-to-centroid distance from a parallel call so the
+        # proximity bonus still applies.
+        _, visible_dists = compute_visible_dirs(cams, centroids, rc, tri2obj)
+        counts_f = np.array([sum(w) for w in visible_w], dtype=np.float64)
     else:
-        visible_dirs = compute_visible_dirs(cams, centroids, rc, tri2obj)
-        scores_raw = np.array([len(v) for v in visible_dirs], dtype=np.float64)
+        visible_dirs, visible_dists = compute_visible_dirs(cams, centroids, rc, tri2obj)
+        counts_f = np.array([len(v) for v in visible_dirs], dtype=np.float64)
 
     counts = np.array([len(v) for v in visible_dirs], dtype=np.int32)
-    total = scores_raw.sum()
-    if total == 0:
+    if counts.sum() == 0:
         if mode != EvalMode.CANDIDATES:
             print(f"[WARN] {scene_id}: matched objects invisible from grid — skipped.")
         return None
 
-    # --- Mode-specific probability computation ---
+    # --- Eq. 9 grid scoring (paper §3.3 / Master Eq. 5.31) ---
+    #
+    #   s_k = Σ_o 𝟙[vis(o,c_k)]  +  λ_d · Σ_{o:vis(o,c_k)} exp(-d_ko / α_d)
+    #         └────────┬────────┘   └────────────────────┬────────────────────┘
+    #            counts_f                          λ_d * dist_bonus
+    #
+    # Probability via softmax with temperature τ (Master Eq. 5.32):
+    #
+    #   P_k = exp(s_k / τ) / Σ_l exp(s_l / τ)
+    distance_bonus_weight = float(_cfg_get(cfg, "distance_bonus_weight", 0.5))
+    distance_bonus_decay = float(_cfg_get(cfg, "distance_bonus_decay", 2.0))
+    dist_bonus = np.array(
+        [proximity_bonus(np.asarray(d, dtype=np.float64), distance_bonus_decay)
+         for d in visible_dists],
+        dtype=np.float64,
+    )
+    scores_raw = counts_f + distance_bonus_weight * dist_bonus
+
+    # Softmax temperature τ (Master Eq. 5.32).  Used by both grid scoring
+    # (in STANDARD mode) and arrow scoring (always).  Read once here so
+    # both branches share the value.
+    tau = float(_cfg_get(cfg, "score_tau", 1.5))
+
+    # --- Mode-specific grid probability computation ---
     if mode == EvalMode.STANDARD:
-        tau = float(_cfg_get(cfg, "score_tau", 0.5))
-        scores_f = scores_raw.astype(np.float32) / max(tau, 1e-6)
-        scores_f -= scores_f.max()
-        exp_scores = np.exp(scores_f)
-        probs = exp_scores / exp_scores.sum()
+        probs = softmax_probs(scores_raw, tau)
     else:
-        probs = scores_raw / float(total)
+        total = scores_raw.sum()
+        if total > 0:
+            probs = scores_raw / float(total)
+        else:
+            probs = np.full_like(scores_raw, 1.0 / max(len(scores_raw), 1))
 
     h_fov_deg = _cfg_get(cfg, "h_fov_deg", 100.0)
     v_fov_deg = _cfg_get(cfg, "v_fov_deg", 60.0)
@@ -347,6 +390,8 @@ def evaluate_scene(scene_id: str,
                 keep_ratio=coarse_keep_ratio,
                 top_k=coarse_top_k,
                 apply_nms=not coarse_disable_nms,
+                distance_bonus_weight=distance_bonus_weight,
+                distance_bonus_decay=distance_bonus_decay,
             )
             arrow_source = "arrow_field_coarse"
         except Exception as exc:
@@ -355,13 +400,28 @@ def evaluate_scene(scene_id: str,
             arrow_positions, arrow_dirs, arrow_weights = arrow_field_from_visibility(
                 cams, visible_dirs, Nx, Ny, hfov_rad, vfov_rad,
                 stride=max(1, int(arrow_stride)),
-                cam_linear_indices=cam_linear_indices)
+                cam_linear_indices=cam_linear_indices,
+                visible_dists=visible_dists,
+                distance_bonus_weight=distance_bonus_weight,
+                distance_bonus_decay=distance_bonus_decay)
             arrow_step_used = grid_step
     else:
         arrow_positions, arrow_dirs, arrow_weights = arrow_field_from_visibility(
             cams, visible_dirs, Nx, Ny, hfov_rad, vfov_rad,
             stride=max(1, int(arrow_stride)),
-            cam_linear_indices=cam_linear_indices)
+            cam_linear_indices=cam_linear_indices,
+            visible_dists=visible_dists,
+            distance_bonus_weight=distance_bonus_weight,
+            distance_bonus_decay=distance_bonus_decay)
+
+    # --- Master Eq. 5.32 softmax over arrow scores ---
+    # mk5 line 758-759: convert raw arrow scores to a posterior with
+    # temperature τ before density-based clustering.  Without this, the
+    # cluster-aware weighted prediction in `_cluster_weighted_prediction`
+    # would operate on the raw counts, producing a different centroid.
+    if arrow_weights:
+        arrow_probs = softmax_probs(np.asarray(arrow_weights, dtype=np.float64), tau)
+        arrow_weights = [float(w) for w in arrow_probs]
 
     # --- Candidates mode: build and return JSON record ---
     if mode == EvalMode.CANDIDATES:

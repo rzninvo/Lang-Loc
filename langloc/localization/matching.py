@@ -81,17 +81,33 @@ def match_objects(qg: SceneGraph,
                   sg: SceneGraph,
                   k: int = 5,
                   strategy: str = "global_topk",
-                  relation_alpha: float = 0.5) -> List[int]:
+                  relation_alpha: float = 0.5,
+                  *,
+                  score_threshold: float = -1.0,
+                  dynamic_k: bool = False,
+                  ensure_query_coverage: bool = False,
+                  homogenize_label_embeddings: bool = False) -> List[int]:
     """Unified entry point for object matching.
 
     Args:
         qg: Query scene graph.
         sg: Reference 3D scene graph.
-        k: Maximum number of matched object IDs to return.
+        k: Maximum number of matched object IDs to return (nominal cap
+            when ``dynamic_k=True``).
         strategy: ``"global_topk"``, ``"per_node"``, or
             ``"relation_aware"``.
         relation_alpha: Blend weight for ``relation_aware`` strategy.
             0 = pure node similarity, 1 = pure relation consistency.
+        score_threshold: Minimum cosine similarity for a match
+            (paper / supp / master ``s_min``).  Only honoured by
+            ``global_topk``; ignored by the other strategies.
+        dynamic_k: Adapt the budget to the query-graph size (paper
+            "dynamic top-K enabled").  Only honoured by ``global_topk``.
+        ensure_query_coverage: Pass 1 in the matcher (paper "query
+            coverage enabled").  Only honoured by ``global_topk``.
+        homogenize_label_embeddings: Re-embed labels via Word2Vec
+            before cosine.  Phase-5 placeholder; only honoured by
+            ``global_topk``.
 
     Returns:
         A list of up to *k* scene-graph node IDs.
@@ -100,32 +116,155 @@ def match_objects(qg: SceneGraph,
         return per_node_matched_objects(qg, sg, k)
     if strategy == "relation_aware":
         return relation_aware_matched_objects(qg, sg, k, alpha=relation_alpha)
-    return topk_matched_objects(qg, sg, k)
+    return topk_matched_objects(
+        qg, sg, k,
+        score_threshold=score_threshold,
+        dynamic_k=dynamic_k,
+        ensure_query_coverage=ensure_query_coverage,
+        homogenize_label_embeddings=homogenize_label_embeddings,
+    )
 
 
 # ---------------------------------------------------------------------------
-#  Global top-k (original)
+#  Global top-k (original) + paper / supp / master mechanisms
 # ---------------------------------------------------------------------------
 
-def topk_matched_objects(qg: SceneGraph, sg: SceneGraph, k: int = 5) -> List[int]:
+def topk_matched_objects(qg: SceneGraph,
+                         sg: SceneGraph,
+                         k: int = 5,
+                         *,
+                         score_threshold: float = -1.0,
+                         dynamic_k: bool = False,
+                         ensure_query_coverage: bool = False,
+                         homogenize_label_embeddings: bool = False,
+                         return_scores: bool = False):
     """Return scene-graph node IDs whose features best match the query.
 
     Computes the full cosine-similarity matrix between query-graph and
-    scene-graph node features, then greedily picks the top-*k* unique
-    scene-graph nodes from the flattened similarity ranking.
+    scene-graph node features, then assembles the matched set through
+    the four mechanisms documented in paper §3.3 / Supp §4.3 / Master
+    §5.5.1:
+
+    - **score_threshold (s_min)** — drop matches with cosine similarity
+      below this floor.  Paper / supp / master report value: ``0.1``.
+    - **dynamic_k** — when True, the effective ``k`` becomes
+      ``len(qg.nodes)``, i.e. the retrieval budget adapts to the size
+      of the query graph.  The ``k`` argument is then only a nominal
+      cap (ignored when smaller than the query-graph size).
+    - **ensure_query_coverage** — Pass 1 assigns each query node its
+      best still-available scene match before global filling, biasing
+      toward broad coverage of the query entities.
+    - **homogenize_label_embeddings** — re-embeds labels into a
+      consistent space (Word2Vec) before computing cosine similarity.
+      *Deferred to Phase 5 of the mk5 port* — currently a no-op
+      (cosine is computed on the precomputed ``node.features``).
+
+    A line-by-line port of
+    ``whereami-text2sgm/playground/graph_models/models/
+    visualize_loc_prob.py::topk_matched_objects`` (lines 82-178).
 
     Args:
         qg: Query scene graph (e.g. built from a caption).
         sg: Reference 3D scene graph.
-        k: Maximum number of matched object IDs to return.
+        k: Nominal upper bound on the returned set size.  When
+            ``dynamic_k=True``, the effective budget becomes
+            ``len(qg.nodes)`` (``k`` only caps from above).
+        score_threshold: Minimum cosine similarity for a match.  Pass
+            ``-1.0`` (default, paper-pre-threshold value) to disable.
+        dynamic_k: See above.
+        ensure_query_coverage: See above.
+        homogenize_label_embeddings: Currently a no-op (Phase 5 will
+            wire the Word2Vec-based label re-embedding).  Accepted to
+            keep the signature mk5-compatible.
+        return_scores: When True, return ``(picks, scores)`` instead
+            of just ``picks``; scores are the per-pick cosine values.
 
     Returns:
-        A list of up to *k* scene-graph node IDs (in descending
-        similarity order).
+        A list of up to ``k_eff`` scene-graph node IDs (descending by
+        match strength), or ``(picks, scores)`` when ``return_scores``.
     """
-    sim = _compute_sim_matrix(qg, sg)
+    # --- Dynamic-k step (mk5 line 92-95) ----------------------------------
+    query_obj_count = len(qg.nodes)
+    if dynamic_k:
+        k = query_obj_count if query_obj_count else k
+    k = max(1, int(k))
+
+    # --- Cosine similarity matrix -----------------------------------------
+    qids = list(qg.nodes)
     sids = list(sg.nodes)
-    return _fill_from_global(sim, sids, [], k)
+    if homogenize_label_embeddings:
+        # Re-embed both sides via Word2Vec (paper §3.3, Master Fig. 5.2
+        # caption).  The 300-D matcher embedding is the same for caption
+        # and scene nodes, eliminating the cross-frame coordinate /
+        # encoder mismatch that suppresses cosine when matching the raw
+        # 518-D node.features.
+        from langloc.utils.word2vec import label_embedding_for_matching
+        qmat = np.asarray(
+            [label_embedding_for_matching(qg.nodes[qid].label) for qid in qids],
+            dtype=np.float32,
+        )
+        smat = np.asarray(
+            [label_embedding_for_matching(sg.nodes[sid].label) for sid in sids],
+            dtype=np.float32,
+        )
+        if qmat.size == 0 or smat.size == 0:
+            sim = torch.empty((0, 0), dtype=torch.float32)
+        else:
+            qf = F.normalize(torch.tensor(qmat), dim=1)
+            sf = F.normalize(torch.tensor(smat), dim=1)
+            sim = qf @ sf.T
+    else:
+        sim = _compute_sim_matrix(qg, sg)
+
+    if sim.numel() == 0 or not sids:
+        if return_scores:
+            return [], []
+        return []
+
+    picks: List[int] = []
+    scores: List[float] = []
+    picked_set: set = set()
+    S = sim.size(1)
+
+    # --- Pass 1: ensure_query_coverage (mk5 line 141-157) -----------------
+    if ensure_query_coverage:
+        for qi in range(sim.size(0)):
+            row_order = torch.argsort(sim[qi], descending=True)
+            for si in row_order.tolist():
+                val = float(sim[qi, si])
+                if val < float(score_threshold):
+                    break
+                sid = sids[si]
+                if sid in picked_set:
+                    continue
+                picks.append(sid)
+                scores.append(val)
+                picked_set.add(sid)
+                break
+            if len(picks) == k:
+                break
+
+    # --- Pass 2: global fill (mk5 line 159-175) ---------------------------
+    if len(picks) < k:
+        flat = sim.flatten()
+        if flat.numel() > 0:
+            order = torch.argsort(flat, descending=True)
+            for idx in order.tolist():
+                val = float(flat[idx])
+                if val < float(score_threshold):
+                    break
+                sid = sids[idx % S]
+                if sid in picked_set:
+                    continue
+                picks.append(sid)
+                scores.append(val)
+                picked_set.add(sid)
+                if len(picks) >= k:
+                    break
+
+    if return_scores:
+        return picks, scores
+    return picks
 
 
 # ---------------------------------------------------------------------------

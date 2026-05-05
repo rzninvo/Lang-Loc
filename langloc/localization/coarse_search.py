@@ -15,6 +15,7 @@ import open3d as o3d
 from langloc.localization.grid import (
     first_hit_is_object,
     grid_from_bounds,
+    proximity_bonus,
 )
 from langloc.localization.visualization import (
     dir_to_yaw_pitch,
@@ -35,6 +36,9 @@ def arrow_field_from_visibility(cams: np.ndarray,
                                 vfov: float,
                                 stride: int = 1,
                                 cam_linear_indices: Optional[np.ndarray] = None,
+                                visible_dists: Optional[List[List[float]]] = None,
+                                distance_bonus_weight: float = 0.0,
+                                distance_bonus_decay: float = 2.0,
                                 ) -> Tuple[List[np.ndarray],
                                            List[np.ndarray],
                                            List[float]]:
@@ -60,11 +64,22 @@ def arrow_field_from_visibility(cams: np.ndarray,
             culling (i.e. *cams* is a strict subset of the full grid).
             When ``None`` the legacy behaviour (``idx = gy_i * Nx + gx_i``)
             is used, which is only correct for dense, unculled grids.
+        visible_dists: Optional list parallel to *visible_dirs* with the
+            camera-to-centroid Euclidean distances per visible object.
+            When supplied (together with ``distance_bonus_weight > 0``),
+            Master Eq. 5.31 adds a proximity bonus over the FoV-selected
+            subset to the raw count.  When ``None`` the function reverts
+            to a count-only score (legacy behaviour).
+        distance_bonus_weight: λ_d in Master Eq. 5.31.  Defaults to 0
+            (count-only); paper / supp / master report value is 0.5.
+        distance_bonus_decay: α_d in Master Eq. 5.31, in metres.
+            Defaults to 2.0 m, matching paper / supp / master report.
 
     Returns:
         A 3-tuple ``(positions, dirs, weights)`` of matching-length
-        lists containing arrow positions, unit directions, and
-        FOV-weighted counts.
+        lists.  ``weights`` are FOV-weighted scores per Master Eq. 5.31:
+        ``|O_k^FoV| + λ_d · Σ_{o ∈ O_k^FoV} exp(-d_ko / α_d)`` when
+        distances are supplied, else raw counts.
     """
     arrow_positions: List[np.ndarray] = []
     arrow_dirs: List[np.ndarray] = []
@@ -105,16 +120,28 @@ def arrow_field_from_visibility(cams: np.ndarray,
             mdir = average_direction(dirs, sel)
             if mdir is None:
                 continue
+            # Master Eq. 5.31 / mk5 line 742-744:
+            #   arrow_score = |O_k^FoV| + λ_d · Σ_{o∈O_k^FoV} exp(-d_ko / α_d)
+            arrow_score = float(count)
+            if visible_dists is not None and distance_bonus_weight > 0.0:
+                local_dists = np.asarray(visible_dists[cam_idx], dtype=np.float64)
+                if local_dists.size:
+                    sel_bonus = proximity_bonus(local_dists[sel], distance_bonus_decay)
+                    arrow_score += float(distance_bonus_weight) * sel_bonus
             arrow_positions.append(cams[cam_idx])
             arrow_dirs.append(mdir)
-            arrow_weights.append(float(count))
+            arrow_weights.append(arrow_score)
     return arrow_positions, arrow_dirs, arrow_weights
 
 
 def arrow_weights_generic(cams: np.ndarray,
                           visible_dirs: List[List[np.ndarray]],
                           hfov: float,
-                          vfov: float) -> Tuple[np.ndarray, List[Optional[np.ndarray]]]:
+                          vfov: float,
+                          visible_dists: Optional[List[List[float]]] = None,
+                          distance_bonus_weight: float = 0.0,
+                          distance_bonus_decay: float = 2.0,
+                          ) -> Tuple[np.ndarray, List[Optional[np.ndarray]]]:
     """Compute per-camera FOV-weighted arrow scores for an arbitrary camera set.
 
     Unlike :func:`arrow_field_from_visibility`, this function does not
@@ -125,14 +152,24 @@ def arrow_weights_generic(cams: np.ndarray,
         visible_dirs: Per-camera list of unit direction vectors.
         hfov: Horizontal field-of-view in radians.
         vfov: Vertical field-of-view in radians.
+        visible_dists: Optional list parallel to *visible_dirs* with
+            camera-to-centroid Euclidean distances per visible object.
+            Together with ``distance_bonus_weight > 0`` enables the
+            Master Eq. 5.31 proximity bonus.
+        distance_bonus_weight: λ_d in Master Eq. 5.31.  Defaults to 0
+            (count-only).  Paper / supp / master report value is 0.5.
+        distance_bonus_decay: α_d in Master Eq. 5.31 (metres).
+            Defaults to 2.0 m, matching paper / supp / master report.
 
     Returns:
         A 2-tuple ``(weights, dirs)`` where *weights* is a float64 array
-        of shape ``(N,)`` and *dirs* is a list of unit direction arrays
-        (or ``None`` for cameras with no valid FOV window).
+        of shape ``(N,)`` containing per-cell scores per Master Eq. 5.31,
+        and *dirs* is a list of unit direction arrays (or ``None`` for
+        cameras with no valid FOV window).
     """
     weights = np.zeros(len(cams), dtype=np.float64)
     dirs: List[Optional[np.ndarray]] = [None] * len(cams)
+    use_bonus = visible_dists is not None and distance_bonus_weight > 0.0
     for idx, dirs_list in enumerate(visible_dirs):
         if not dirs_list:
             continue
@@ -149,7 +186,15 @@ def arrow_weights_generic(cams: np.ndarray,
         mdir = average_direction(dirs_arr, sel)
         if mdir is None:
             continue
-        weights[idx] = float(count)
+        # Master Eq. 5.31:
+        #   weight = |O_k^FoV| + λ_d · Σ_{o∈O_k^FoV} exp(-d_ko / α_d)
+        score = float(count)
+        if use_bonus:
+            local_dists = np.asarray(visible_dists[idx], dtype=np.float64)
+            if local_dists.size:
+                sel_bonus = proximity_bonus(local_dists[sel], distance_bonus_decay)
+                score += float(distance_bonus_weight) * sel_bonus
+        weights[idx] = score
         dirs[idx] = mdir
     return weights, dirs
 
@@ -170,7 +215,9 @@ def coarse_to_fine_arrow_search(verts: np.ndarray,
                                 refine_factor: float,
                                 keep_ratio: float,
                                 top_k: int,
-                                apply_nms: bool = True) -> Tuple[List[np.ndarray],
+                                apply_nms: bool = True,
+                                distance_bonus_weight: float = 0.0,
+                                distance_bonus_decay: float = 2.0) -> Tuple[List[np.ndarray],
                                                                  List[np.ndarray],
                                                                  List[float],
                                                                  float,
@@ -244,11 +291,16 @@ def coarse_to_fine_arrow_search(verts: np.ndarray,
         if len(current_points) == 0:
             break
 
-        vis_dirs = compute_visible_dirs(current_points, centroids, rc, tri2obj)
-        weights_np, dirs_list = arrow_weights_generic(current_points,
-                                                      vis_dirs,
-                                                      hfov=hfov,
-                                                      vfov=vfov)
+        vis_dirs, vis_dists = compute_visible_dirs(current_points, centroids, rc, tri2obj)
+        weights_np, dirs_list = arrow_weights_generic(
+            current_points,
+            vis_dirs,
+            hfov=hfov,
+            vfov=vfov,
+            visible_dists=vis_dists,
+            distance_bonus_weight=distance_bonus_weight,
+            distance_bonus_decay=distance_bonus_decay,
+        )
 
         for i, pt in enumerate(current_points):
             all_points.append(pt)

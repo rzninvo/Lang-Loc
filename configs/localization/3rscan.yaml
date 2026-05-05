@@ -1,0 +1,21 @@
+# =============================================================================
+# 3RScan dataset overlay for fine localization.
+#
+# Defaults to the values used to produce paper Table 4(a) and Master Table 6.4.
+# Inherits everything from configs/localization/default.yaml; overrides only
+# the dataset-specific fields.
+#
+# Run with: python -m langloc.localization.cli localization=3rscan
+# =============================================================================
+
+defaults:
+  - default
+  - _self_
+
+# Dataset key consumed by mesh / label loaders.
+dataset: 3rscan
+
+# Camera FOV used during fine localisation (Supp Table 7 / Master Table A.4
+# list these as "Dataset Dependent"; values from mk5's invocation script).
+h_fov_deg: 39.31
+v_fov_deg: 64.76
