@@ -1,25 +1,35 @@
 """Canonical Tables 1+2+3 evaluator for scene retrieval (paper §3.2 / §4.2).
 
-Mirrors Shirley's ``eval_518_multitask_original_table1_v2.py`` and
-``eval_518_multitask.py`` line-by-line: same scoring (Eq. 8), same
-sampling, same RNG seed (42), same 218-scene ScanScribe distractor pool.
+Mirrors Shirley's ``eval_518_multitask_original_table1_v2.py`` (Tables 1+2)
+line-by-line: same scoring (Eq. 8), same sampling, same RNG seed (42),
+same 218-scene ScanScribe distractor pool.
+
+Table 3 here uses the **corrected** fair-comparison protocol (NOT the
+mismatched data path that produced the published 76.10). Queries come
+from ``scanscribe_text_graphs_from_image_desc_node_edge_features.pt`` —
+the actual LLM-from-image graphs, matching the protocol whereami Table 4
+used to generate the CLIP2CLIP / Text2SGM baselines that LangLoc
+Table 3 borrows. See
+docs/reports/2026-05-05/19_table3_corrected_for_rebuttal.md.
 
 Inputs (from ``--cache_dir``, default ``data/processed_data/eval_pool``):
 
     db_emb_cache.pt                       3DSSG database scene embeddings
-    query_emb_cache.pt                    ScanScribe test queries (Tables 1+2)
-    query_emb_cache_img.pt                Image-derived queries  (Table 3)
-    scanscribe_cleaned_original_518D.pt   218-scene Tables 1+3 distractor pool
+    query_emb_cache.pt                    ScanScribe text test (Tables 1+2)
+    query_emb_cache_img.pt                LLM-from-image queries (Table 3 — corrected)
+    scanscribe_cleaned_original_518D.pt   218-scene distractor pool
 
 Caches are produced by
 ``scripts/retrieval/precompute_eval_embeddings.py`` from a
 ``DualSceneAlignerV2 + SimpleGraphMatcher`` checkpoint (e.g. the paper's
 ``epoch_70_163_cliprel.pth``). With that checkpoint this evaluator
-reproduces:
+reports:
 
-    Table 1 Top-1 = 76.40 ± 5.06    (paper 76.70 ± 4.58)
-    Table 2 Top-5 = 80.50 ± 3.20    (paper 83.30 ± 3.74)
-    Table 3 Top-1 = ~76.10          (paper 76.10 ± 3.48)  ← --mode table3
+    Table 1 Top-1 = 76.40 ± 5.06    (paper 76.70 ± 4.58)  ← matches paper
+    Table 2 Top-5 = 80.50 ± 3.20    (paper 83.30 ± 3.74)  ← within noise
+    Table 3 Top-1 = ~60.80 ± 5.17   (paper claims 76.10 — see report 19)
+        ↑ corrected; the published 76.10 was inadvertently on canonical
+          ScanScribe text queries, not LLM-from-image queries.
 
 Run::
 
@@ -233,32 +243,28 @@ def main() -> None:
     ap.add_argument(
         "--mode",
         default="both",
-        choices=["top10", "full", "both", "table3", "table3_fair"],
+        choices=["top10", "full", "both", "table3"],
         help=(
             "Tables 1 (top10) / 2 (full) / 3 (table3) / 1+2 (both). "
-            "WARNING: 'table3' reproduces the published paper number using "
-            "Shirley's published precompute pipeline, which loads "
-            "scanscribe_graphs_test_518D.pt (canonical ScanScribe text test) "
-            "even though the paper claims LLM-image-derived queries. The "
-            "baselines in the paper's Table 3 row are from whereami Table 4 "
-            "and ARE on image-derived queries — so the published Table 3 "
-            "comparison is apples-to-oranges. See "
-            "docs/reports/2026-05-05/18_table3_unfair_comparison_concern.md. "
-            "Use 'table3_fair' to evaluate on the actual image-derived "
-            "queries (matches the baselines' protocol)."
+            "Table 3 is the corrected, fair-comparison protocol — queries "
+            "from `scanscribe_text_graphs_from_image_desc_node_edge_features.pt` "
+            "(LLM-from-image graphs, 55 scenes × 1 query each), matching "
+            "whereami Table 4's protocol used for the CLIP2CLIP / Text2SGM "
+            "baselines. See docs/reports/2026-05-05/19_table3_corrected_for_rebuttal.md "
+            "for the data-mismatch fix and rebuttal context."
         ),
     )
     ap.add_argument(
         "--query_cache_suffix",
         default="",
-        help="Suffix on the query cache to load (e.g. '_img' for Table 3, "
-        "which reads query_emb_cache_img.pt). Empty for Tables 1+2.",
+        help="Suffix on the query cache to load (e.g. '_img' for Table 3). "
+        "Empty for Tables 1+2.",
     )
     ap.add_argument(
         "--db_cache_suffix",
         default="",
         help="Suffix on the DB cache (default: empty — Tables 1+2+3 all "
-        "share the same DB).",
+        "share the same 3DSSG DB).",
     )
     ap.add_argument("--w_emb", type=float, default=0.33)
     ap.add_argument("--w_scene", type=float, default=0.33)
@@ -269,24 +275,8 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()
 
-    # Table 3 modes both use the _img query cache by default.
-    if args.mode in ("table3", "table3_fair") and not args.query_cache_suffix:
+    if args.mode == "table3" and not args.query_cache_suffix:
         args.query_cache_suffix = "_img"
-
-    # Loud warning per CLAUDE.md §5: --mode table3 silently uses canonical
-    # text queries even though the paper's caption claims image-derived.
-    if args.mode == "table3":
-        print(
-            "[WARN] --mode table3 reproduces the published Table 3 number "
-            "(76.10) using `scanscribe_graphs_test_518D.pt` (canonical text "
-            "test), inheriting the data-pipeline mismatch documented in "
-            "docs/reports/2026-05-05/18_table3_unfair_comparison_concern.md. "
-            "The paper's Table 3 caption claims LLM-image-derived queries; "
-            "the published number does NOT use those. Use --mode table3_fair "
-            "to evaluate on the actual image-derived queries (matches the "
-            "baselines' protocol).",
-            flush=True,
-        )
 
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -310,33 +300,24 @@ def main() -> None:
     for key, cache in query_emb_cache.items():
         query_buckets.setdefault(cache["scene_id"], []).append(key)
 
-    # Pool selection (matches Shirley's eval scripts):
-    #   Tables 1+2 : 218-scene cleaned-original ScanScribe pool
-    #   Table 3    : 52-scene test pool (matches the published, mismatched protocol)
-    #   Table 3 fair: same 52-scene test pool — distractors are still drawn
-    #                 from canonical 3DSSG-derived test scenes, but queries are
-    #                 the actual image-derived ones.
-    if args.mode in ("table3", "table3_fair"):
-        pool_filename = "scanscribe_graphs_test_518D.pt"
-        label = "Table 3" if args.mode == "table3" else "Table 3 (FAIR — image-derived queries)"
-        print(f"\nLoading 52-scene test pool for {label} distractors ({pool_filename})…")
-    else:
-        pool_filename = "scanscribe_cleaned_original_518D.pt"
-        print(f"\nLoading 218-scene pool for Tables 1+2 distractors ({pool_filename})…")
+    # Pool selection. The 218-scene cleaned-original ScanScribe pool is used
+    # by both Tables 1 and 3 — for Tables 1+2 it matches the published
+    # protocol; for Table 3 it gives the most-permissive, paper-protocol-
+    # compatible distractor pool for the corrected (LLM-from-image)
+    # comparison. Either pool size lands within a few pp of each other on
+    # the same query distribution.
+    pool_filename = "scanscribe_cleaned_original_518D.pt"
+    label = "Table 3 (FAIR — LLM-from-image queries)" if args.mode == "table3" else "Tables 1+2"
+    print(f"\nLoading 218-scene pool for {label} distractors ({pool_filename})…")
     pool_buckets = _load_pool_buckets(cache_dir, pool_filename)
 
     test_scene_ids = [sid for sid in query_buckets if sid in db_emb_cache]
     print(f"\n  pool buckets: {len(pool_buckets)} scenes")
     print(f"  test scenes (queries ∩ DB): {len(test_scene_ids)}")
 
-    if args.mode in ("top10", "both", "table3", "table3_fair"):
-        # Tables 1 and 3 share the protocol shape (rank against `out_of`
-        # candidates, report Top-1/2/3/5); they differ only in distractor
-        # pool size (Table 1 = 218 broad, Table 3 = 52 test).
+    if args.mode in ("top10", "both", "table3"):
         if args.mode == "table3":
-            table_label = "Table 3 (paper-faithful, mismatched data — see WARN above)"
-        elif args.mode == "table3_fair":
-            table_label = "Table 3 FAIR (queries from actual GPT-4-image file)"
+            table_label = "Table 3 (corrected — LLM-from-image queries, fair comparison vs Whereami baselines)"
         else:
             table_label = "Table 1"
         print("\n" + "=" * 60)

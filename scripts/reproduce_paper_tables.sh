@@ -1,25 +1,29 @@
 #!/bin/bash
-# Reproduce paper Tables 1+2+3 (scene retrieval Recall@k on ScanScribe).
+# Reproduce paper Tables 1+2 + corrected Table 3 (scene retrieval Recall@k
+# on ScanScribe).
 #
 #   Table 1: 10-candidate pool, ScanScribe-text queries (Top-1/2/3/5)
-#   Table 2: full 55-test-scene pool, ScanScribe-text queries (Top-5/10/20/30)
-#   Table 3: 10-candidate pool, LLM-image-derived queries (Top-1/2/3/5)
+#   Table 2: full-test-set pool, ScanScribe-text queries (Top-5/10/20/30)
+#   Table 3: 10-candidate pool, LLM-from-image queries (Top-1/2/3/5)
+#            ↑ CORRECTED — the published Table 3 (76.10) was inadvertently
+#              produced on canonical ScanScribe text queries; this script
+#              evaluates on the actual LLM-from-image queries that match the
+#              whereami Table 4 protocol used for the CLIP2CLIP / Text2SGM
+#              baselines. See
+#              docs/reports/2026-05-05/19_table3_corrected_for_rebuttal.md
 #
 # Modes:
-#   --use_cache (default): use the paper's pre-computed db_emb_cache.pt +
-#                          query_emb_cache.pt, plus our regenerated
-#                          query_emb_cache_img.pt. Fast (~3 sec).
-#   --rebuild_cache:       re-run the full DualSceneAlignerV2 +
-#                          SimpleGraphMatcher forward pass to produce fresh
-#                          caches (~3-5 min on a CUDA box).
+#   --use_cache (default): use the pre-computed _img caches that already
+#                          point at the LLM-from-image queries.  Fast (~3 sec).
+#   --rebuild_cache:       re-run the V2 + SimpleGraphMatcher forward pass to
+#                          produce fresh caches (~3-5 min on a CUDA box).
 #
-# All modes use seed=42 and `langloc/retrieval/eval.py` (mirrors Shirley's
-# `eval_518_multitask_original_table1_v2.py`/`eval_518_multitask.py`):
-# Eq. 8 weights 0.33/0.33/0.34, 218-scene Tables 1+3 distractor pool,
-# 10 outer × 100 inner rounds.
+# All modes use seed=42 and `langloc/retrieval/eval.py`.  Eq. 8 weights
+# 0.33/0.33/0.34, 218-scene ScanScribe distractor pool, 10 outer × 100 inner
+# rounds.
 #
-# Default cache_dir is `data/processed_data/eval_pool/`. Override via
-# CACHE_DIR=... if your data lives elsewhere.
+# Default cache_dir is `data/processed_data/eval_pool/`.
+# Override IMG_QUERY_PATH to point at a different LLM-from-image query .pt.
 
 set -euo pipefail
 
@@ -28,13 +32,10 @@ cd "$REPO_DIR"
 
 CACHE_DIR="${CACHE_DIR:-data/processed_data/eval_pool}"
 CHECKPOINT="${CHECKPOINT:-data/model_checkpoints/graph2graph/paper/epoch_70_163_cliprel.pth}"
-# Note on Table 3: Shirley's `precompute_table4.py` uses the **same**
-# scanscribe_graphs_test_518D.pt as Tables 1+2 (not the LLM-image-derived
-# queries dir). It just writes _img-suffixed caches. Cache content is
-# essentially identical to Tables 1+2 (max-abs diff ≈ 0.01 from CLIP
-# non-determinism), so Table 3 ≈ Table 1 numerically. Set IMG_QUERY_PATH
-# to override only if you have the multi-paraphrase image-derived queries.
-IMG_QUERY_PATH="${IMG_QUERY_PATH:-}"
+# Default Table-3 query source = the actual LLM-from-image graphs (the same
+# file whereami's eval.py:55 loads to produce its CLIP2CLIP / Text2SGM
+# Table-4 baselines). This is the FAIR-comparison protocol.
+IMG_QUERY_PATH="${IMG_QUERY_PATH:-data/processed_data/scanscribe/scanscribe_text_graphs_from_image_desc_node_edge_features.pt}"
 MODE="use_cache"
 for arg in "$@"; do
     case "$arg" in
@@ -51,30 +52,24 @@ PY="$CONDA_PREFIX/bin/python"
 echo "[REPRODUCE] cache_dir=$CACHE_DIR"
 echo "[REPRODUCE] checkpoint=$CHECKPOINT"
 echo "[REPRODUCE] mode=$MODE"
+echo "[REPRODUCE] table3 query source: $IMG_QUERY_PATH"
 
 if [ "$MODE" = "rebuild_cache" ]; then
     if [ ! -f "$CHECKPOINT" ]; then
         echo "[ERROR] checkpoint not found: $CHECKPOINT" >&2
         exit 1
     fi
-    echo "[REPRODUCE] step 1/2: rebuilding Tables 1+2 caches"
+    echo "[REPRODUCE] step 1/2: rebuilding Tables 1+2 caches (canonical ScanScribe text)"
     "$PY" -m scripts.retrieval.precompute_eval_embeddings \
         --checkpoint "$CHECKPOINT" \
         --cache_dir  "$CACHE_DIR" \
         --device cuda
 
-    echo "[REPRODUCE] step 2/2: rebuilding Table 3 _img-suffixed caches"
-    if [ -n "$IMG_QUERY_PATH" ]; then
-        QUERY_OPT=(--query_path "$IMG_QUERY_PATH")
-    else
-        # Default to the same scanscribe_graphs_test_518D.pt as Tables 1+2
-        # (matches Shirley's precompute_table4.py).
-        QUERY_OPT=()
-    fi
+    echo "[REPRODUCE] step 2/2: rebuilding Table 3 _img cache from LLM-from-image queries"
     "$PY" -m scripts.retrieval.precompute_eval_embeddings \
         --checkpoint "$CHECKPOINT" \
         --cache_dir  "$CACHE_DIR" \
-        "${QUERY_OPT[@]}" \
+        --query_path "$IMG_QUERY_PATH" \
         --cache_suffix _img --skip_db \
         --device cuda
 fi
@@ -93,8 +88,5 @@ echo "[REPRODUCE] running Tables 1 + 2 (seed=42, weights 0.33/0.33/0.34)"
 "$PY" -m langloc.retrieval.eval --cache_dir "$CACHE_DIR" --mode both
 
 echo
-echo "[REPRODUCE] running Table 3 — paper-faithful  (seed=42, weights 0.33/0.33/0.34)"
-echo "  ↳ uses scanscribe_graphs_test_518D.pt (canonical text test) — matches"
-echo "    the published 76.10 number; see"
-echo "    docs/reports/2026-05-05/18_table3_unfair_comparison_concern.md"
+echo "[REPRODUCE] running Table 3 — corrected fair comparison (seed=42, weights 0.33/0.33/0.34)"
 "$PY" -m langloc.retrieval.eval --cache_dir "$CACHE_DIR" --mode table3

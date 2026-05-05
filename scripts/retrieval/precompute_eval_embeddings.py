@@ -139,9 +139,13 @@ def main() -> None:
         "--query_path",
         default=None,
         help="Override path to the query graphs .pt (default: "
-        "<cache_dir>/scanscribe_graphs_test_518D.pt). For Table 3 use the "
-        "image-derived queries: data/processed_data/scanscribe/"
-        "scanscribe_text_graphs_from_image_desc_node_edge_features.pt.",
+        "<cache_dir>/scanscribe_graphs_test_518D.pt — canonical ScanScribe "
+        "test, used for Tables 1+2). For the corrected Table 3 use the "
+        "actual LLM-from-image queries: data/processed_data/scanscribe/"
+        "scanscribe_text_graphs_from_image_desc_node_edge_features.pt — "
+        "this matches the protocol whereami Table 4 used for the CLIP2CLIP/"
+        "Text2SGM baselines. See "
+        "docs/reports/2026-05-05/19_table3_corrected_for_rebuttal.md.",
     )
     ap.add_argument(
         "--cache_suffix",
