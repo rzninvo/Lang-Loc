@@ -93,5 +93,8 @@ echo "[REPRODUCE] running Tables 1 + 2 (seed=42, weights 0.33/0.33/0.34)"
 "$PY" -m langloc.retrieval.eval --cache_dir "$CACHE_DIR" --mode both
 
 echo
-echo "[REPRODUCE] running Table 3  (seed=42, weights 0.33/0.33/0.34)"
+echo "[REPRODUCE] running Table 3 — paper-faithful  (seed=42, weights 0.33/0.33/0.34)"
+echo "  ↳ uses scanscribe_graphs_test_518D.pt (canonical text test) — matches"
+echo "    the published 76.10 number; see"
+echo "    docs/reports/2026-05-05/18_table3_unfair_comparison_concern.md"
 "$PY" -m langloc.retrieval.eval --cache_dir "$CACHE_DIR" --mode table3

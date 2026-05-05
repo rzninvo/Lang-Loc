@@ -233,8 +233,20 @@ def main() -> None:
     ap.add_argument(
         "--mode",
         default="both",
-        choices=["top10", "full", "both", "table3"],
-        help="Tables 1 (top10) / 2 (full) / 3 (table3) / 1+2 (both).",
+        choices=["top10", "full", "both", "table3", "table3_fair"],
+        help=(
+            "Tables 1 (top10) / 2 (full) / 3 (table3) / 1+2 (both). "
+            "WARNING: 'table3' reproduces the published paper number using "
+            "Shirley's published precompute pipeline, which loads "
+            "scanscribe_graphs_test_518D.pt (canonical ScanScribe text test) "
+            "even though the paper claims LLM-image-derived queries. The "
+            "baselines in the paper's Table 3 row are from whereami Table 4 "
+            "and ARE on image-derived queries — so the published Table 3 "
+            "comparison is apples-to-oranges. See "
+            "docs/reports/2026-05-05/18_table3_unfair_comparison_concern.md. "
+            "Use 'table3_fair' to evaluate on the actual image-derived "
+            "queries (matches the baselines' protocol)."
+        ),
     )
     ap.add_argument(
         "--query_cache_suffix",
@@ -257,9 +269,24 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()
 
-    # Table 3 mode automatically picks the _img query cache.
-    if args.mode == "table3" and not args.query_cache_suffix:
+    # Table 3 modes both use the _img query cache by default.
+    if args.mode in ("table3", "table3_fair") and not args.query_cache_suffix:
         args.query_cache_suffix = "_img"
+
+    # Loud warning per CLAUDE.md §5: --mode table3 silently uses canonical
+    # text queries even though the paper's caption claims image-derived.
+    if args.mode == "table3":
+        print(
+            "[WARN] --mode table3 reproduces the published Table 3 number "
+            "(76.10) using `scanscribe_graphs_test_518D.pt` (canonical text "
+            "test), inheriting the data-pipeline mismatch documented in "
+            "docs/reports/2026-05-05/18_table3_unfair_comparison_concern.md. "
+            "The paper's Table 3 caption claims LLM-image-derived queries; "
+            "the published number does NOT use those. Use --mode table3_fair "
+            "to evaluate on the actual image-derived queries (matches the "
+            "baselines' protocol).",
+            flush=True,
+        )
 
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -284,11 +311,15 @@ def main() -> None:
         query_buckets.setdefault(cache["scene_id"], []).append(key)
 
     # Pool selection (matches Shirley's eval scripts):
-    #   Tables 1+2: 218-scene cleaned-original ScanScribe pool
-    #   Table 3   : 52-scene test pool (scanscribe_graphs_test_518D.pt)
-    if args.mode == "table3":
+    #   Tables 1+2 : 218-scene cleaned-original ScanScribe pool
+    #   Table 3    : 52-scene test pool (matches the published, mismatched protocol)
+    #   Table 3 fair: same 52-scene test pool — distractors are still drawn
+    #                 from canonical 3DSSG-derived test scenes, but queries are
+    #                 the actual image-derived ones.
+    if args.mode in ("table3", "table3_fair"):
         pool_filename = "scanscribe_graphs_test_518D.pt"
-        print(f"\nLoading 52-scene test pool for Table 3 distractors ({pool_filename})…")
+        label = "Table 3" if args.mode == "table3" else "Table 3 (FAIR — image-derived queries)"
+        print(f"\nLoading 52-scene test pool for {label} distractors ({pool_filename})…")
     else:
         pool_filename = "scanscribe_cleaned_original_518D.pt"
         print(f"\nLoading 218-scene pool for Tables 1+2 distractors ({pool_filename})…")
@@ -298,11 +329,16 @@ def main() -> None:
     print(f"\n  pool buckets: {len(pool_buckets)} scenes")
     print(f"  test scenes (queries ∩ DB): {len(test_scene_ids)}")
 
-    if args.mode in ("top10", "both", "table3"):
+    if args.mode in ("top10", "both", "table3", "table3_fair"):
         # Tables 1 and 3 share the protocol shape (rank against `out_of`
         # candidates, report Top-1/2/3/5); they differ only in distractor
         # pool size (Table 1 = 218 broad, Table 3 = 52 test).
-        table_label = "Table 3" if args.mode == "table3" else "Table 1"
+        if args.mode == "table3":
+            table_label = "Table 3 (paper-faithful, mismatched data — see WARN above)"
+        elif args.mode == "table3_fair":
+            table_label = "Table 3 FAIR (queries from actual GPT-4-image file)"
+        else:
+            table_label = "Table 1"
         print("\n" + "=" * 60)
         print(f"{table_label} protocol: top-k of {args.out_of} candidates")
         print("=" * 60)
