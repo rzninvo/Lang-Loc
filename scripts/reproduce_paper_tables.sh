@@ -28,7 +28,13 @@ cd "$REPO_DIR"
 
 CACHE_DIR="${CACHE_DIR:-data/processed_data/eval_pool}"
 CHECKPOINT="${CHECKPOINT:-data/model_checkpoints/graph2graph/paper/epoch_70_163_cliprel.pth}"
-IMG_QUERY_PATH="${IMG_QUERY_PATH:-data/processed_data/scanscribe/scanscribe_text_graphs_from_image_desc_node_edge_features.pt}"
+# Note on Table 3: Shirley's `precompute_table4.py` uses the **same**
+# scanscribe_graphs_test_518D.pt as Tables 1+2 (not the LLM-image-derived
+# queries dir). It just writes _img-suffixed caches. Cache content is
+# essentially identical to Tables 1+2 (max-abs diff ≈ 0.01 from CLIP
+# non-determinism), so Table 3 ≈ Table 1 numerically. Set IMG_QUERY_PATH
+# to override only if you have the multi-paraphrase image-derived queries.
+IMG_QUERY_PATH="${IMG_QUERY_PATH:-}"
 MODE="use_cache"
 for arg in "$@"; do
     case "$arg" in
@@ -57,11 +63,18 @@ if [ "$MODE" = "rebuild_cache" ]; then
         --cache_dir  "$CACHE_DIR" \
         --device cuda
 
-    echo "[REPRODUCE] step 2/2: rebuilding Table 3 query cache (image-derived)"
+    echo "[REPRODUCE] step 2/2: rebuilding Table 3 _img-suffixed caches"
+    if [ -n "$IMG_QUERY_PATH" ]; then
+        QUERY_OPT=(--query_path "$IMG_QUERY_PATH")
+    else
+        # Default to the same scanscribe_graphs_test_518D.pt as Tables 1+2
+        # (matches Shirley's precompute_table4.py).
+        QUERY_OPT=()
+    fi
     "$PY" -m scripts.retrieval.precompute_eval_embeddings \
         --checkpoint "$CHECKPOINT" \
         --cache_dir  "$CACHE_DIR" \
-        --query_path "$IMG_QUERY_PATH" \
+        "${QUERY_OPT[@]}" \
         --cache_suffix _img --skip_db \
         --device cuda
 fi
