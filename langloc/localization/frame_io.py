@@ -369,6 +369,164 @@ def recover_centroids(parsed_graph: dict,
 
 
 # ---------------------------------------------------------------------------
+#  Parsed-JSON caption path (paper §3.3 / Supp §4.3)
+# ---------------------------------------------------------------------------
+
+def load_parsed_frame_jsons(desc_dir: Path) -> List[FrameSelection]:
+    """Load all ``frame-*_parsed.json`` files from a descriptions directory.
+
+    Each parsed JSON carries a ``parsed_graph`` field (nodes + edges
+    extracted by GPT-4o-mini from the natural-language ``description``)
+    plus the original frame metadata.  Used by the paper-protocol
+    fine-localization path (``caption_source=parsed``).
+
+    Args:
+        desc_dir: Directory containing ``frame-*_parsed.json`` files.
+
+    Returns:
+        List of :class:`FrameSelection` objects sorted by file name.
+        Empty if the directory is missing or contains no parsed files.
+    """
+    frames: List[FrameSelection] = []
+    if not desc_dir.exists():
+        return frames
+
+    for path in sorted(desc_dir.glob("frame-*_parsed.json")):
+        try:
+            data = json.loads(path.read_text())
+        except json.JSONDecodeError:
+            continue
+        if isinstance(data, dict):
+            frames.append(FrameSelection(frame=data, path=path))
+    return frames
+
+
+def parsed_frame_to_scenegraph(parsed_data: dict,
+                               parsed_path: Path,
+                               query_embedding_mode: str = "doc",
+                               centroid_similarity_threshold: float = 0.7,
+                               ) -> Tuple[Optional["SceneGraph"], Dict[int, dict]]:
+    """Build a SceneGraph from a parsed-JSON caption (paper protocol).
+
+    Implements the parsed-JSON caption path used by the published
+    Table 4 numbers:
+
+    1. Read the GPT-parsed nodes / edges from ``parsed_data["parsed_graph"]``.
+    2. Ensure each node carries a Word2Vec label embedding (computed
+       on demand if missing).
+    3. Match each parsed node label back to the original frame's
+       ``visible_objects`` via :func:`recover_centroids`, accepting
+       only matches whose Word2Vec cosine ≥ γ
+       (``centroid_similarity_threshold``).  The matched VO's
+       ``centroid_world`` becomes the parsed node's centroid.
+    4. Drop parsed nodes that fail to ground (paper "Frames without
+       sufficient grounding are discarded" — Supp §4.3).
+    5. Drop edges whose endpoints did not survive grounding.
+    6. Build a SceneGraph with the surviving nodes and edges, in the
+       same 518-D feature schema used by ``frame_to_scenegraph`` (zero-
+       padded color / radius for parsed nodes).
+
+    Args:
+        parsed_data: Top-level dict loaded from a ``*_parsed.json``
+            file.  Must contain ``parsed_graph`` with ``nodes`` and
+            ``edges`` lists; falls back to an empty graph otherwise.
+        parsed_path: Path to the parsed JSON.  Used to resolve the raw
+            frame JSON for centroid recovery.
+        query_embedding_mode: Word2vec aggregation mode for any nodes
+            whose precomputed ``label_word2vec`` is missing.  Paper
+            default: ``"doc"`` (Supp Table 7 / Master Table A.4).
+        centroid_similarity_threshold: Grounding threshold γ
+            (paper / supp / master report value: 0.7).  Parsed nodes
+            whose best Word2Vec match falls below γ are discarded.
+
+    Returns:
+        A 2-tuple ``(scene_graph, meta)``.  ``scene_graph`` is ``None``
+        if no parsed nodes survived grounding.  ``meta`` maps surviving
+        parsed-node IDs to grounding metadata
+        (``source_object_id``, ``matched_vo_label``, ``match_similarity``,
+        ``centroid_world``).
+
+    Line-by-line equivalent of mk5's ``parsed_frame_to_scenegraph``
+    (visualize_eval_loc_mk5.py:276-331), specialised to our existing
+    518-D feature schema and ``SceneGraph`` constructor.
+    """
+    parsed_graph = parsed_data.get("parsed_graph", {}) or {}
+    parsed_nodes = parsed_graph.get("nodes", []) or []
+    parsed_edges = parsed_graph.get("edges", []) or []
+    if not parsed_nodes:
+        return None, {}
+
+    meta = recover_centroids(
+        parsed_graph,
+        parsed_path,
+        embedding_mode=query_embedding_mode,
+        similarity_threshold=centroid_similarity_threshold,
+    )
+    if not meta:
+        return None, {}
+
+    # Re-emit nodes / edges in the schema accepted by the SceneGraph
+    # constructor (same shape as `frame_to_scenegraph`).  Each surviving
+    # parsed node carries its Word2Vec embedding; centroid information
+    # is recorded in the `meta` return — visibility ray-casting uses
+    # scene-graph centroids (not caption-graph ones), so the caption
+    # graph itself does not need geometry.
+    surviving_node_ids: set = set()
+    out_nodes: List[dict] = []
+    for node in parsed_nodes:
+        nid = int(node["id"])
+        if nid not in meta:
+            continue  # Grounding γ=0.7 dropped this parsed node.
+        label = node.get("label", "") or f"object_{nid}"
+        node_emb = node.get("label_word2vec")
+        if node_emb is None or (hasattr(node_emb, "__len__") and len(node_emb) == 0):
+            node_emb = _embed_word2vec(label, mode=query_embedding_mode)
+        attr_w2v = node.get("attributes_word2vec") or {"all": []}
+        out_nodes.append({
+            "id": nid,
+            "label": label,
+            "attributes": list(node.get("attributes", []) or []),
+            "label_word2vec": node_emb,
+            "attributes_word2vec": attr_w2v,
+        })
+        surviving_node_ids.add(nid)
+
+    if not out_nodes:
+        return None, {}
+
+    out_edges: List[dict] = []
+    for edge in parsed_edges:
+        try:
+            src = int(edge.get("source"))
+            tgt = int(edge.get("target"))
+        except (TypeError, ValueError):
+            continue
+        if src not in surviving_node_ids or tgt not in surviving_node_ids:
+            continue
+        rel_type = edge.get("relationship") or edge.get("relation", "near")
+        rel_emb = edge.get("relation_word2vec")
+        if rel_emb is None or (hasattr(rel_emb, "__len__") and len(rel_emb) == 0):
+            rel_emb = _embed_word2vec(rel_type, mode=query_embedding_mode)
+        out_edges.append({
+            "source": src,
+            "target": tgt,
+            "relationship": rel_type,
+            "relation_word2vec": rel_emb,
+        })
+
+    graph_dict = {"nodes": out_nodes, "edges": out_edges}
+    sg = SceneGraph(
+        scene_id=parsed_data.get("scene_index", "unknown_scene"),
+        txt_id=parsed_data.get("source_frame", parsed_path.stem),
+        graph_type="scanscribe",
+        graph=graph_dict,
+        embedding_type="word2vec",
+        use_attributes=True,
+    )
+    return sg, meta
+
+
+# ---------------------------------------------------------------------------
 #  Camera pose helper
 # ---------------------------------------------------------------------------
 

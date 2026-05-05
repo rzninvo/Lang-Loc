@@ -165,11 +165,33 @@ def evaluate_scene(scene_id: str,
     desc_dir = query_root / scene_id / "output" / "descriptions"
     if not desc_dir.exists():
         desc_dir = scene_dir / "output" / "descriptions"
-    frames = load_frame_jsons(desc_dir)
+
+    # --- Caption-graph source (paper §3.3 / Supp §4.3) ----------------
+    # caption_source = "raw"     → build the caption SceneGraph directly
+    #                              from `visible_objects` (mk4-style;
+    #                              upper-bound debug path).
+    # caption_source = "parsed"  → load `*_parsed.json` (GPT-parsed
+    #                              caption) and ground each parsed node
+    #                              back to a `visible_objects` entry via
+    #                              Word2Vec at γ.  Paper protocol.
+    caption_source = str(_cfg_get(cfg, "caption_source", "raw")).lower()
+    grounding_threshold = float(_cfg_get(cfg, "grounding_threshold", 0.7))
+    query_embedding_mode = str(_cfg_get(cfg, "query_embedding_mode", "doc"))
+
+    if caption_source == "parsed":
+        from langloc.localization.frame_io import load_parsed_frame_jsons
+        from langloc.localization.frame_io import parsed_frame_to_scenegraph
+        frames = load_parsed_frame_jsons(desc_dir)
+    else:
+        frames = load_frame_jsons(desc_dir)
+
     if not frames:
         if mode == EvalMode.CANDIDATES:
             return None
-        print(f"[WARN] No frame JSONs under {desc_dir} — skipped.")
+        print(f"[WARN] No frame JSONs ({caption_source}) under {desc_dir} — "
+              f"skipped.  Run `python -m langloc.dataset.annotation."
+              f"parse_descriptions` to produce *_parsed.json files when "
+              f"using caption_source=parsed.")
         return None
 
     if frame_override is not None:
@@ -184,13 +206,25 @@ def evaluate_scene(scene_id: str,
 
     frame = selection.frame
     try:
-        graph_kw = {}
-        if graph_cfg is not None:
-            graph_kw = dict(
-                embedding_type=graph_cfg.embedding_type,
-                use_attributes=graph_cfg.use_attributes,
+        if caption_source == "parsed":
+            caption_graph, _ = parsed_frame_to_scenegraph(
+                frame,
+                selection.path,
+                query_embedding_mode=query_embedding_mode,
+                centroid_similarity_threshold=grounding_threshold,
             )
-        caption_graph, _ = frame_to_scenegraph(frame, **graph_kw)
+            if caption_graph is None:
+                print(f"[WARN] {scene_id}: no parsed caption nodes survived "
+                      f"grounding (γ={grounding_threshold}) — skipped.")
+                return None
+        else:
+            graph_kw = {}
+            if graph_cfg is not None:
+                graph_kw = dict(
+                    embedding_type=graph_cfg.embedding_type,
+                    use_attributes=graph_cfg.use_attributes,
+                )
+            caption_graph, _ = frame_to_scenegraph(frame, **graph_kw)
     except Exception as exc:
         if mode == EvalMode.CANDIDATES:
             return None
