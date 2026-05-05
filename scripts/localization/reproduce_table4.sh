@@ -1,35 +1,48 @@
 #!/bin/bash
-# Reproduce paper Table 4(a) fine-localization numbers on the exact 100-scene
-# subset used in the paper (3RScan).
+# Reproduce paper Table 4 fine-localization numbers on the 100-scene subsets
+# the paper evaluates (3RScan and ScanNet).
 #
-# Two protocols are supported:
+# Two datasets supported (Table 4 row):
+#
+#   3rscan  — Table 4(a). Subset list:
+#             manifests/3rscan_table4_subset_100.txt (sourced from
+#             whereami's `subset_100_scene_ids.txt`).
+#   scannet — Table 4(b). Subset list:
+#             manifests/scannet_table4_first_100.txt (the first 100
+#             entries of configs/manifests/scannetv2_all.txt).
+#
+# Two protocols supported:
 #
 #   raw    — caption SceneGraph built directly from `visible_objects`
 #            (structured GT shortcut; no API calls; fast smoke check).
 #   parsed — caption SceneGraph built from `*_parsed.json` produced by
 #            `langloc.dataset.annotation.parse_descriptions` (paper
-#            protocol; one-time GPT-4o-mini precompute on the 1000
-#            frames in the subset, ~$0.03, ~5 min wall-clock).
+#            protocol; one-time GPT-4o-mini precompute, ~$0.03/100
+#            scenes, ~5 min wall-clock).
 #
 # Usage:
-#   bash scripts/localization/reproduce_table4.sh raw
-#   bash scripts/localization/reproduce_table4.sh parsed         # auto-runs precompute
-#   bash scripts/localization/reproduce_table4.sh parsed --skip_precompute
+#   bash scripts/localization/reproduce_table4.sh raw                  # 3rscan / raw
+#   bash scripts/localization/reproduce_table4.sh parsed               # 3rscan / parsed
+#   bash scripts/localization/reproduce_table4.sh raw scannet          # 4(b) raw
+#   bash scripts/localization/reproduce_table4.sh parsed scannet       # 4(b) parsed
+#   bash scripts/localization/reproduce_table4.sh parsed scannet --skip_precompute
 #
-# Reference numbers (paper Table 4(a) "LangLoc w/o dialog", 3RScan 100-scene):
+# Reference numbers (paper Table 4 "LangLoc w/o dialog"):
 #
-#   Pos err mean       1.712 m         Pos err median     1.551 m
-#   Top-10 mean        1.037 m         Top-10 median      0.941 m
-#   Angle err mean     46.07°          Angle err median   37.24°
-#   3D IoU mean        0.172
-#
-# Numbers logged to docs/experiments/<date>_table4_port_progress.md when a run
-# is recorded; the paper subset list itself lives at
-# manifests/3rscan_table4_subset_100.txt and is part of the repo.
+#   3RScan  — Pos mean 1.712 / med 1.551 m   Angle mean 46.07° / med 37.24°
+#             Top-10 mean 1.037 / med 0.941  3D IoU mean 0.172
+#   ScanNet — Pos mean 1.382 / med 1.099 m   Angle mean 42.67° / med 34.66°
+#             Top-10 mean 1.254 / med 1.065  3D IoU mean 0.236
 set -euo pipefail
 
 PROTOCOL="${1:-parsed}"
 shift || true
+DATASET="${1:-3rscan}"
+case "$DATASET" in
+    3rscan|scannet) shift || true ;;
+    --*)            DATASET="3rscan" ;;  # Forwarded flag, not a dataset.
+    *)              shift || true ;;     # Unknown — leave as-is and forward.
+esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -48,9 +61,25 @@ if [[ ! -x "$PYTHON_BIN" ]]; then
     fi
 fi
 
-SUBSET_FILE="manifests/3rscan_table4_subset_100.txt"
+case "$DATASET" in
+    3rscan)
+        SUBSET_FILE="manifests/3rscan_table4_subset_100.txt"
+        DATA_ROOT="data/3RScan"
+        OVERLAY="3rscan"
+        ;;
+    scannet)
+        SUBSET_FILE="manifests/scannet_table4_first_100.txt"
+        DATA_ROOT="data/scans"
+        OVERLAY="scannet"
+        ;;
+    *)
+        echo "[ERROR] Unknown dataset '$DATASET'.  Use '3rscan' or 'scannet'." >&2
+        exit 1
+        ;;
+esac
+
 if [[ ! -f "$SUBSET_FILE" ]]; then
-    echo "[ERROR] Paper-subset list missing: $SUBSET_FILE" >&2
+    echo "[ERROR] Subset list missing: $SUBSET_FILE" >&2
     exit 1
 fi
 
@@ -63,32 +92,32 @@ for arg in "$@"; do
     esac
 done
 
-# Precompute *_parsed.json on the paper subset if requested and missing.
+# Precompute *_parsed.json over the subset's frames if needed.
 if [[ "$PROTOCOL" == "parsed" && "$SKIP_PRECOMPUTE" == "0" ]]; then
     SCENE_ARGS=$(awk 'NF' "$SUBSET_FILE" | tr '\n' ' ')
-    PARSED_PRESENT=$(find data/3RScan -path '*output/descriptions/*_parsed.json' | wc -l)
-    if [[ "$PARSED_PRESENT" -lt 1000 ]]; then
-        echo "[INFO] Found ${PARSED_PRESENT} *_parsed.json files (need 1000)."
-        echo "[INFO] Running parse_descriptions on the paper subset (~5 min, ~\$0.03)..."
+    PARSED_PRESENT=$(find "$DATA_ROOT" -path '*output/descriptions/*_parsed.json' 2>/dev/null | wc -l)
+    NEEDED=$(($(wc -l < "$SUBSET_FILE") * 10))  # ~10 frames/scene
+    if [[ "$PARSED_PRESENT" -lt "$NEEDED" ]]; then
+        echo "[INFO] Found ${PARSED_PRESENT} *_parsed.json under ${DATA_ROOT}; running precompute (~5 min, ~\$0.03)..."
         "${PYTHON_BIN}" -m langloc.dataset.annotation.parse_descriptions \
-            --data_root data/3RScan \
+            --data_root "$DATA_ROOT" \
             --scene_ids $SCENE_ARGS \
             --workers 8 \
             --seed 42
     else
-        echo "[INFO] Found ${PARSED_PRESENT} *_parsed.json files; skipping precompute."
+        echo "[INFO] Found ${PARSED_PRESENT} *_parsed.json files under ${DATA_ROOT}; skipping precompute."
     fi
 fi
 
 # Build the comma-separated scene list expected by Hydra.
 SCENE_LIST=$(awk 'NF{printf "%s,", $1}' "$SUBSET_FILE" | sed 's/,$//')
 
-OUT_FILE="eval/eval_metrics_table4_${PROTOCOL}.json"
+OUT_FILE="eval/eval_metrics_table4_${DATASET}_${PROTOCOL}.json"
 mkdir -p eval
 
-echo "[INFO] Running localization (protocol=${PROTOCOL}, seed=42, 100 scenes)..."
+echo "[INFO] Running localization (dataset=${DATASET}, protocol=${PROTOCOL}, seed=42, 100 scenes)..."
 "${PYTHON_BIN}" -m langloc.localization.cli \
-    localization=3rscan \
+    "localization=${OVERLAY}" \
     localization.seed=42 \
     "localization.caption_source=${PROTOCOL}" \
     "+localization.scene_ids=[${SCENE_LIST}]" \

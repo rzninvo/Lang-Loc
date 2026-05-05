@@ -263,10 +263,20 @@ def discover_frame_jsons(data_root: Path,
                          scene_ids: Optional[List[str]] = None) -> List[Path]:
     """Return all source frame JSON paths under ``data_root``.
 
-    Looks under ``<data_root>/<scene_id>/output/descriptions/frame-*.json``
-    and excludes ``*_parsed.json`` byproducts.  When *scene_ids* is
-    given, restricts to those scenes; otherwise visits every scene
-    directory.
+    Looks under ``<data_root>/<scene_id>/output/descriptions/`` for
+    per-frame JSONs and excludes ``*_parsed.json`` byproducts.
+
+    Naming conventions handled:
+
+    - 3RScan: ``frame-NNNNNN.json``
+    - ScanNet: ``NNNNNN.json``
+
+    Frames embedded inside an ``all_descriptions.json`` aggregate file
+    are not picked up here — they need to be split into per-frame
+    JSONs first via the dataset-build pipeline.
+
+    When *scene_ids* is given, restricts to those scenes; otherwise
+    visits every scene directory.
     """
     if scene_ids:
         dirs = [data_root / sid / "output" / "descriptions" for sid in scene_ids]
@@ -277,7 +287,20 @@ def discover_frame_jsons(data_root: Path,
     for d in dirs:
         if not d.exists():
             continue
-        for p in sorted(d.glob("frame-*.json")):
+        # 3RScan-style first; ScanNet-style fallback for scenes that
+        # don't use the `frame-` prefix.  Filter `_parsed` byproducts
+        # in both cases.
+        candidates = list(d.glob("frame-*.json"))
+        if not candidates:
+            candidates = [
+                p for p in d.glob("*.json")
+                if not p.stem.endswith("_parsed")
+                and p.name != "all_descriptions.json"
+                # Skip aggregate files; per-frame JSONs are needed for
+                # `_parsed.json` siblings to live next to them.
+                and not p.stem.startswith("all_")
+            ]
+        for p in sorted(candidates):
             if p.stem.endswith("_parsed"):
                 continue
             paths.append(p)

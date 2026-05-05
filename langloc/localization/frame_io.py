@@ -373,15 +373,20 @@ def recover_centroids(parsed_graph: dict,
 # ---------------------------------------------------------------------------
 
 def load_parsed_frame_jsons(desc_dir: Path) -> List[FrameSelection]:
-    """Load all ``frame-*_parsed.json`` files from a descriptions directory.
+    """Load all ``*_parsed.json`` files from a descriptions directory.
 
     Each parsed JSON carries a ``parsed_graph`` field (nodes + edges
     extracted by GPT-4o-mini from the natural-language ``description``)
     plus the original frame metadata.  Used by the paper-protocol
     fine-localization path (``caption_source=parsed``).
 
+    Naming conventions handled:
+
+    - 3RScan: ``frame-NNNNNN_parsed.json``
+    - ScanNet: ``NNNNNN_parsed.json``
+
     Args:
-        desc_dir: Directory containing ``frame-*_parsed.json`` files.
+        desc_dir: Directory containing ``*_parsed.json`` files.
 
     Returns:
         List of :class:`FrameSelection` objects sorted by file name.
@@ -391,7 +396,9 @@ def load_parsed_frame_jsons(desc_dir: Path) -> List[FrameSelection]:
     if not desc_dir.exists():
         return frames
 
-    for path in sorted(desc_dir.glob("frame-*_parsed.json")):
+    for path in sorted(desc_dir.glob("*_parsed.json")):
+        if not path.stem.endswith("_parsed"):
+            continue  # Defensive — glob already filters.
         try:
             data = json.loads(path.read_text())
         except json.JSONDecodeError:
