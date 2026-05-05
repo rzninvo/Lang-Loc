@@ -1,28 +1,31 @@
 """Canonical training for ``DualSceneAlignerV2 + SimpleGraphMatcher``.
 
-Mirrors Shirley's ``train_contrastive_2.py`` (paper §4): symmetric InfoNCE on
-positive (src, ref) graph pairs from ``DualSceneGraphDataset`` (room-grouped
-via 3RScan.json). The dataset class already pairs same-room scenes (or
-random fallbacks) and supports subgraph augmentation; we treat the resulting
-src/ref pair as a positive for a CLIP-style symmetric InfoNCE loss with
-``τ = 0.1`` and rely on in-batch negatives.
+Bit-faithful port of Shirley's ``train_withscene_clip_518_multitask_v2.py`` —
+the script that produced the paper checkpoint ``epoch_70_163_cliprel.pth``.
 
-Hyperparameters match the ``epoch_70_163_cliprel.pth`` checkpoint:
+Recipe (verbatim from her source):
 
-    epochs       = 70
-    batch_size   = 16
-    optimizer    = AdamW(lr=1e-3, weight_decay=1e-4)
-    schedule     = 10% linear warmup → cosine to 0
-    temperature  = 0.1
-    seed         = 42
+    epochs        = 70
+    batch_size    = 16
+    optimizer     = AdamW(lr=lr*0.5, weight_decay=1e-4, betas=(0.9, 0.999))
+    schedule      = 10% linear warmup → cosine to floor 0.1
+    loss          = SimpleContrastiveLoss(temperature=0.07) on
+                    [src_emb; ref_emb] with labels constructed from is_positive
+    base_dropout  = 0.0       # NOTE: V2 base model uses 0.0, not 0.1
+    fusion_drop.  = 0.3       # already inside SimpleGraphMatcher
+    grad_clip     = 1.0
+    seed          = 42
+    dataset       = combined_dataset_clip (100 3DSSG + ~3356 ScanScribe paraphrases)
+    sampler       = negative_ratio = 0.5
 
-Saves ``epoch_<N>.pth`` every ``--save_every`` epochs and ``best.pth`` (lowest
-moving-average loss) into ``--save_dir``.
+The ``epoch_70_163_cliprel.pth`` filename comes from her save line
+(``f"epoch_{epoch}_163_cliprel.pth"``); the ``163`` is a literal in the
+filename, not a dataset count.
 
 Run::
 
     python -m langloc.retrieval.train \\
-        --dataset_dir   data/processed_data/scene_graph_clip \\
+        --dataset_dir   data/processed_data/combined_dataset_clip \\
         --metadata_path data/3RScan/3RScan.json \\
         --save_dir      data/model_checkpoints/graph2graph/canonical_v2
 """
@@ -57,8 +60,6 @@ def set_seed(seed: int) -> None:
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
-    # Determinism: cudnn.deterministic + benchmark off; warn-only because
-    # GATv2's scatter ops do not have fully deterministic CUDA kernels.
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     try:
@@ -69,7 +70,6 @@ def set_seed(seed: int) -> None:
 
 
 def worker_init_fn(worker_id: int) -> None:
-    """Per-worker reseed so ``random.choice`` in __getitem__ is reproducible."""
     base_seed = torch.initial_seed() % (2 ** 31)
     seed = (base_seed + worker_id) % (2 ** 31)
     random.seed(seed)
@@ -79,10 +79,12 @@ def worker_init_fn(worker_id: int) -> None:
 # ---------------------------------------------------------------------------
 # Collate: batch variable-size graphs by concatenating tensors and shifting
 # edge indices into a single big-graph index space, plus a per-node
-# ``*_batch`` vector that ``scatter_mean`` reads inside the model.
+# ``*_batch`` vector that ``scatter_mean`` reads inside the model. Mirrors
+# Shirley's ``collate_fn`` in train_withscene_clip_518_multitask_v2.py.
 # ---------------------------------------------------------------------------
-def graph_pair_collate(samples: list[dict]) -> dict[str, torch.Tensor]:
-    out: dict[str, torch.Tensor] = {}
+def graph_pair_collate(samples: list[dict]) -> dict[str, torch.Tensor | int]:
+    out: dict[str, torch.Tensor | int] = {"batch_size": len(samples)}
+    is_positive: list[bool] = []
     for branch in ("src", "ref"):
         node_feats: list[torch.Tensor] = []
         geom_edges: list[torch.Tensor] = []
@@ -111,48 +113,76 @@ def graph_pair_collate(samples: list[dict]) -> dict[str, torch.Tensor]:
             node_offset += n_nodes
 
         out[f"node_feats_{branch}"] = torch.cat(node_feats, dim=0)
-        out[f"geom_edges_{branch}"] = torch.cat(geom_edges, dim=1) if geom_edges and any(e.numel() > 0 for e in geom_edges) else torch.zeros(2, 0, dtype=torch.long)
+        out[f"geom_edges_{branch}"] = torch.cat(geom_edges, dim=1) if any(e.numel() > 0 for e in geom_edges) else torch.zeros(2, 0, dtype=torch.long)
         out[f"geom_attr_{branch}"] = torch.cat(geom_attr, dim=0) if geom_attr else torch.zeros(0, 8)
-        out[f"text_edges_{branch}"] = torch.cat(text_edges, dim=1) if text_edges and any(e.numel() > 0 for e in text_edges) else torch.zeros(2, 0, dtype=torch.long)
+        out[f"text_edges_{branch}"] = torch.cat(text_edges, dim=1) if any(e.numel() > 0 for e in text_edges) else torch.zeros(2, 0, dtype=torch.long)
         out[f"text_attr_{branch}"] = torch.cat(text_attr, dim=0) if text_attr else torch.zeros(0, 512)
         out[f"scene_clip_{branch}"] = torch.stack(scene_clip, dim=0)
         out[f"{branch}_batch"] = torch.cat(batch_idx, dim=0)
+
+    for s in samples:
+        is_positive.append(bool(s.get("is_positive", True)))
+    out["is_positive"] = torch.tensor(is_positive, dtype=torch.bool)
     return out
 
 
-def to_device(batch: dict[str, torch.Tensor], device: torch.device) -> dict[str, torch.Tensor]:
-    return {k: v.to(device, non_blocking=True) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
+def to_device(batch: dict, device: torch.device) -> dict:
+    return {k: v.to(device, non_blocking=True) if isinstance(v, torch.Tensor) else v
+            for k, v in batch.items()}
 
 
 # ---------------------------------------------------------------------------
-# Loss: symmetric InfoNCE on (src_emb, ref_emb), τ = 0.1
+# Loss: Shirley's SimpleContrastiveLoss (verbatim semantics, vectorized).
+#
+# Embeddings: ``[src; ref]`` of shape ``(2B, D)``.
+# Labels   : ``src_labels = arange(B)``; ``ref_labels = arange(B)`` but with
+#            ``ref_labels[~is_positive] += B`` so explicit-negative refs end
+#            up in their own class. Pairs with matching labels are positives;
+#            others are negatives. Diagonal (self) is excluded.
 # ---------------------------------------------------------------------------
-def info_nce_symmetric(
-    src_emb: torch.Tensor, ref_emb: torch.Tensor, temperature: float
-) -> tuple[torch.Tensor, torch.Tensor]:
-    src = F.normalize(src_emb, dim=-1)
-    ref = F.normalize(ref_emb, dim=-1)
-    logits = src @ ref.t() / temperature           # (B, B)
-    labels = torch.arange(logits.size(0), device=logits.device)
-    loss = 0.5 * (F.cross_entropy(logits, labels) + F.cross_entropy(logits.t(), labels))
-    with torch.no_grad():
-        acc_s2r = (logits.argmax(dim=-1) == labels).float().mean()
-        acc_r2s = (logits.t().argmax(dim=-1) == labels).float().mean()
-        acc = 0.5 * (acc_s2r + acc_r2s)
-    return loss, acc
+class SimpleContrastiveLoss(nn.Module):
+    def __init__(self, temperature: float = 0.07) -> None:
+        super().__init__()
+        self.temperature = temperature
+
+    def forward(self, embeddings: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+        embeddings = F.normalize(embeddings, dim=-1, p=2)
+        sim = embeddings @ embeddings.t() / self.temperature        # (2B, 2B)
+
+        labels_col = labels.view(-1, 1)
+        pos_mask = (labels_col == labels_col.t()).float()
+        pos_mask.fill_diagonal_(0)
+        neg_mask = 1.0 - pos_mask
+        neg_mask.fill_diagonal_(0)
+
+        # Per-row softmax denominator over (positives + negatives), excluding self.
+        exp_sim = torch.exp(sim)
+        row_denom = (exp_sim * (pos_mask + neg_mask)).sum(dim=1)
+        # Per-row positive sum.
+        row_pos = (exp_sim * pos_mask).sum(dim=1)
+
+        # Only rows that have at least one positive contribute.
+        row_has_pos = (pos_mask.sum(dim=1) > 0).float()
+        eps = 1e-12
+        per_row_loss = -torch.log((row_pos + eps) / (row_denom + eps))
+        valid = row_has_pos.sum().clamp(min=1.0)
+        return (per_row_loss * row_has_pos).sum() / valid
 
 
 # ---------------------------------------------------------------------------
-# Schedule: warmup → cosine
+# Schedule: 10% warmup → cosine, with floor 0.1 (matches Shirley's lr_lambda).
 # ---------------------------------------------------------------------------
-def cosine_schedule_with_warmup(
-    optimizer: torch.optim.Optimizer, num_warmup_steps: int, num_total_steps: int
+def warmup_cosine_floor(
+    optimizer: torch.optim.Optimizer,
+    num_warmup_steps: int,
+    num_total_steps: int,
+    floor: float = 0.1,
 ) -> LambdaLR:
     def lr_lambda(step: int) -> float:
         if step < num_warmup_steps:
             return float(step) / float(max(1, num_warmup_steps))
         progress = (step - num_warmup_steps) / float(max(1, num_total_steps - num_warmup_steps))
-        return 0.5 * (1.0 + math.cos(math.pi * progress))
+        return max(floor, 0.5 * (1.0 + math.cos(math.pi * progress)))
 
     return LambdaLR(optimizer, lr_lambda)
 
@@ -176,12 +206,12 @@ def train(args: argparse.Namespace) -> None:
     dataset = DualSceneGraphDataset(
         dataset_dir=args.dataset_dir,
         metadata_path=args.metadata_path,
+        negative_ratio=args.negative_ratio,
         clip_model=clip_model,
         device=str(device),
         clip_model_name=args.clip_model,
     )
 
-    # Free CLIP from device memory; relation cache is already populated.
     del clip_model
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
@@ -198,14 +228,12 @@ def train(args: argparse.Namespace) -> None:
         collate_fn=graph_pair_collate,
         generator=g,
         worker_init_fn=worker_init_fn,
-        persistent_workers=False,  # see worker_init_fn — re-seed each epoch
+        persistent_workers=False,
     )
 
     print(f"[TRAIN] dataset={len(dataset)} graphs, "
           f"batches/epoch={len(loader)} (batch_size={args.batch_size})", flush=True)
 
-    # Eval pipeline (precompute_eval_embeddings.py) hardcodes hidden_dim=256;
-    # diverging here would silently produce a checkpoint that fails strict-load.
     assert args.hidden_dim == 256, (
         f"hidden_dim must be 256 for paper-faithful eval; got {args.hidden_dim}"
     )
@@ -219,12 +247,27 @@ def train(args: argparse.Namespace) -> None:
     n_params = sum(p.numel() for p in model.parameters())
     print(f"[TRAIN] model params={n_params:,}", flush=True)
 
-    optimizer = AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    if args.pretrained_checkpoint:
+        print(f"[TRAIN] loading pretrained {args.pretrained_checkpoint}", flush=True)
+        sd = torch.load(args.pretrained_checkpoint, map_location=device, weights_only=False)
+        model.load_state_dict(sd.get("model_state_dict", sd), strict=True)
+
+    # Effective LR is half the CLI lr — matches Shirley's ``lr=args.lr * 0.5``.
+    effective_lr = args.lr * 0.5
+    optimizer = AdamW(
+        model.parameters(),
+        lr=effective_lr,
+        weight_decay=args.weight_decay,
+        betas=(0.9, 0.999),
+    )
     total_steps = args.epochs * len(loader)
     warmup_steps = int(args.warmup_ratio * total_steps)
-    scheduler = cosine_schedule_with_warmup(optimizer, warmup_steps, total_steps)
+    scheduler = warmup_cosine_floor(optimizer, warmup_steps, total_steps, floor=args.cosine_floor)
     print(f"[TRAIN] total_steps={total_steps}, warmup_steps={warmup_steps}, "
-          f"lr={args.lr}, wd={args.weight_decay}, τ={args.temperature}", flush=True)
+          f"effective_lr={effective_lr}, wd={args.weight_decay}, τ={args.temperature}, "
+          f"cosine_floor={args.cosine_floor}", flush=True)
+
+    loss_fn = SimpleContrastiveLoss(temperature=args.temperature).to(device)
 
     best_loss = float("inf")
     global_step = 0
@@ -232,14 +275,31 @@ def train(args: argparse.Namespace) -> None:
     for epoch in range(1, args.epochs + 1):
         model.train()
         running_loss = 0.0
-        running_acc = 0.0
+        running_sep = 0.0
         n_batches = 0
         for batch in loader:
             batch = to_device(batch, device)
-            out = model(batch)
-            loss, acc = info_nce_symmetric(
-                out["src_emb"], out["ref_emb"], temperature=args.temperature
+            B = batch["batch_size"]
+            is_positive = batch["is_positive"]
+
+            out = model(
+                batch,
+                scene_clip_src=batch["scene_clip_src"],
+                scene_clip_ref=batch["scene_clip_ref"],
             )
+            src_emb = out["src_emb"]
+            ref_emb = out["ref_emb"]
+
+            # Shirley's label scheme: src and matching-ref share the same id;
+            # explicit-negative refs go to id+B so they're a distinct class.
+            src_labels = torch.arange(B, device=device)
+            ref_labels = torch.arange(B, device=device)
+            ref_labels = ref_labels.clone()
+            ref_labels[~is_positive] = ref_labels[~is_positive] + B
+            labels = torch.cat([src_labels, ref_labels], dim=0)
+            all_emb = torch.cat([src_emb, ref_emb], dim=0)
+
+            loss = loss_fn(all_emb, labels)
 
             optimizer.zero_grad(set_to_none=True)
             loss.backward()
@@ -247,48 +307,55 @@ def train(args: argparse.Namespace) -> None:
             optimizer.step()
             scheduler.step()
 
+            with torch.no_grad():
+                src_n = F.normalize(src_emb, dim=-1)
+                ref_n = F.normalize(ref_emb, dim=-1)
+                cross = src_n @ ref_n.t()
+                diag = cross.diag()
+                pos_sim = diag[is_positive].mean().item() if is_positive.any() else 0.0
+                neg_sim = diag[~is_positive].mean().item() if (~is_positive).any() else 0.0
+                separation = pos_sim - neg_sim
+
             running_loss += loss.item()
-            running_acc += acc.item()
+            running_sep += separation
             n_batches += 1
             global_step += 1
 
             if global_step % args.log_every == 0:
                 avg_loss = running_loss / n_batches
-                avg_acc = running_acc / n_batches
+                avg_sep = running_sep / n_batches
                 lr_now = scheduler.get_last_lr()[0]
                 elapsed = time.time() - t0
                 print(
                     f"[E{epoch:03d} S{global_step:05d}] loss={avg_loss:.4f} "
-                    f"acc@1={avg_acc * 100:.2f}% lr={lr_now:.2e} "
+                    f"sep={avg_sep:+.3f} lr={lr_now:.2e} "
                     f"elapsed={elapsed / 60:.1f}min",
                     flush=True,
                 )
 
         epoch_loss = running_loss / max(n_batches, 1)
-        epoch_acc = running_acc / max(n_batches, 1)
+        epoch_sep = running_sep / max(n_batches, 1)
         print(
-            f"[E{epoch:03d}] DONE | loss={epoch_loss:.4f} acc@1={epoch_acc * 100:.2f}% "
+            f"[E{epoch:03d}] DONE | loss={epoch_loss:.4f} sep={epoch_sep:+.3f} "
             f"({n_batches} batches)",
             flush=True,
         )
 
         if epoch % args.save_every == 0 or epoch == args.epochs:
-            ckpt_path = save_dir / f"epoch_{epoch}.pth"
+            ckpt_path = save_dir / f"epoch_{epoch}_163_cliprel.pth"
             torch.save(
                 {
                     "epoch": epoch,
                     "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
                     "loss": epoch_loss,
-                    "acc": epoch_acc,
+                    "separation": epoch_sep,
                     "config": vars(args),
                 },
                 ckpt_path,
             )
             print(f"[E{epoch:03d}] saved {ckpt_path}", flush=True)
 
-        # `last.pth` is always the most recent epoch — the script has no
-        # held-out split so a "best by val" criterion would be misleading.
         last_path = save_dir / "last.pth"
         torch.save(
             {
@@ -296,7 +363,7 @@ def train(args: argparse.Namespace) -> None:
                 "model_state_dict": model.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
                 "loss": epoch_loss,
-                "acc": epoch_acc,
+                "separation": epoch_sep,
                 "config": vars(args),
             },
             last_path,
@@ -310,27 +377,28 @@ def train(args: argparse.Namespace) -> None:
           flush=True)
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(description="Canonical training for V2+SimpleGraphMatcher.")
-    ap.add_argument("--dataset_dir", default="data/processed_data/scene_graph_clip")
+    ap.add_argument("--dataset_dir", default="data/processed_data/combined_dataset_clip")
     ap.add_argument("--metadata_path", default="data/3RScan/3RScan.json")
     ap.add_argument("--save_dir", default="data/model_checkpoints/graph2graph/canonical_v2")
+    ap.add_argument("--pretrained_checkpoint", default=None)
 
-    # Architecture
+    # Architecture (Shirley uses dropout=0.0 in the V2 base)
     ap.add_argument("--node_input_dim", type=int, default=518)
     ap.add_argument("--hidden_dim", type=int, default=256)
-    ap.add_argument("--dropout", type=float, default=0.1)
+    ap.add_argument("--dropout", type=float, default=0.0)
 
-    # Training (paper §4)
+    # Training (paper §4 + Shirley's V2 multitask script)
     ap.add_argument("--epochs", type=int, default=70)
     ap.add_argument("--batch_size", type=int, default=16)
-    ap.add_argument("--lr", type=float, default=1e-3)
+    ap.add_argument("--lr", type=float, default=1e-3,
+                    help="CLI lr; the optimizer uses lr*0.5 (Shirley's recipe).")
     ap.add_argument("--weight_decay", type=float, default=1e-4)
-    ap.add_argument("--temperature", type=float, default=0.1)
+    ap.add_argument("--temperature", type=float, default=0.07)
     ap.add_argument("--warmup_ratio", type=float, default=0.1)
+    ap.add_argument("--cosine_floor", type=float, default=0.1)
+    ap.add_argument("--negative_ratio", type=float, default=0.5)
 
     # Misc
     ap.add_argument("--num_workers", type=int, default=4)
