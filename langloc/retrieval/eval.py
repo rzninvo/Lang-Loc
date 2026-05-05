@@ -1,13 +1,15 @@
-"""Canonical Tables 1+2 evaluator for scene retrieval (paper §3.2 / §4.2).
+"""Canonical Tables 1+2+3 evaluator for scene retrieval (paper §3.2 / §4.2).
 
-Mirrors Shirley's ``eval_518_multitask_original_table1_v2.py`` line-by-line
-(transcribed from ``VLSG.ipynb`` cell 26): same scoring (Eq. 8), same
+Mirrors Shirley's ``eval_518_multitask_original_table1_v2.py`` and
+``eval_518_multitask.py`` line-by-line: same scoring (Eq. 8), same
 sampling, same RNG seed (42), same 218-scene ScanScribe distractor pool.
 
-Inputs (from ``--cache_dir``):
+Inputs (from ``--cache_dir``, default ``data/processed_data/eval_pool``):
+
     db_emb_cache.pt                       3DSSG database scene embeddings
-    query_emb_cache.pt                    ScanScribe test query embeddings
-    scanscribe_cleaned_original_518D.pt   218-scene Table 1 distractor pool
+    query_emb_cache.pt                    ScanScribe test queries (Tables 1+2)
+    query_emb_cache_img.pt                Image-derived queries  (Table 3)
+    scanscribe_cleaned_original_518D.pt   218-scene Tables 1+3 distractor pool
 
 Caches are produced by
 ``scripts/retrieval/precompute_eval_embeddings.py`` from a
@@ -17,11 +19,13 @@ reproduces:
 
     Table 1 Top-1 = 76.40 ± 5.06    (paper 76.70 ± 4.58)
     Table 2 Top-5 = 80.50 ± 3.20    (paper 83.30 ± 3.74)
+    Table 3 Top-1 = ~76.10          (paper 76.10 ± 3.48)  ← --mode table3
 
-Run:
+Run::
 
-    python -m langloc.retrieval.eval --cache_dir VLSG_TEXT_v2/VLSG_Files
-    python -m langloc.retrieval.eval --cache_dir VLSG_TEXT_v2/VLSG_Files --mode top10
+    python -m langloc.retrieval.eval --cache_dir data/processed_data/eval_pool
+    python -m langloc.retrieval.eval --cache_dir data/processed_data/eval_pool --mode top10
+    python -m langloc.retrieval.eval --cache_dir data/processed_data/eval_pool --mode table3
 """
 from __future__ import annotations
 
@@ -212,7 +216,7 @@ def _load_pool_buckets(cache_dir: Path) -> dict[str, list[str]]:
 
 def main() -> None:
     ap = argparse.ArgumentParser(
-        description="Canonical Tables 1+2 evaluator (cache-based).",
+        description="Canonical Tables 1+2+3 evaluator (cache-based).",
     )
     ap.add_argument(
         "--cache_dir",
@@ -223,7 +227,24 @@ def main() -> None:
             "scripts/retrieval/precompute_eval_embeddings.py."
         ),
     )
-    ap.add_argument("--mode", default="both", choices=["top10", "full", "both"])
+    ap.add_argument(
+        "--mode",
+        default="both",
+        choices=["top10", "full", "both", "table3"],
+        help="Tables 1 (top10) / 2 (full) / 3 (table3) / 1+2 (both).",
+    )
+    ap.add_argument(
+        "--query_cache_suffix",
+        default="",
+        help="Suffix on the query cache to load (e.g. '_img' for Table 3, "
+        "which reads query_emb_cache_img.pt). Empty for Tables 1+2.",
+    )
+    ap.add_argument(
+        "--db_cache_suffix",
+        default="",
+        help="Suffix on the DB cache (default: empty — Tables 1+2+3 all "
+        "share the same DB).",
+    )
     ap.add_argument("--w_emb", type=float, default=0.33)
     ap.add_argument("--w_scene", type=float, default=0.33)
     ap.add_argument("--w_jac", type=float, default=0.34)
@@ -232,6 +253,10 @@ def main() -> None:
     ap.add_argument("--out_of", type=int, default=10)
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()
+
+    # Table 3 mode automatically picks the _img query cache.
+    if args.mode == "table3" and not args.query_cache_suffix:
+        args.query_cache_suffix = "_img"
 
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -242,13 +267,12 @@ def main() -> None:
     print(f"Seed:      {args.seed}")
     print(f"Weights:   w_emb={args.w_emb}, w_scene={args.w_scene}, w_jac={args.w_jac}")
 
-    print("\nLoading caches…")
-    db_emb_cache = torch.load(
-        cache_dir / "db_emb_cache.pt", weights_only=False, map_location="cpu"
-    )
-    query_emb_cache = torch.load(
-        cache_dir / "query_emb_cache.pt", weights_only=False, map_location="cpu"
-    )
+    db_path = cache_dir / f"db_emb_cache{args.db_cache_suffix}.pt"
+    query_path = cache_dir / f"query_emb_cache{args.query_cache_suffix}.pt"
+
+    print(f"\nLoading caches…  db={db_path.name}  query={query_path.name}")
+    db_emb_cache = torch.load(db_path, weights_only=False, map_location="cpu")
+    query_emb_cache = torch.load(query_path, weights_only=False, map_location="cpu")
     print(f"  DB:    {len(db_emb_cache)} scenes")
     print(f"  Query: {len(query_emb_cache)} queries")
 
@@ -263,9 +287,13 @@ def main() -> None:
     print(f"\n  pool buckets: {len(pool_buckets)} scenes")
     print(f"  test scenes (queries ∩ DB): {len(test_scene_ids)}")
 
-    if args.mode in ("top10", "both"):
+    if args.mode in ("top10", "both", "table3"):
+        # Tables 1 and 3 share the same protocol: rank query against
+        # ``out_of`` (default 10) candidates from the 218-scene pool, report
+        # Top-1/2/3/5. The only difference is which query cache is loaded.
+        table_label = "Table 3" if args.mode == "table3" else "Table 1"
         print("\n" + "=" * 60)
-        print(f"Table 1 protocol: top-k of {args.out_of} candidates")
+        print(f"{table_label} protocol: top-k of {args.out_of} candidates")
         print("=" * 60)
         random.seed(args.seed)
         np.random.seed(args.seed)
@@ -283,7 +311,7 @@ def main() -> None:
             w_scene=args.w_scene,
             w_jac=args.w_jac,
         )
-        print("\nFINAL Table 1:")
+        print(f"\nFINAL {table_label}:")
         for k in [1, 2, 3, 5]:
             mean, std = results[k]
             print(f"  Top-{k}: {mean * 100:.2f}% ± {std * 100:.2f}%")

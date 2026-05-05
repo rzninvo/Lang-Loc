@@ -132,8 +132,29 @@ def main() -> None:
     ap.add_argument(
         "--cache_dir",
         required=True,
-        help="Directory holding 3dssg_graphs_518D.pt and "
-        "scanscribe_graphs_test_518D.pt; will receive the produced caches.",
+        help="Directory holding 3dssg_graphs_518D.pt and the query .pt; "
+        "will receive the produced caches.",
+    )
+    ap.add_argument(
+        "--query_path",
+        default=None,
+        help="Override path to the query graphs .pt (default: "
+        "<cache_dir>/scanscribe_graphs_test_518D.pt). For Table 3 use the "
+        "image-derived queries: data/processed_data/scanscribe/"
+        "scanscribe_text_graphs_from_image_desc_node_edge_features.pt.",
+    )
+    ap.add_argument(
+        "--cache_suffix",
+        default="",
+        help="Suffix appended to the produced cache filenames "
+        "(db_emb_cache{suffix}.pt, query_emb_cache{suffix}.pt, "
+        "clip_embedding_cache{suffix}.pt). Use '_img' for Table 3.",
+    )
+    ap.add_argument(
+        "--skip_db",
+        action="store_true",
+        help="Don't recompute the DB cache (use the existing one in cache_dir). "
+        "Useful for Table 3, which uses the same DB as Tables 1+2.",
     )
     ap.add_argument("--clip_model", default="ViT-B/32")
     ap.add_argument("--device", default="auto", choices=["auto", "cuda", "mps", "cpu"])
@@ -173,25 +194,42 @@ def main() -> None:
             max_dist=1.0, embedding_type="word2vec", use_attributes=True,
         )
 
-    print("\nLoading ScanScribe test queries…")
-    raw_test = torch.load(
-        cache_dir / "scanscribe_graphs_test_518D.pt",
-        weights_only=False, map_location="cpu",
-    )
+    query_path = Path(args.query_path) if args.query_path else cache_dir / "scanscribe_graphs_test_518D.pt"
+    print(f"\nLoading queries from {query_path}…")
+    raw_test = torch.load(query_path, weights_only=False, map_location="cpu")
     query_graphs: dict[str, SceneGraph] = {}
-    for sid in tqdm(raw_test, desc="ScanScribe test"):
-        for tid in raw_test[sid]:
-            key = f"{sid}_{str(tid).zfill(5)}"
+    # Two supported schemas:
+    #   Tables 1+2: dict[scene_id → dict[txt_id → graph]] (multiple paraphrases per scene)
+    #   Table 3   : dict[scene_id → graph]                (one image-derived graph per scene)
+    for sid in tqdm(raw_test, desc="Queries"):
+        scene_entry = raw_test[sid]
+        if isinstance(scene_entry, dict) and "nodes" in scene_entry:
+            # Table-3 schema: one graph per scene
             try:
                 g = SceneGraph(
-                    sid, txt_id=tid, graph_type="scanscribe",
-                    graph=raw_test[sid][tid],
+                    sid, graph_type="scanscribe", graph=scene_entry,
                     embedding_type="word2vec", use_attributes=True,
                 )
                 if len(g.edge_idx[0]) >= 1:
-                    query_graphs[key] = g
-            except Exception:
+                    query_graphs[sid] = g
+            except Exception as exc:
+                print(f"[WARN] precompute: expected SceneGraph for {sid}, "
+                      f"got={exc!r}, fallback=skip", flush=True)
                 continue
+        else:
+            # Tables 1+2 schema: dict of paraphrases
+            for tid in scene_entry:
+                key = f"{sid}_{str(tid).zfill(5)}"
+                try:
+                    g = SceneGraph(
+                        sid, txt_id=tid, graph_type="scanscribe",
+                        graph=scene_entry[tid],
+                        embedding_type="word2vec", use_attributes=True,
+                    )
+                    if len(g.edge_idx[0]) >= 1:
+                        query_graphs[key] = g
+                except Exception:
+                    continue
 
     # ------------------------------------------------------------------
     # Step 1: per-label / per-relation / per-scene CLIP caches
@@ -226,11 +264,12 @@ def main() -> None:
         scene_desc = f"A room with {', '.join(unique_labels)}"
         scene_clip_cache[key] = get_clip_embedding(scene_desc, clip_model, device)
 
+    suffix = args.cache_suffix
     torch.save(
         {"node_clip": node_clip_cache, "rel_clip": rel_clip_cache, "scene_clip": scene_clip_cache},
-        cache_dir / "clip_embedding_cache.pt",
+        cache_dir / f"clip_embedding_cache{suffix}.pt",
     )
-    print(f"\nSaved clip_embedding_cache.pt ({len(node_clip_cache)} labels, "
+    print(f"\nSaved clip_embedding_cache{suffix}.pt ({len(node_clip_cache)} labels, "
           f"{len(rel_clip_cache)} relations, {len(scene_clip_cache)} scene CLIPs)")
 
     # ------------------------------------------------------------------
@@ -250,26 +289,30 @@ def main() -> None:
     # ------------------------------------------------------------------
     # DB embeddings
     # ------------------------------------------------------------------
-    print("\nPrecomputing 3DSSG database embeddings…")
-    db_emb_cache: dict[str, dict] = {}
-    with torch.no_grad():
-        for scene_id, g in tqdm(db_graphs.items(), desc="DB"):
-            batch = build_batch_from_cache(
-                g, node_clip_cache, rel_clip_cache, scene_clip_cache,
-                scene_id, device,
-            )
-            out = model(
-                batch,
-                scene_clip_src=batch["scene_clip_src"],
-                scene_clip_ref=batch["scene_clip_ref"],
-            )
-            db_emb_cache[scene_id] = {
-                "emb": F.normalize(out["ref_emb"], dim=-1).cpu(),
-                "scene_clip": batch["scene_clip_ref"].cpu(),
-                "labels": {get_base_label(g.nodes[nid].label) for nid in g.nodes},
-            }
-    torch.save(db_emb_cache, cache_dir / "db_emb_cache.pt")
-    print(f"Saved db_emb_cache.pt ({len(db_emb_cache)} scenes)")
+    if args.skip_db:
+        print("\n[SKIP DB] reusing existing db_emb_cache.pt (no suffix) — "
+              "Table 3 uses the same DB as Tables 1+2")
+    else:
+        print("\nPrecomputing 3DSSG database embeddings…")
+        db_emb_cache: dict[str, dict] = {}
+        with torch.no_grad():
+            for scene_id, g in tqdm(db_graphs.items(), desc="DB"):
+                batch = build_batch_from_cache(
+                    g, node_clip_cache, rel_clip_cache, scene_clip_cache,
+                    scene_id, device,
+                )
+                out = model(
+                    batch,
+                    scene_clip_src=batch["scene_clip_src"],
+                    scene_clip_ref=batch["scene_clip_ref"],
+                )
+                db_emb_cache[scene_id] = {
+                    "emb": F.normalize(out["ref_emb"], dim=-1).cpu(),
+                    "scene_clip": batch["scene_clip_ref"].cpu(),
+                    "labels": {get_base_label(g.nodes[nid].label) for nid in g.nodes},
+                }
+        torch.save(db_emb_cache, cache_dir / f"db_emb_cache{suffix}.pt")
+        print(f"Saved db_emb_cache{suffix}.pt ({len(db_emb_cache)} scenes)")
 
     # ------------------------------------------------------------------
     # Query embeddings
@@ -292,11 +335,15 @@ def main() -> None:
                 "labels": {get_base_label(g.nodes[nid].label) for nid in g.nodes},
                 "scene_id": g.scene_id,
             }
-    torch.save(query_emb_cache, cache_dir / "query_emb_cache.pt")
-    print(f"Saved query_emb_cache.pt ({len(query_emb_cache)} queries)")
+    torch.save(query_emb_cache, cache_dir / f"query_emb_cache{suffix}.pt")
+    print(f"Saved query_emb_cache{suffix}.pt ({len(query_emb_cache)} queries)")
 
     print("\nAll caches written. Run reproduction with:")
-    print(f"  python -m langloc.retrieval.eval --cache_dir {cache_dir} --mode both")
+    if suffix:
+        print(f"  python -m langloc.retrieval.eval --cache_dir {cache_dir} "
+              f"--mode top10 --query_cache_suffix {suffix}")
+    else:
+        print(f"  python -m langloc.retrieval.eval --cache_dir {cache_dir} --mode both")
 
 
 if __name__ == "__main__":
