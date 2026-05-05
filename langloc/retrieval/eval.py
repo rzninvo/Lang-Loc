@@ -176,15 +176,18 @@ def eval_full(
     }
 
 
-def _load_pool_buckets(cache_dir: Path) -> dict[str, list[str]]:
-    """Builds the 218-scene ScanScribe pool used as Table 1 distractors."""
+def _load_pool_buckets(cache_dir: Path, pool_filename: str) -> dict[str, list[str]]:
+    """Builds the ScanScribe distractor pool from ``cache_dir/<pool_filename>``.
+
+    Tables 1+2 use ``scanscribe_cleaned_original_518D.pt`` (218 scenes, broad
+    ScanScribe pool). Table 3 uses ``scanscribe_graphs_test_518D.pt`` (52 test
+    scenes only) — matches Shirley's ``eval_518_multitask_table4.py`` line 251.
+    """
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from langloc.graphs.scene_graph import SceneGraph  # noqa: WPS433 — late import
 
     raw = torch.load(
-        cache_dir / "scanscribe_cleaned_original_518D.pt",
-        weights_only=False,
-        map_location="cpu",
+        cache_dir / pool_filename, weights_only=False, map_location="cpu",
     )
     pool_graphs: dict[str, SceneGraph] = {}
     for sid in tqdm(raw, desc="Pool"):
@@ -280,17 +283,25 @@ def main() -> None:
     for key, cache in query_emb_cache.items():
         query_buckets.setdefault(cache["scene_id"], []).append(key)
 
-    print("\nLoading 218-scene pool for Table 1 distractors…")
-    pool_buckets = _load_pool_buckets(cache_dir)
+    # Pool selection (matches Shirley's eval scripts):
+    #   Tables 1+2: 218-scene cleaned-original ScanScribe pool
+    #   Table 3   : 52-scene test pool (scanscribe_graphs_test_518D.pt)
+    if args.mode == "table3":
+        pool_filename = "scanscribe_graphs_test_518D.pt"
+        print(f"\nLoading 52-scene test pool for Table 3 distractors ({pool_filename})…")
+    else:
+        pool_filename = "scanscribe_cleaned_original_518D.pt"
+        print(f"\nLoading 218-scene pool for Tables 1+2 distractors ({pool_filename})…")
+    pool_buckets = _load_pool_buckets(cache_dir, pool_filename)
 
     test_scene_ids = [sid for sid in query_buckets if sid in db_emb_cache]
     print(f"\n  pool buckets: {len(pool_buckets)} scenes")
     print(f"  test scenes (queries ∩ DB): {len(test_scene_ids)}")
 
     if args.mode in ("top10", "both", "table3"):
-        # Tables 1 and 3 share the same protocol: rank query against
-        # ``out_of`` (default 10) candidates from the 218-scene pool, report
-        # Top-1/2/3/5. The only difference is which query cache is loaded.
+        # Tables 1 and 3 share the protocol shape (rank against `out_of`
+        # candidates, report Top-1/2/3/5); they differ only in distractor
+        # pool size (Table 1 = 218 broad, Table 3 = 52 test).
         table_label = "Table 3" if args.mode == "table3" else "Table 1"
         print("\n" + "=" * 60)
         print(f"{table_label} protocol: top-k of {args.out_of} candidates")
