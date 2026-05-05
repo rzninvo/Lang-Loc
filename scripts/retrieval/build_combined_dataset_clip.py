@@ -1,6 +1,6 @@
 """Build ``combined_dataset_clip/`` — the paper's training dataset.
 
-Bit-faithful port of Shirley's ``scanscribetoclip_dataset.py``. Combines:
+Combines:
 
   * **3DSSG side**: ``scene_graphs_unique/*.json`` (one JSON per unique 3DSSG
     scene, already in 518D format with ``clip_text_emb`` per node and 7-vocab
@@ -11,21 +11,18 @@ Bit-faithful port of Shirley's ``scanscribetoclip_dataset.py``. Combines:
     JSON per ``(reference_id, text_id)`` paraphrase. Each paraphrase becomes a
     file ``{reference_id}_text_{text_id}.json``.
 
-After running this you should have ~3,400 JSON files in ``--out_dir``, mirroring
-Shirley's ``combined_dataset_clip/`` (3,457 files in her local copy:
-101 3DSSG + 3,356 ScanScribe). The exact count depends on which scan_ids are
+The expected output is ~3,400 JSON files in ``--out_dir`` (~100 3DSSG +
+~3,356 ScanScribe paraphrases). Exact count depends on which scan_ids are
 present in 3RScan.json and how many paraphrases each has.
 
-The output is what
-``train_withscene_clip_518_multitask_v2.py`` (and our
-``langloc.retrieval.train``) consume as ``--dataset_dir``.
+The output is consumed by ``langloc.retrieval.train`` as ``--dataset_dir``.
 
 Usage::
 
     python -m scripts.retrieval.build_combined_dataset_clip \\
-        --scanscribe_path VLSG-TEXT/.../src/datasets/scanscribe_graphs_train_final_no_graph_min.pt \\
-        --scene_graphs_dir VLSG_TEXT_v2/VLSG_Files/scene_graphs_unique \\
-        --metadata_path VLSG_TEXT_v2/VLSG_Files/3RScan.json \\
+        --scanscribe_path data/processed_data/eval_pool/scanscribe_graphs_train_final_no_graph_min.pt \\
+        --scene_graphs_dir data/processed_data/eval_pool/scene_graphs_unique \\
+        --metadata_path data/3RScan/3RScan.json \\
         --out_dir data/processed_data/combined_dataset_clip \\
         --device cuda
 """
@@ -51,10 +48,10 @@ def get_clip_embedding(text: str, clip_model, device: torch.device) -> list[floa
 
 
 def convert_scanscribe(graph: dict, scene_id: str, text_id, clip_model, device) -> dict:
-    """Match Shirley's ``convert_scanscribe_to_clip_format`` byte-for-byte.
+    """Convert a ScanScribe text graph into the 518D training-JSON schema.
 
-    Note: text graphs have no spatial info, so centroid is zero, color is grey
-    (128/128/128, NOT 0.5 as that's done after /255 in the dataset class), and
+    Text graphs have no spatial information: centroid is zero, mean_color is
+    grey (128/128/128 — the dataset class divides by 255 at load time), and
     radius is 0.4. ``base_label`` falls back to ``label``.
     """
     nodes_dict: dict[str, dict] = {}
@@ -116,7 +113,14 @@ def main() -> None:
                     help="Output dir; will contain ~3.4k JSONs + metadata.json")
     ap.add_argument("--clip_model", default="ViT-B/32")
     ap.add_argument("--device", default="auto", choices=["auto", "cuda", "mps", "cpu"])
+    ap.add_argument("--seed", type=int, default=42,
+                    help="RNG seed (canonical project seed = 42).")
     args = ap.parse_args()
+
+    # Canonical project seed (see CLAUDE.md §0). CLIP encoding here is
+    # deterministic given input; seeds are set defensively.
+    from langloc.utils.seed import set_seed
+    set_seed(args.seed)
 
     if args.device == "auto":
         device = torch.device(

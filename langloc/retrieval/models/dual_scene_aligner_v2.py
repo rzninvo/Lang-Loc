@@ -1,15 +1,11 @@
-"""Dual-branch scene graph encoder — v2 (paper-faithful).
+"""Dual-branch scene graph encoder (V2) — paper §3.2 Eqs. 4–6.
 
-Same as ``DualSceneAligner`` (paper §3.2 Eqs. 4–6) **except** that
-``final_proj`` does NOT concatenate the scene-CLIP descriptor inside the
-model. Scene-CLIP is fused outside, in a ``SimpleGraphMatcher`` wrapper
-(see ``simple_graph_matcher.py``) — matching the architecture that
-produced the paper's Tables 1-3 numbers (checkpoint
-``epoch_70_163_cliprel.pth``).
+The base graph encoder. ``final_proj`` does NOT concatenate the scene-CLIP
+descriptor inside the model — scene-CLIP is fused externally by the
+``SimpleGraphMatcher`` wrapper (see ``simple_graph_matcher.py``).
 
-Layer-by-layer state-dict shapes are bit-identical to the published
-checkpoint's ``base_model.*`` keys; the only diff vs ``DualSceneAligner``
-is ``final_proj.0.weight: (256, 256)`` (was ``(256, 768)``).
+Layer-by-layer state-dict shapes are bit-identical to the published paper
+checkpoint's ``base_model.*`` keys.
 
 Inputs (via batch dict):
     node_feats: ``(N, 518)``  -- ``[centroid(3) | color(3) | CLIP(512)]``
@@ -61,7 +57,7 @@ class GatedFusion(nn.Module):
 
 
 class DualSceneAlignerV2(nn.Module):
-    """Paper-faithful dual-branch encoder; scene-CLIP NOT fused internally.
+    """Dual-branch graph encoder (paper §3.2). Scene-CLIP fused externally.
 
     Args:
         node_input_dim: Input node feature dim (518 = 3+3+512).

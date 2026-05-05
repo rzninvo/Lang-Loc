@@ -120,8 +120,15 @@ def main() -> None:
                         help='Use all images instead of sampled subset')
     parser.add_argument('--clip_model', type=str, default='ViT-B/32',
                         help='CLIP model variant to load')
+    parser.add_argument('--seed', type=int, default=42,
+                        help='RNG seed (canonical project seed = 42).')
 
     args = parser.parse_args()
+
+    # Canonical project seed (see CLAUDE.md §0). Every random.sample() in
+    # this script is now reproducible across runs.
+    from langloc.utils.seed import set_seed
+    set_seed(args.seed)
 
     scanscribe_timer = Timer()
     human_timer = Timer()

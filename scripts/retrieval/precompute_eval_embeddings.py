@@ -1,22 +1,22 @@
 """Precompute embedding caches for retrieval evaluation.
 
-Ported from Shirley's `precompute_eval_embeddings.py` (transcribed from
-``VLSG.ipynb`` cells 34/38/40). Loads ``DualSceneAlignerV2 +
-SimpleGraphMatcher`` from a checkpoint and writes:
+Loads ``DualSceneAlignerV2 + SimpleGraphMatcher`` from a checkpoint and
+writes:
 
   - ``clip_embedding_cache.pt`` — node/relation/scene-level CLIP embeddings
   - ``db_emb_cache.pt`` — model-projected DB scene embeddings + scene-CLIP + base-label sets
   - ``query_emb_cache.pt`` — same fields per query
 
-These caches are consumed by ``langloc/retrieval/eval.py`` (Tables 1+2).
-With ``epoch_70_163_cliprel.pth`` as the checkpoint the produced caches
-reproduce paper Tables 1-2 numbers within reporting noise.
+These caches are consumed by ``langloc/retrieval/eval.py`` for Tables 1+2.
+With the published paper checkpoint, the produced caches reproduce paper
+Tables 1-2 within reporting noise. For Table 3 use ``--query_path`` to
+point at the LLM-from-image queries and ``--cache_suffix _img``.
 
 Run from repo root::
 
     python -m scripts.retrieval.precompute_eval_embeddings \
-        --checkpoint VLSG_TEXT_v2/VLSG_Files/checkpoints/epoch_70_163_cliprel.pth \
-        --cache_dir   VLSG_TEXT_v2/VLSG_Files \
+        --checkpoint data/model_checkpoints/graph2graph/paper/epoch_70_163_cliprel.pth \
+        --cache_dir   data/processed_data/eval_pool \
         --device cuda
 """
 from __future__ import annotations
@@ -36,7 +36,7 @@ from langloc.retrieval.models.simple_graph_matcher import SimpleGraphMatcher
 
 
 def get_clip_embedding(text: str, clip_model: nn.Module, device: torch.device) -> torch.Tensor:
-    """L2-normalized CLIP text embedding (Shirley's exact form)."""
+    """Return an L2-normalized CLIP text embedding for ``text``."""
     with torch.no_grad():
         tokens = clip.tokenize([text]).to(device)
         emb = clip_model.encode_text(tokens)
@@ -45,7 +45,7 @@ def get_clip_embedding(text: str, clip_model: nn.Module, device: torch.device) -
 
 
 def get_base_label(label: str) -> str:
-    """Strip spatial qualifiers from unique labels (Shirley's exact form)."""
+    """Strip spatial qualifiers (north/south/upper/etc.) from a node label."""
     parts = label.split("_")
     spatial = {"north", "south", "east", "west", "center", "upper", "middle", "lower"}
     base: list[str] = []
@@ -71,8 +71,9 @@ def build_batch_from_cache(
     for nid in graph.nodes:
         label = graph.nodes[nid].label
         node_clip = node_clip_cache.get(label, torch.zeros(512))
-        # ScanScribe / 3DSSG nodes have no usable centroid/color in eval graphs;
-        # zero-pad those dims (matches Shirley's precompute).
+        # ScanScribe / 3DSSG nodes have no usable centroid/color in eval
+        # graphs; zero-pad those dims so the network relies on semantic and
+        # relational cues alone (paper §3.2 Eq. 1).
         feat = torch.cat([torch.zeros(6), node_clip])
         node_feats.append(feat)
     node_feats = torch.stack(node_feats)
@@ -126,8 +127,7 @@ def main() -> None:
     ap.add_argument(
         "--checkpoint",
         required=True,
-        help="Path to a DualSceneAlignerV2 + SimpleGraphMatcher checkpoint "
-        "(e.g. epoch_70_163_cliprel.pth from the Colab artifact).",
+        help="Path to a DualSceneAlignerV2 + SimpleGraphMatcher checkpoint.",
     )
     ap.add_argument(
         "--cache_dir",
@@ -140,12 +140,10 @@ def main() -> None:
         default=None,
         help="Override path to the query graphs .pt (default: "
         "<cache_dir>/scanscribe_graphs_test_518D.pt — canonical ScanScribe "
-        "test, used for Tables 1+2). For the corrected Table 3 use the "
-        "actual LLM-from-image queries: data/processed_data/scanscribe/"
-        "scanscribe_text_graphs_from_image_desc_node_edge_features.pt — "
-        "this matches the protocol whereami Table 4 used for the CLIP2CLIP/"
-        "Text2SGM baselines. See "
-        "docs/reports/2026-05-05/19_table3_corrected_for_rebuttal.md.",
+        "text test, used for Tables 1+2). For Table 3 use the LLM-from-image "
+        "queries at data/processed_data/scanscribe/"
+        "scanscribe_text_graphs_from_image_desc_node_edge_features.pt — this "
+        "matches the protocol the CLIP2CLIP / Text2SGM baselines use.",
     )
     ap.add_argument(
         "--cache_suffix",
@@ -162,7 +160,15 @@ def main() -> None:
     )
     ap.add_argument("--clip_model", default="ViT-B/32")
     ap.add_argument("--device", default="auto", choices=["auto", "cuda", "mps", "cpu"])
+    ap.add_argument("--seed", type=int, default=42,
+                    help="RNG seed (canonical project seed = 42).")
     args = ap.parse_args()
+
+    # Canonical project seed (see CLAUDE.md §0). The graph encoding here is
+    # deterministic given the input, but seeds are set defensively so any
+    # downstream stochastic op is reproducible.
+    from langloc.utils.seed import set_seed
+    set_seed(args.seed)
 
     if args.device == "auto":
         device = torch.device(
@@ -258,8 +264,8 @@ def main() -> None:
     for rel in tqdm(all_relations, desc="Rel CLIP"):
         rel_clip_cache[rel] = get_clip_embedding(rel, clip_model, device)
 
-    # Scene-CLIP per graph: ``"A room with l_1, ..., l_K"`` (first 10 unique
-    # labels). Matches Shirley's notebook exactly.
+    # Scene-CLIP per graph: paper §3.2 Eq. 2 — embed the prompt
+    # ``"A room with l_1, ..., l_K"`` over the first 10 unique node labels.
     scene_clip_cache: dict[str, torch.Tensor] = {}
     all_for_scene = list(query_graphs.items()) + [(sid, g) for sid, g in db_graphs.items()]
     for key, g in tqdm(all_for_scene, desc="Scene CLIP"):

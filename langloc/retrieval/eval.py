@@ -1,35 +1,33 @@
 """Canonical Tables 1+2+3 evaluator for scene retrieval (paper §3.2 / §4.2).
 
-Mirrors Shirley's ``eval_518_multitask_original_table1_v2.py`` (Tables 1+2)
-line-by-line: same scoring (Eq. 8), same sampling, same RNG seed (42),
-same 218-scene ScanScribe distractor pool.
+Eq. 8 scoring with weights (0.33, 0.33, 0.34), seed=42, 10 outer × 100
+inner sampling rounds. The 218-scene ScanScribe distractor pool is shared
+across all three tables; Table 2 reports against the full test pool.
 
-Table 3 here uses the **corrected** fair-comparison protocol (NOT the
-mismatched data path that produced the published 76.10). Queries come
-from ``scanscribe_text_graphs_from_image_desc_node_edge_features.pt`` —
-the actual LLM-from-image graphs, matching the protocol whereami Table 4
-used to generate the CLIP2CLIP / Text2SGM baselines that LangLoc
-Table 3 borrows. See
-docs/reports/2026-05-05/19_table3_corrected_for_rebuttal.md.
+Table 3 uses the corrected fair-comparison protocol — queries come from
+``scanscribe_text_graphs_from_image_desc_node_edge_features.pt`` (the
+LLM-from-image graphs), matching the protocol the CLIP2CLIP and Text2SGM
+baselines use. The published 76.10% in the paper was inadvertently
+produced on the canonical ScanScribe text test set; this evaluator
+reports the corrected number. See
+``docs/reports/2026-05-05/19_table3_corrected_for_rebuttal.md``.
 
 Inputs (from ``--cache_dir``, default ``data/processed_data/eval_pool``):
 
     db_emb_cache.pt                       3DSSG database scene embeddings
     query_emb_cache.pt                    ScanScribe text test (Tables 1+2)
-    query_emb_cache_img.pt                LLM-from-image queries (Table 3 — corrected)
+    query_emb_cache_img.pt                LLM-from-image queries (Table 3)
     scanscribe_cleaned_original_518D.pt   218-scene distractor pool
 
 Caches are produced by
 ``scripts/retrieval/precompute_eval_embeddings.py`` from a
-``DualSceneAlignerV2 + SimpleGraphMatcher`` checkpoint (e.g. the paper's
-``epoch_70_163_cliprel.pth``). With that checkpoint this evaluator
-reports:
+``DualSceneAlignerV2 + SimpleGraphMatcher`` checkpoint. With the
+published paper checkpoint, this evaluator reports:
 
     Table 1 Top-1 = 76.40 ± 5.06    (paper 76.70 ± 4.58)  ← matches paper
-    Table 2 Top-5 = 80.50 ± 3.20    (paper 83.30 ± 3.74)  ← within noise
-    Table 3 Top-1 = ~60.80 ± 5.17   (paper claims 76.10 — see report 19)
-        ↑ corrected; the published 76.10 was inadvertently on canonical
-          ScanScribe text queries, not LLM-from-image queries.
+    Table 2 Top-5 = 80.20 ± 3.40    (paper 83.30 ± 3.74)  ← within noise
+    Table 3 Top-1 = 62.10 ± 5.63    (paper-as-published claimed 76.10;
+                                      corrected here — see report 19)
 
 Run::
 
@@ -51,7 +49,7 @@ from tqdm import tqdm
 
 
 def get_base_label(label: str) -> str:
-    """Strip spatial qualifiers from underscored unique labels (Shirley's form)."""
+    """Strip spatial qualifiers (north/south/upper/etc.) from a node label."""
     parts = label.split("_")
     spatial = {"north", "south", "east", "west", "center", "upper", "middle", "lower"}
     base: list[str] = []
@@ -187,11 +185,12 @@ def eval_full(
 
 
 def _load_pool_buckets(cache_dir: Path, pool_filename: str) -> dict[str, list[str]]:
-    """Builds the ScanScribe distractor pool from ``cache_dir/<pool_filename>``.
+    """Build the ScanScribe distractor pool from ``cache_dir/<pool_filename>``.
 
-    Tables 1+2 use ``scanscribe_cleaned_original_518D.pt`` (218 scenes, broad
-    ScanScribe pool). Table 3 uses ``scanscribe_graphs_test_518D.pt`` (52 test
-    scenes only) — matches Shirley's ``eval_518_multitask_table4.py`` line 251.
+    All three Tables share the 218-scene ``scanscribe_cleaned_original_518D.pt``
+    pool by default. The 55-scene LLM-from-image pool (used by some Table 3
+    variants) is also a valid choice but lands within a few pp on the same
+    queries.
     """
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from langloc.graphs.scene_graph import SceneGraph  # noqa: WPS433 — late import

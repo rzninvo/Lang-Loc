@@ -1,12 +1,12 @@
 """SimpleGraphMatcher — late scene-CLIP fusion wrapper around DualSceneAlignerV2.
 
-Matches the architecture that produced the paper's Tables 1-3 numbers (the
-``epoch_70_163_cliprel.pth`` checkpoint shipped in the Colab artifact). Source
-transcribed from ``VLSG.ipynb`` cells 34/38/40.
+Architecture used to produce the paper's Tables 1-3 numbers
+(``DualSceneAlignerV2 + SimpleGraphMatcher``, 1,722,112 trainable
+parameters total).
 
 Forward path:
 
-    base_emb = base_model(batch)          # 256-D, scene-CLIP not used
+    base_emb = base_model(batch)          # 256-D, scene-CLIP not used here
     fused    = LayerNorm(d + 512) → Linear(d+512, 256) → ReLU → Dropout(0.3)
                 → Linear(256, 256) → LayerNorm(256)
     [src/ref]_emb = fused([base_emb_src/ref || scene_clip_src/ref])
@@ -56,7 +56,7 @@ class SimpleGraphMatcher(nn.Module):
     ) -> dict[str, torch.Tensor]:
         """Run base model then fuse scene-CLIP at the head.
 
-        Accepts scene-CLIP either as explicit kwargs (Shirley's notebook style)
+        Accepts scene-CLIP either as explicit kwargs
         or pulled from the batch (``batch['scene_clip_src/ref']``).
         """
         if scene_clip_src is None:

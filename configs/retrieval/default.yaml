@@ -1,28 +1,26 @@
 # DualSceneAlignerV2 + SimpleGraphMatcher configuration (scene retrieval, §3.2).
-# Tables 1+2 evaluation lives in `langloc/retrieval/eval.py` (argparse-based,
+# Tables 1+2+3 evaluation lives in `langloc/retrieval/eval.py` (argparse-based,
 # cache-driven) and is not Hydra-configured.
 
 # Model architecture
 node_input_dim: 518       # centroid(3) + color(3) + CLIP(512)
 hidden_dim: 256           # GNN hidden / output dimension
-dropout: 0.0              # Shirley's V2 base uses 0.0 (fusion head has its own 0.3)
+dropout: 0.0              # V2 base — the fusion head has its own 0.3
 
-# Training — bit-faithful to Shirley's `train_withscene_clip_518_multitask_v2.py`
-# (the actual script that produced epoch_70_163_cliprel.pth). The `_163_` in the
-# filename is literal; it refers to the 163 ScanScribe train scan_ids.
-lr: 0.001                 # CLI lr; the optimizer uses lr*0.5 (= 5e-4) (Shirley's recipe)
+# Training (paper recipe — published `epoch_{N}_163_cliprel.pth` checkpoint).
+# The `163` in the filename is literal: 163 ScanScribe train scan_ids.
+lr: 0.001                 # CLI lr; the optimizer uses lr*0.5 (= 5e-4)
 weight_decay: 0.0001
-batch_size: 16            # Shirley's V2 multitask training (notebook cell)
-epochs: 70                # Shirley's epoch_70_163_cliprel.pth
-temperature: 0.07         # SupContrastive temperature (NOT InfoNCE 0.1)
+batch_size: 16
+epochs: 70
+temperature: 0.07         # supervised contrastive loss τ
 warmup_ratio: 0.1         # 10% linear warmup
-cosine_floor: 0.1         # cosine schedule floor (NOT 0)
-negative_ratio: 0.5       # 50% explicit-negative pairs in DataLoader
+cosine_floor: 0.1         # cosine schedule floor multiplier
+negative_ratio: 0.5       # fraction of explicit-negative pairs in DataLoader
 log_every: 50
-seed: 42
+seed: 42                  # Project-wide canonical seed.
 
-# Scoring weights (Eq. 8: w_emb*cos(z,z) + w_scene*cos(u,u) + w_jac*F1) — used
-# only by the eval CLI; left here so configs_dataset can reference them.
+# Scoring weights (Eq. 8: w_emb·cos(z,z) + w_scene·cos(u,u) + w_jac·F1)
 w_emb: 0.33
 w_scene: 0.33
 w_jac: 0.34
@@ -39,6 +37,6 @@ clip_model: ViT-B/32
 
 # SceneGraph constructor params (selects which pre-computed embeddings to load;
 # the retrieval model itself re-encodes everything with CLIP, so this only
-# affects the legacy node.label_features / edge.features fields)
+# affects the legacy node.label_features / edge.features fields).
 max_dist: 1.0
 embedding_type: word2vec

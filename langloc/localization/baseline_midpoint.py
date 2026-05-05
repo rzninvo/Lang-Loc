@@ -197,6 +197,9 @@ def run_baseline(cfg: DictConfig) -> None:
     """
     loc = cfg.localization
     params_text = format_args_section(OmegaConf.to_container(cfg, resolve=True))
+    # Canonical project seed (see CLAUDE.md §0).
+    from langloc.utils.seed import set_seed
+    set_seed(cfg.seed)
     rng = np.random.default_rng(seed=cfg.seed)
 
     dataset = getattr(loc, "dataset", "3rscan")
