@@ -98,7 +98,7 @@ scannetpp:
 
   # Description generation
   generate_descriptions: true
-  description_model: "gpt-5.2"
+  description_model: "gpt-5.5"
 
 # ------------------------------------------------------------
 # 3RScan NBV configuration
@@ -181,7 +181,7 @@ scannetpp:
 
   # Description generation
   generate_descriptions: true
-  description_model: "gpt-5.2"
+  description_model: "gpt-5.5"
 
 # ------------------------------------------------------------
 # ScanNet download settings

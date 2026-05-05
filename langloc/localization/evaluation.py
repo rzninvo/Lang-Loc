@@ -914,14 +914,22 @@ def _run_candidates_mode(candidate_ids: List[str],
     output_path = Path(output_json)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # OmegaConf DictConfig contains ContainerMetadata wrappers that aren't
+    # JSON-serializable. Resolve to plain Python via to_container before dump.
+    try:
+        from omegaconf import OmegaConf
+        args_plain = OmegaConf.to_container(cfg, resolve=True)
+    except Exception:
+        args_plain = {k: str(v) if isinstance(v, Path) else v
+                      for k, v in (vars(cfg).items() if hasattr(cfg, '__dict__')
+                                   else dict(cfg).items())}
+
     payload = {
         "scenes": results,
         "skipped": skipped,
-        "args": {k: str(v) if isinstance(v, Path) else v
-                 for k, v in (vars(cfg).items() if hasattr(cfg, '__dict__')
-                              else dict(cfg).items())},
+        "args": args_plain,
     }
-    output_path.write_text(json.dumps(payload, indent=2))
+    output_path.write_text(json.dumps(payload, indent=2, default=str))
     print(f"Wrote candidate poses to {output_path}")
 
 

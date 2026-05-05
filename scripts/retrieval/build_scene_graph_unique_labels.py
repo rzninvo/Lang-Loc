@@ -23,7 +23,11 @@ from scripts.retrieval.utils import (
     directional_rel, distance_rel, symmetric_rel,
 )
 
-device = "mps" if torch.backends.mps.is_available() else "cpu"
+device = (
+    "cuda"
+    if torch.cuda.is_available()
+    else ("mps" if torch.backends.mps.is_available() else "cpu")
+)
 clip_model = None
 clip_preprocess = None
 

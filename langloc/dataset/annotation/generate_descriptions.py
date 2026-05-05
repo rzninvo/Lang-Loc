@@ -76,8 +76,11 @@ def call_gpt(prompt: str, model: str = "gpt-4o-mini") -> str:
                 },
                 {"role": "user", "content": prompt},
             ],
-            temperature=0.5,  # Slightly higher for more natural variation
-            max_completion_tokens=80,  # Shorter, punchier descriptions
+            # gpt-5.x only accepts the default temperature (1), so we omit it.
+            # Reasoning tokens count against max_completion_tokens; 80 is too
+            # tight for gpt-5.5's reasoning budget — bump to 512 so reasoning
+            # plus the 2-3 sentence description (~60-80 visible tokens) fit.
+            max_completion_tokens=512,
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
@@ -240,7 +243,7 @@ def main(scene_id: str, dataset: str, cfg: DictConfig) -> None:
     """
     dataset_key = "scannetpp" if dataset.lower() == "scannet" else "3rscan"
     dataset_cfg = cfg.dataset[dataset_key]
-    description_model = str(dataset_cfg.get("description_model", "gpt-5.2"))
+    description_model = str(dataset_cfg.get("description_model", "gpt-5.5"))
 
     # Resolve dataset and scene path
     if dataset.lower() == "scannet":
