@@ -30,6 +30,9 @@ checkpoint: null           # Model checkpoint for evaluation
 graphs_3dssg: null         # Path to 3DSSG graphs .pt file
 graphs_scanscribe_test: null
 cache_dir: null            # Directory for precomputed embedding caches
+scanscribe_json: null      # Path to scanscribe_cleaned.json for rich query scene_clip enrichment (table3)
+graphs_3dssg_raw: null     # Path to 3dssg_graphs_518D.pt for relation-aware DB scene_clip enrichment (table3)
+graphs_scanscribe_img: null  # Path to image-generated query graphs for precompute (overrides cache_dir default)
 
 # SceneGraph constructor params (selects which pre-computed embeddings to load;
 # the retrieval model itself re-encodes everything with CLIP, so this only
@@ -56,7 +59,12 @@ eval:
 
   # Table 3: Image-generated queries — cache-based (Text2SGM Table 4 protocol)
   table3:
-    out_of: 10
+    out_of: 5
     valid_top_k: [1, 2, 3, 5]
     eval_iters: 10
     eval_iter_count: 100
+    w_emb: 0.0
+    w_scene: 0.8
+    w_jac: 0.2
+    soft_jac: true
+    jac_threshold: 0.88

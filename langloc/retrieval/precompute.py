@@ -6,19 +6,72 @@ for fast evaluation with eval.py retrieval.eval.protocol=table3.
 """
 
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import clip
 from tqdm import tqdm
+from torch_scatter import scatter_mean
 
 import hydra
 from omegaconf import DictConfig
 
 from langloc.graphs.scene_graph import SceneGraph
 from langloc.retrieval.models.dual_scene_aligner import DualSceneAligner
+from langloc.retrieval.models.networks.edge_gat import MultiGAT_Edge
 from langloc.retrieval.eval import (
     get_clip_embedding, get_base_label, build_single_batch, build_clip_caches,
 )
+
+
+class LegacyDualSceneAligner(nn.Module):
+    """
+    Checkpoint architecture: base_model (GatedFusion, final_proj=Linear(256,256))
+    + top-level fusion(cat([gnn_out, scene_clip])) → 256.
+    """
+
+    def __init__(self, node_input_dim=518, hidden_dim=256, dropout=0.1):
+        super().__init__()
+        # base_model mirrors current DualSceneAligner but final_proj takes 256 (no scene_clip)
+        self.base_model = DualSceneAligner(
+            node_input_dim=node_input_dim, hidden_dim=hidden_dim, dropout=dropout)
+        # override final_proj to match checkpoint (input=hidden_dim, not hidden_dim+512)
+        self.base_model.final_proj = nn.Sequential(
+            nn.Linear(hidden_dim, 256), nn.LayerNorm(256), nn.GELU(),
+            nn.Dropout(dropout), nn.Linear(256, 256),
+        )
+        # top-level fusion: cat([gnn_out(256), scene_clip(512)]) → 256
+        self.fusion = nn.Sequential(
+            nn.LayerNorm(hidden_dim + 512),
+            nn.Linear(hidden_dim + 512, hidden_dim), nn.GELU(),
+            nn.Dropout(dropout), nn.Linear(hidden_dim, hidden_dim), nn.LayerNorm(hidden_dim),
+        )
+
+    def _encode(self, node_feats, geom_edges, geom_attr,
+                text_edges, text_attr, batch, scene_clip):
+        bm = self.base_model
+        x = bm.node_encoder(node_feats)
+        g = bm.norm_geom(bm.gat_geom(x, geom_edges, geom_attr.float()))
+        t = bm.norm_text(bm.gat_text(x, text_edges, text_attr.float())) \
+            if text_edges.size(1) > 0 else g
+        h = bm.fusion(g, t)
+        pooled = scatter_mean(h, batch, dim=0)
+        gnn_out = bm.final_proj(pooled)          # Linear(256→256), no scene_clip
+        return self.fusion(torch.cat([gnn_out, scene_clip], dim=-1))
+
+    def forward(self, batch):
+        return {
+            "src_emb": self._encode(
+                batch["node_feats_src"], batch["geom_edges_src"], batch["geom_attr_src"],
+                batch["text_edges_src"], batch["text_attr_src"],
+                batch["src_batch"], batch["scene_clip_src"],
+            ),
+            "ref_emb": self._encode(
+                batch["node_feats_ref"], batch["geom_edges_ref"], batch["geom_attr_ref"],
+                batch["text_edges_ref"], batch["text_attr_ref"],
+                batch["ref_batch"], batch["scene_clip_ref"],
+            ),
+        }
 
 
 @hydra.main(config_path="../../configs", config_name="config", version_base=None)
@@ -37,9 +90,8 @@ def main(cfg: DictConfig):
 
     # Load graphs
     print("Loading graphs...")
-    raw_3dssg = torch.load(
-        f"{cache_dir}/3dssg_graphs_518D.pt", weights_only=False, map_location="cpu"
-    )
+    graphs_3dssg_path = rcfg.get("graphs_3dssg", None) or f"{cache_dir}/3dssg_graphs_518D.pt"
+    raw_3dssg = torch.load(graphs_3dssg_path, weights_only=False, map_location="cpu")
     db_graphs = {}
     for sid in tqdm(raw_3dssg, desc="3DSSG"):
         db_graphs[sid] = SceneGraph(
@@ -48,10 +100,9 @@ def main(cfg: DictConfig):
             use_attributes=True,
         )
 
-    raw_test = torch.load(
-        f"{cache_dir}/scanscribe_graphs_test_518D.pt",
-        weights_only=False, map_location="cpu",
-    )
+    graphs_scanscribe_img = rcfg.get("graphs_scanscribe_img", None)
+    query_graphs_path = graphs_scanscribe_img or f"{cache_dir}/scanscribe_graphs_test_518D.pt"
+    raw_test = torch.load(query_graphs_path, weights_only=False, map_location="cpu")
     query_graphs = {}
     for sid in tqdm(raw_test, desc="Queries"):
         for tid in raw_test[sid]:
@@ -74,15 +125,25 @@ def main(cfg: DictConfig):
     )
     print(f"Saved clip_embedding_cache.pt")
 
-    # Load model
+    # Load model — auto-detect legacy vs current architecture from checkpoint
     print("Loading model...")
-    model = DualSceneAligner(
+    ckpt = torch.load(rcfg.checkpoint, map_location=device, weights_only=False)
+    state = ckpt["model_state_dict"]
+    # Detect legacy: has top-level fusion.0 (wrapper) AND base_model.* keys
+    is_legacy = any(k.startswith("fusion.0") for k in state)
+    print(f"  Architecture: {'legacy wrapper' if is_legacy else 'current'} DualSceneAligner")
+    model = LegacyDualSceneAligner(
+        node_input_dim=rcfg.node_input_dim,
+        hidden_dim=rcfg.hidden_dim,
+        dropout=0.0,
+    ).to(device) if is_legacy else DualSceneAligner(
         node_input_dim=rcfg.node_input_dim,
         hidden_dim=rcfg.hidden_dim,
         dropout=0.0,
     ).to(device)
-    ckpt = torch.load(rcfg.checkpoint, map_location=device, weights_only=False)
-    model.load_state_dict(ckpt["model_state_dict"])
+    if not is_legacy and any(k.startswith("base_model.") for k in state):
+        state = {k.replace("base_model.", "", 1): v for k, v in state.items()}
+    model.load_state_dict(state)
     model.eval()
     print(f"Model: {sum(p.numel() for p in model.parameters()):,} parameters")
 

@@ -7,6 +7,7 @@ Usage:
   python -m langloc.retrieval.eval retrieval.eval.protocol=table3 retrieval.cache_dir=<path>
 """
 
+import json
 import torch
 import torch.nn.functional as F
 import numpy as np
@@ -43,19 +44,38 @@ def get_clip_embedding(text, clip_model, device):
     return emb[0].cpu()
 
 
-def score_pair(q_cache, db_cache, w_emb, w_scene, w_jac):
+def soft_f1(q_labels, db_labels, label_clip, threshold=0.8):
+    """F1 using CLIP cosine similarity instead of exact string match."""
+    if not q_labels or not db_labels:
+        return 0.0
+    db_embs = torch.stack([label_clip[l] for l in db_labels if l in label_clip])
+    q_embs  = torch.stack([label_clip[l] for l in q_labels  if l in label_clip])
+    if db_embs.size(0) == 0 or q_embs.size(0) == 0:
+        return 0.0
+    sim = q_embs @ db_embs.T                          # (|Q|, |DB|)
+    prec = (sim.max(dim=0).values >= threshold).float().mean().item()
+    rec  = (sim.max(dim=1).values >= threshold).float().mean().item()
+    return (2 * prec * rec) / (prec + rec + 1e-8)
+
+
+def score_pair(q_cache, db_cache, w_emb, w_scene, w_jac,
+               label_clip=None, jac_threshold=0.8):
     """Compute Eq.8 scoring between query and database entry."""
     emb_sim = (q_cache["emb"] * db_cache["emb"]).sum().item()
     scene_sim = F.cosine_similarity(
         q_cache["scene_clip"], db_cache["scene_clip"]
     ).item()
-    overlap = len(q_cache["labels"] & db_cache["labels"])
-    if len(q_cache["labels"]) > 0 and len(db_cache["labels"]) > 0:
-        prec = overlap / len(db_cache["labels"])
-        rec = overlap / len(q_cache["labels"])
-        f1 = (2 * prec * rec) / (prec + rec + 1e-8)
+    if label_clip is not None:
+        f1 = soft_f1(q_cache["labels"], db_cache["labels"],
+                     label_clip, threshold=jac_threshold)
     else:
-        f1 = 0
+        overlap = len(q_cache["labels"] & db_cache["labels"])
+        if len(q_cache["labels"]) > 0 and len(db_cache["labels"]) > 0:
+            prec = overlap / len(db_cache["labels"])
+            rec  = overlap / len(q_cache["labels"])
+            f1   = (2 * prec * rec) / (prec + rec + 1e-8)
+        else:
+            f1 = 0
     return w_emb * emb_sim + w_scene * scene_sim + w_jac * f1
 
 
@@ -117,6 +137,85 @@ def build_single_batch(graph, node_clip_cache, rel_clip_cache,
 
 # ── CLIP caching ──────────────────────────────────────────────
 
+def enrich_query_scene_clips(query_emb, scanscribe_data, clip_model, device):
+    """Replace query scene_clip embeddings with averaged CLIP of raw text descriptions."""
+    enriched = 0
+    for cache in tqdm(query_emb.values(), desc="Enriching scene_clip"):
+        sid = cache.get("scene_id")
+        descriptions = scanscribe_data.get(sid, [])
+        if not descriptions:
+            continue
+        embs = []
+        for desc in descriptions:
+            with torch.no_grad():
+                tokens = clip.tokenize([desc], truncate=True).to(device)
+                emb = clip_model.encode_text(tokens)
+                emb = F.normalize(emb, dim=-1)
+            embs.append(emb[0].cpu())
+        avg = torch.stack(embs).mean(dim=0)
+        avg = avg / avg.norm()
+        cache["scene_clip"] = avg.unsqueeze(0)
+        enriched += 1
+    print(f"Enriched {enriched}/{len(query_emb)} query scene_clip embeddings from raw text")
+
+
+_SPATIAL_RELATIONS = {
+    "left", "right", "front", "behind", "close by",
+    "attached to", "standing on", "lying on", "hanging on",
+    "supported by", "standing in", "build in", "leaning against",
+    "higher than", "lower than",
+}
+
+
+def enrich_db_scene_clips(db_emb, graphs_3dssg_path, clip_model, device):
+    """Replace DB scene_clip with relation-aware CLIP embeddings from 3DSSG graphs."""
+    raw = torch.load(graphs_3dssg_path, weights_only=False, map_location="cpu")
+    enriched = 0
+    for sid, cache in tqdm(db_emb.items(), desc="Enriching DB scene_clip"):
+        if sid not in raw:
+            continue
+        g = raw[sid]
+        objects = g.get("objects", {})
+        sentences = []
+        for rel_data in g.get("relationships", {}).values():
+            subj = rel_data.get("label", "")
+            for adj in rel_data.get("adj_to", []):
+                rel = adj.get("relation", "")
+                if rel not in _SPATIAL_RELATIONS:
+                    continue
+                obj = objects.get(adj["obj_id"], {}).get("label", "")
+                if subj and obj:
+                    sentences.append(f"{subj} is {rel} {obj}")
+        if not sentences:
+            continue
+        embs = []
+        for sent in sentences[:10]:
+            with torch.no_grad():
+                tokens = clip.tokenize([sent], truncate=True).to(device)
+                emb = clip_model.encode_text(tokens)
+                emb = F.normalize(emb, dim=-1)
+            embs.append(emb[0].cpu())
+        avg = torch.stack(embs).mean(dim=0)
+        avg = avg / avg.norm()
+        cache["scene_clip"] = avg.unsqueeze(0)
+        enriched += 1
+    print(f"Enriched {enriched}/{len(db_emb)} DB scene_clip embeddings from 3DSSG relations")
+
+
+def build_label_clip_cache(query_emb, db_emb, clip_model, device):
+    """Build a CLIP embedding cache for all unique node labels in query and DB caches."""
+    all_labels = set()
+    for c in query_emb.values():
+        all_labels.update(c.get("labels", set()))
+    for c in db_emb.values():
+        all_labels.update(c.get("labels", set()))
+    label_clip = {}
+    for label in tqdm(all_labels, desc="Label CLIP"):
+        label_clip[label] = get_clip_embedding(label, clip_model, device)
+    print(f"Built label CLIP cache: {len(label_clip)} unique labels")
+    return label_clip
+
+
 def build_clip_caches(graphs_dict, clip_model, device):
     """Build node CLIP, relation CLIP, and scene CLIP caches."""
     all_labels, all_relations = set(), set()
@@ -165,7 +264,7 @@ def embed_graphs(model, graphs, node_clip, rel_clip, scene_clip, device):
 
 def eval_sampled(query_emb, db_emb, query_buckets, pool_buckets,
                  out_of, valid_top_k, eval_iters, eval_iter_count,
-                 w_emb, w_scene, w_jac):
+                 w_emb, w_scene, w_jac, label_clip=None, jac_threshold=0.8):
     """Sampled evaluation: pick 1 correct + (out_of-1) random candidates."""
     all_valid = {k: [] for k in valid_top_k}
 
@@ -186,7 +285,8 @@ def eval_sampled(query_emb, db_emb, query_buckets, pool_buckets,
             for sid in candidates:
                 if sid not in db_emb:
                     continue
-                scores.append(score_pair(qc, db_emb[sid], w_emb, w_scene, w_jac))
+                scores.append(score_pair(qc, db_emb[sid], w_emb, w_scene, w_jac,
+                                         label_clip=label_clip, jac_threshold=jac_threshold))
                 sids.append(sid)
 
             if not scores:
@@ -207,7 +307,7 @@ def eval_sampled(query_emb, db_emb, query_buckets, pool_buckets,
 
 def eval_full_pool(query_emb, db_emb, query_buckets,
                    valid_top_k, eval_iters, eval_iter_count,
-                   w_emb, w_scene, w_jac):
+                   w_emb, w_scene, w_jac, label_clip=None, jac_threshold=0.8):
     """Full-pool evaluation: rank against ALL database scenes."""
     all_valid = {k: [] for k in valid_top_k}
     db_keys = list(db_emb.keys())
@@ -221,7 +321,8 @@ def eval_full_pool(query_emb, db_emb, query_buckets,
 
             scores = []
             for sid in db_keys:
-                scores.append(score_pair(qc, db_emb[sid], w_emb, w_scene, w_jac))
+                scores.append(score_pair(qc, db_emb[sid], w_emb, w_scene, w_jac,
+                                         label_clip=label_clip, jac_threshold=jac_threshold))
 
             order = np.argsort(scores)[::-1]
             for k in valid_top_k:
@@ -254,6 +355,9 @@ def main(cfg: DictConfig):
         torch.cuda.manual_seed_all(42)
 
     proto = ecfg[protocol]
+    w_emb  = proto.get("w_emb",  rcfg.w_emb)
+    w_scene = proto.get("w_scene", rcfg.w_scene)
+    w_jac  = proto.get("w_jac",  rcfg.w_jac)
 
     if protocol == "table3":
         # ── Cache-based evaluation (Table 3) ──
@@ -263,6 +367,26 @@ def main(cfg: DictConfig):
         db_emb = torch.load(f"{cache_dir}/db_emb_cache.pt", weights_only=False)
         query_emb = torch.load(f"{cache_dir}/query_emb_cache.pt", weights_only=False)
         print(f"DB: {len(db_emb)} scenes, Queries: {len(query_emb)}")
+
+        # Load CLIP once if any enrichment or soft Jaccard is needed
+        clip_model = None
+        use_soft_jac = proto.get("soft_jac", False)
+        scanscribe_json = rcfg.get("scanscribe_json", None)
+        if scanscribe_json or use_soft_jac:
+            print("Loading CLIP...")
+            clip_model, _ = clip.load("ViT-B/32", device=device)
+
+        # Enrich query scene_clip from raw text descriptions if JSON provided
+        if scanscribe_json:
+            with open(scanscribe_json) as f:
+                scanscribe_data = json.load(f)
+            enrich_query_scene_clips(query_emb, scanscribe_data, clip_model, device)
+
+        # Build label CLIP cache for soft Jaccard if enabled
+        label_clip = None
+        jac_threshold = proto.get("jac_threshold", 0.8)
+        if use_soft_jac:
+            label_clip = build_label_clip_cache(query_emb, db_emb, clip_model, device)
 
         # Load pool graphs for bucket building
         pool_data = torch.load(
@@ -293,7 +417,8 @@ def main(cfg: DictConfig):
             query_emb, db_emb, query_buckets, pool_buckets,
             out_of=proto.out_of, valid_top_k=proto.valid_top_k,
             eval_iters=proto.eval_iters, eval_iter_count=proto.eval_iter_count,
-            w_emb=rcfg.w_emb, w_scene=rcfg.w_scene, w_jac=rcfg.w_jac,
+            w_emb=w_emb, w_scene=w_scene, w_jac=w_jac,
+            label_clip=label_clip, jac_threshold=jac_threshold,
         )
     else:
         # ── Model-based evaluation (Tables 1 & 2) ──
@@ -364,14 +489,14 @@ def main(cfg: DictConfig):
                 query_emb, db_emb, query_buckets, pool_buckets,
                 out_of=proto.out_of, valid_top_k=proto.valid_top_k,
                 eval_iters=proto.eval_iters, eval_iter_count=proto.eval_iter_count,
-                w_emb=rcfg.w_emb, w_scene=rcfg.w_scene, w_jac=rcfg.w_jac,
+                w_emb=w_emb, w_scene=w_scene, w_jac=w_jac,
             )
         elif protocol == "table2":
             results = eval_full_pool(
                 query_emb, db_emb, query_buckets,
                 valid_top_k=proto.valid_top_k,
                 eval_iters=proto.eval_iters, eval_iter_count=proto.eval_iter_count,
-                w_emb=rcfg.w_emb, w_scene=rcfg.w_scene, w_jac=rcfg.w_jac,
+                w_emb=w_emb, w_scene=w_scene, w_jac=w_jac,
             )
 
     # Print results
@@ -381,7 +506,7 @@ def main(cfg: DictConfig):
     print(f"\n{'='*60}")
     print(f"RESULTS — {table_name[protocol]}")
     print(f"{'='*60}")
-    print(f"Weights: emb={rcfg.w_emb:.2f}, scene={rcfg.w_scene:.2f}, jac={rcfg.w_jac:.2f}")
+    print(f"Weights: emb={w_emb:.2f}, scene={w_scene:.2f}, jac={w_jac:.2f}")
     for k in sorted(results.keys()):
         mean, std = results[k]
         print(f"  Top-{k}: {mean*100:.2f}% +/- {std*100:.2f}%")
