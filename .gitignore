@@ -2,6 +2,8 @@
 __pycache__/
 /results
 .env
+.venv/
+.venv-py314-backup/
 .vscode
 .claude
 /src/open3dsg
