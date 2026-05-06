@@ -1052,6 +1052,7 @@ def _run_metrics_mode(candidate_ids: List[str],
 
     frame_policy = _cfg_get(cfg, "frame_policy", "max_visible")
     all_frames_mode = frame_policy == "all"
+    caption_source = str(_cfg_get(cfg, "caption_source", "raw")).lower()
 
     def _print_result(result: SceneMetrics) -> None:
         print(f"    frame: {result.frame_id}")
@@ -1085,7 +1086,16 @@ def _run_metrics_mode(candidate_ids: List[str],
             desc_dir = query_root / sid / "output" / "descriptions"
             if not desc_dir.exists():
                 desc_dir = mesh_root / sid / "output" / "descriptions"
-            frames = load_frame_jsons(desc_dir)
+            # Pick the frame loader to match caption_source: the per-scene
+            # all-frames sweep iterates over the same population the
+            # caption-graph builder will consume, otherwise grounding will
+            # fail systematically (raw frame JSON has no parsed_graph
+            # field; parsed JSON has no visible_objects under that name).
+            if caption_source == "parsed":
+                from langloc.localization.frame_io import load_parsed_frame_jsons
+                frames = load_parsed_frame_jsons(desc_dir)
+            else:
+                frames = load_frame_jsons(desc_dir)
             if not frames:
                 print(f"    no frames — skipped.")
                 continue
