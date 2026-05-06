@@ -116,7 +116,8 @@ def evaluate_scene(scene_id: str,
                    rng: np.random.Generator,
                    *,
                    graph_cfg: object = None,
-                   frame_override: object = None) -> Optional[Union[SceneMetrics, Dict]]:
+                   frame_override: object = None,
+                   scene_artifacts: Optional[dict] = None) -> Optional[Union[SceneMetrics, Dict]]:
     """Run localization evaluation for a single scene.
 
     Steps shared across all modes:
@@ -265,16 +266,33 @@ def evaluate_scene(scene_id: str,
         return None
 
     dataset = _cfg_get(cfg, "dataset", "3rscan")
-    mesh, tri2obj, obj2faces = load_scene(scene_dir, dataset=dataset)
-    rc = o3d.t.geometry.RaycastingScene()
-    mesh_id = rc.add_triangles(o3d.t.geometry.TriangleMesh.from_legacy(mesh))
-
-    verts = np.asarray(mesh.vertices)
     grid_step = _cfg_get(cfg, "grid_step", 0.25)
     eye_height = _cfg_get(cfg, "eye_height", 1.6)
-    cams, cam_linear_indices, Nx, Ny = sample_grid(
-        verts, step=grid_step, z_eye=eye_height, mesh=mesh, return_indices=True
-    )
+    # Per-scene heavy work (mesh load, BVH build, walkable-grid sampling)
+    # is identical for every parsed frame in the same scene, so the
+    # all-frames loop in `run_evaluation_loop` can pass `scene_artifacts`
+    # to skip the redundant rebuild and shave most of the per-frame
+    # cost.  When `scene_artifacts` is None we fall back to the
+    # one-shot path used by single-frame eval.
+    if scene_artifacts is not None:
+        mesh = scene_artifacts["mesh"]
+        tri2obj = scene_artifacts["tri2obj"]
+        obj2faces = scene_artifacts["obj2faces"]
+        rc = scene_artifacts["rc"]
+        mesh_id = scene_artifacts["mesh_id"]
+        verts = scene_artifacts["verts"]
+        cams = scene_artifacts["cams"]
+        cam_linear_indices = scene_artifacts["cam_linear_indices"]
+        Nx = scene_artifacts["Nx"]
+        Ny = scene_artifacts["Ny"]
+    else:
+        mesh, tri2obj, obj2faces = load_scene(scene_dir, dataset=dataset)
+        rc = o3d.t.geometry.RaycastingScene()
+        mesh_id = rc.add_triangles(o3d.t.geometry.TriangleMesh.from_legacy(mesh))
+        verts = np.asarray(mesh.vertices)
+        cams, cam_linear_indices, Nx, Ny = sample_grid(
+            verts, step=grid_step, z_eye=eye_height, mesh=mesh, return_indices=True
+        )
 
     tris_arr = np.asarray(mesh.triangles)
     centroids: Dict[int, np.ndarray] = {}
@@ -1099,10 +1117,51 @@ def _run_metrics_mode(candidate_ids: List[str],
             if not frames:
                 print(f"    no frames — skipped.")
                 continue
+            # Build per-scene mesh / RC / grid artifacts ONCE; reused for
+            # every frame in this scene below.  `load_scene` and the
+            # walkable-grid sampler together take ~0.4 s on typical
+            # 3RScan meshes, so skipping the rebuild saves ~10× that on
+            # 10-frame scenes (the typical count).
+            scene_dir_for_loop = mesh_root / sid
+            if not scene_dir_for_loop.exists():
+                print(f"    scene dir missing — skipped.")
+                continue
+            grid_step_loop = _cfg_get(cfg, "grid_step", 0.25)
+            eye_height_loop = _cfg_get(cfg, "eye_height", 1.6)
+            try:
+                _mesh, _tri2obj, _obj2faces = load_scene(
+                    scene_dir_for_loop,
+                    dataset=str(_cfg_get(cfg, "dataset", "3rscan")),
+                )
+                _rc = o3d.t.geometry.RaycastingScene()
+                _mesh_id = _rc.add_triangles(
+                    o3d.t.geometry.TriangleMesh.from_legacy(_mesh)
+                )
+                _verts = np.asarray(_mesh.vertices)
+                _cams, _cam_linear_indices, _Nx, _Ny = sample_grid(
+                    _verts, step=grid_step_loop, z_eye=eye_height_loop,
+                    mesh=_mesh, return_indices=True,
+                )
+            except Exception as exc:
+                print(f"    failed to load scene mesh: {exc} — skipped.")
+                continue
+            scene_artifacts_cache = {
+                "mesh": _mesh,
+                "tri2obj": _tri2obj,
+                "obj2faces": _obj2faces,
+                "rc": _rc,
+                "mesh_id": _mesh_id,
+                "verts": _verts,
+                "cams": _cams,
+                "cam_linear_indices": _cam_linear_indices,
+                "Nx": _Nx,
+                "Ny": _Ny,
+            }
             for fi, fs in enumerate(frames):
                 result = evaluate_scene(
                     sid, scenes[sid], mode, cfg, rng,
                     graph_cfg=graph_cfg, frame_override=fs,
+                    scene_artifacts=scene_artifacts_cache,
                 )
                 if result is None or not isinstance(result, SceneMetrics):
                     continue
