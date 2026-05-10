@@ -611,8 +611,8 @@ def ensure_query_root(query_root: Optional[Path], root: Path) -> Path:
         The resolved query root path.
     """
     if query_root is not None:
-        return query_root
-    return root
+        return Path(query_root)
+    return Path(root)
 
 
 def format_args_section(args: object) -> str:
