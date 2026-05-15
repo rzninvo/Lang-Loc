@@ -6,15 +6,16 @@ pipeline consumes. The point of the comparison is to isolate the
 describer's contribution — keyframes, parser, grounder and localizer
 are held constant.
 
-| Sub-directory | Describer | Used in |
+| Describer | Where it lives | Used in |
 |---|---|---|
-| `gpt_vlm/` | OpenAI **GPT-5.5** vision (April 2026). One image → 2–4 sentence first-person description. | Rebuttal §6 (closed-loop-bias defense). |
-| `human/` | Real humans typing first-person descriptions via the public annotation website (`tools/annotation_website/`). | Rebuttal §6 (WxoL "report results on real human-written descriptions"). |
+| **GT-aware GPT-4o-mini** (paper's describer) — generates description from `visible_objects` + `spatial_relations` extracted from the 3DSSG ground-truth scene graph. | [`langloc/dataset/annotation/`](../../langloc/dataset/annotation/) (not in this directory — it's the original paper pipeline). | Paper Table 4 main results. |
+| **GPT-5.5 vision** (April 2026) — one image → 2–4 sentence first-person description. No GT metadata. | [`gpt_vlm/`](gpt_vlm/) | Rebuttal §6 (closed-loop-bias defense). |
+| **Humans** typing first-person descriptions via the public annotation website. | [`human/`](human/) (extracts from `tools/annotation_website/`). | Rebuttal §6 (WxoL "report results on real human-written descriptions"). |
 
-All three describers (paper's GT-aware GPT-4o-mini, GPT-5.5 vision,
-humans) feed the SAME parser (`langloc.dataset.annotation.parse_descriptions`)
-and the SAME localizer (`langloc.localization.cli`), so paired
-differences cleanly attribute to the describer alone.
+All three describers feed the SAME parser
+(`langloc.dataset.annotation.parse_descriptions`) and the SAME
+localizer (`langloc.localization.cli`), so paired differences
+cleanly attribute to the describer alone.
 
 ## Output schema
 

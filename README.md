@@ -81,6 +81,14 @@ python -c "from pytorch3d.structures import Meshes; print('pytorch3d ok')"
 python -m spacy download en_core_web_lg
 ```
 
+The annotation website (`tools/annotation_website/`) has its own
+isolated dependencies — install them only if you plan to run the
+crowdsourcing UI:
+
+```bash
+pip install -r tools/annotation_website/requirements.txt
+```
+
 ## Dataset download
 
 Both datasets require accepting their respective terms of use; we
@@ -312,8 +320,18 @@ self-contained sub-projects with their own READMEs:
 
 ## Citation
 
-Please cite our paper if you find this code useful (BibTeX upon
-camera-ready acceptance).
+Please cite our paper if you find this code useful. A full BibTeX
+entry will be added here on camera-ready acceptance; the placeholder
+below records the title, venue, and year for reference:
+
+```bibtex
+@inproceedings{langloc2026,
+  title     = {LangLoc: Language-Based 3D Indoor Localization},
+  author    = {<authors>},
+  booktitle = {Proceedings of the European Conference on Computer Vision (ECCV)},
+  year      = {2026},
+}
+```
 
 ## License
 
