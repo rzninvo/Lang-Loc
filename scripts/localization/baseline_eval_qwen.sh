@@ -11,7 +11,7 @@
 
 case "${1:-}" in
     -h|--help)
-        sed -n '1,10p' "$0" | sed -e 's/^# \?//'
+        sed -n '2,10p' "$0" | sed -e 's/^# \?//'
         exit 0
         ;;
 esac

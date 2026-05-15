@@ -40,7 +40,7 @@ set -euo pipefail
 
 case "${1:-}" in
     -h|--help)
-        sed -n '1,38p' "$0" | sed -e 's/^# \?//'
+        sed -n '2,38p' "$0" | sed -e 's/^# \?//'
         exit 0
         ;;
 esac

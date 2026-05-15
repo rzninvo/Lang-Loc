@@ -28,17 +28,20 @@
 #   - Precompute caches: ~3 min on GPU, ~10 min CPU (one-time).
 #   - Eval:              ~3 s per table once caches exist.
 #
-# Required inputs (download instructions in README §"Data layout"):
-#   - data/model_checkpoints/graph2graph/paper/epoch_70_163_cliprel.pth
-#   - data/processed_data/scanscribe/scanscribe_text_graphs_test_518D.pt
-#   - data/processed_data/scanscribe/scanscribe_text_graphs_from_image_desc_node_edge_features.pt
-#   - data/processed_data/scanscribe/scanscribe_cleaned_original_518D.pt
-#   - data/processed_data/3dssg/3dssg_graphs_518D.pt
+# Required inputs (override the paths via env vars if your layout differs):
+#   - $CHECKPOINT       data/model_checkpoints/graph2graph/paper/epoch_70_163_cliprel.pth
+#   - $CACHE_DIR/scanscribe_graphs_test_518D.pt          (Tab. 1+2 queries)
+#   - $CACHE_DIR/scanscribe_cleaned_original_518D.pt     (218-scene distractor pool)
+#   - $CACHE_DIR/3dssg_graphs_518D.pt                    (3DSSG database)
+#   - $SCANSCRIBE_DIR/scanscribe_text_graphs_from_image_desc_node_edge_features.pt
+#                                                        (Tab. 3 LLM-from-image queries)
+#   Defaults: CACHE_DIR=data/processed_data/eval_pool,
+#             SCANSCRIBE_DIR=data/processed_data/scanscribe.
 set -euo pipefail
 
 case "${1:-}" in
     -h|--help)
-        sed -n '2,36p' "$0" | sed -e 's/^# \?//'
+        sed -n '2,39p' "$0" | sed -e 's/^# \?//'
         exit 0
         ;;
 esac
@@ -71,10 +74,10 @@ fi
 CACHE_DIR="${CACHE_DIR:-data/processed_data/eval_pool}"
 CHECKPOINT="${CHECKPOINT:-data/model_checkpoints/graph2graph/paper/epoch_70_163_cliprel.pth}"
 SCANSCRIBE_DIR="${SCANSCRIBE_DIR:-data/processed_data/scanscribe}"
-DEVICE="${DEVICE:-cuda}"
+DEVICE="${DEVICE:-auto}"
 
-QUERY_TEXT="${SCANSCRIBE_DIR}/scanscribe_text_graphs_test_518D.pt"
-QUERY_IMG="${SCANSCRIBE_DIR}/scanscribe_text_graphs_from_image_desc_node_edge_features.pt"
+QUERY_TEXT="${QUERY_TEXT:-${CACHE_DIR}/scanscribe_graphs_test_518D.pt}"
+QUERY_IMG="${QUERY_IMG:-${SCANSCRIBE_DIR}/scanscribe_text_graphs_from_image_desc_node_edge_features.pt}"
 
 SKIP_PRECOMPUTE=0
 EXTRA_ARGS=()

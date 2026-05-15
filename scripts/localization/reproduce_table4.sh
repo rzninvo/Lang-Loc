@@ -31,14 +31,14 @@
 #
 #   3RScan  — Pos mean 1.712 / med 1.551 m   Angle mean 46.07° / med 37.24°
 #             Top-10 mean 1.037 / med 0.941  3D IoU mean 0.172
-#   ScanNet — Pos mean 1.382 / med 1.099 m   Angle mean 42.67° / med 34.66°
+#   ScanNet — Pos mean 1.676 / med 1.314 m   Angle mean 42.67° / med 34.66°
 #             Top-10 mean 1.254 / med 1.065  3D IoU mean 0.236
 set -euo pipefail
 
 # Print the doc header on --help / -h and exit without launching a run.
 case "${1:-}" in
     -h|--help)
-        sed -n '1,35p' "$0" | sed -e 's/^# \?//'
+        sed -n '2,35p' "$0" | sed -e 's/^# \?//'
         exit 0
         ;;
 esac
