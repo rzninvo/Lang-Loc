@@ -198,6 +198,28 @@ prompt-sensitivity in the description-generation step. The dialog
 rows are sensitive to Qwen-1.5B's hardware-non-determinism and can
 drift by ~5 cm.
 
+### Dialog row (Table 4 "with dialog")
+
+The "with dialog" rows in Table 4 require two extra Hydra overrides
+on top of the candidate export. ScanNet uses the Qwen-1.5B answerer;
+3RScan uses the oracle answerer:
+
+```bash
+# 1. Export candidates from the localizer (writes eval/candidates.json)
+bash scripts/localization/run_candidates.sh localization=scannet \
+    "+localization.scene_ids=[$(paste -sd, manifests/scannet_table4_first_100.txt)]"
+
+# 2. Run the Bayesian dialogue refinement
+#    - ScanNet: answer_mode=qwen, dataset_root points at data/scans
+#    - 3RScan:  answer_mode=oracle, dataset_root points at data/3RScan
+bash scripts/dialogue/run_eval.sh \
+    dialogue.answer_mode=qwen \
+    dialogue.dataset_root=$PWD/data/scans
+```
+
+Omitting `answer_mode` leaves it at the `interactive` default, which
+will block waiting on stdin for `y/n/u` answers.
+
 ## Dataset preparation (keyframes + descriptions)
 
 If you want to process additional scenes beyond the paper subsets:
