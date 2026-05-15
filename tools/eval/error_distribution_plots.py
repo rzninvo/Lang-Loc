@@ -29,7 +29,7 @@ from typing import Dict, List, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 
-REPO = Path("/home/rohamzn/UZH_Uni/Master-Project/Lang-Loc")
+REPO = Path(__file__).resolve().parents[2]
 EVAL = REPO / "eval"
 OUT = EVAL / "rebuttal_plots"
 OUT.mkdir(parents=True, exist_ok=True)

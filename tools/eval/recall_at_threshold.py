@@ -13,7 +13,7 @@ import re
 from pathlib import Path
 from typing import List, Tuple
 
-REPO = Path("/home/rohamzn/UZH_Uni/Master-Project/Lang-Loc")
+REPO = Path(__file__).resolve().parents[2]
 EVAL = REPO / "eval"
 
 
