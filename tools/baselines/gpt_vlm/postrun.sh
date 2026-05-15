@@ -14,10 +14,27 @@
 # Idempotent. Safe to re-run. Does NOT restart the site.
 
 set -euo pipefail
+
+case "${1:-}" in
+    -h|--help)
+        sed -n '2,15p' "$0" | sed -e 's/^# \?//'
+        exit 0
+        ;;
+esac
+
 cd "$(dirname "$0")/../../.."
 
-PY="${LANGLOC_PYTHON:-/home/rohamzn/miniconda3/envs/langloc/bin/python}"
-[[ -x "$PY" ]] || PY="$(command -v python)"
+# Pick the langloc conda env's python; override with LANGLOC_PYTHON if you
+# installed elsewhere. Fall back to the first python on $PATH.
+PY="${LANGLOC_PYTHON:-$HOME/miniconda3/envs/langloc/bin/python}"
+if [[ ! -x "$PY" ]]; then
+    if command -v python >/dev/null 2>&1; then
+        PY="$(command -v python)"
+    else
+        echo "[ERROR] Cannot locate a Python interpreter. Set LANGLOC_PYTHON." >&2
+        exit 1
+    fi
+fi
 [[ -f .env ]] && set -a && source .env && set +a
 
 DATASETS=(scannet 3rscan)

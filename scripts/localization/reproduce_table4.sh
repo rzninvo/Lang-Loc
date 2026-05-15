@@ -35,6 +35,14 @@
 #             Top-10 mean 1.254 / med 1.065  3D IoU mean 0.236
 set -euo pipefail
 
+# Print the doc header on --help / -h and exit without launching a run.
+case "${1:-}" in
+    -h|--help)
+        sed -n '1,35p' "$0" | sed -e 's/^# \?//'
+        exit 0
+        ;;
+esac
+
 PROTOCOL="${1:-parsed}"
 shift || true
 DATASET="${1:-3rscan}"

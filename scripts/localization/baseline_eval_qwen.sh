@@ -9,6 +9,13 @@
 # Configure by editing the variables below or setting environment variables:
 #   SCENE_ROOT=/path/to/scenes DATASET=3rscan bash scripts/localization/baseline_eval_qwen.sh
 
+case "${1:-}" in
+    -h|--help)
+        sed -n '1,10p' "$0" | sed -e 's/^# \?//'
+        exit 0
+        ;;
+esac
+
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
 
