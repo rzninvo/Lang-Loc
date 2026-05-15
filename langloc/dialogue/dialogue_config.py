@@ -149,7 +149,7 @@ class DialogueConfig:
     p_k_nn: int = 10
     p_sigma: float = 0.25
     p_jitter: float = 0.07
-    seed: int = 0
+    seed: int = 42  # canonical project seed
 
     # --- Answering ---
     answer_mode: str = "interactive"

@@ -12,6 +12,7 @@ import hydra
 from omegaconf import DictConfig
 
 from langloc.localization.evaluation import run_evaluation
+from langloc.utils.seed import CANONICAL_SEED, set_seed
 
 
 @hydra.main(version_base=None, config_path="../../configs", config_name="config")
@@ -24,6 +25,7 @@ def main(cfg: DictConfig) -> None:
     Args:
         cfg: Merged Hydra configuration.
     """
+    set_seed(int(cfg.localization.get("seed", CANONICAL_SEED)))
     run_evaluation(cfg.localization, graph_cfg=cfg.graph)
 
 

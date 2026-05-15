@@ -47,6 +47,8 @@ import torch
 import torch.nn.functional as F
 from tqdm import tqdm
 
+from langloc.utils.seed import set_seed
+
 
 def get_base_label(label: str) -> str:
     """Strip spatial qualifiers (north/south/upper/etc.) from a node label."""
@@ -277,9 +279,7 @@ def main() -> None:
     if args.mode == "table3" and not args.query_cache_suffix:
         args.query_cache_suffix = "_img"
 
-    random.seed(args.seed)
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
+    set_seed(args.seed)
 
     cache_dir = Path(args.cache_dir)
     print(f"Cache dir: {cache_dir.resolve()}")
@@ -322,9 +322,7 @@ def main() -> None:
         print("\n" + "=" * 60)
         print(f"{table_label} protocol: top-k of {args.out_of} candidates")
         print("=" * 60)
-        random.seed(args.seed)
-        np.random.seed(args.seed)
-        torch.manual_seed(args.seed)
+        set_seed(args.seed)
         results = eval_top10(
             query_emb_cache=query_emb_cache,
             db_emb_cache=db_emb_cache,
@@ -347,9 +345,7 @@ def main() -> None:
         print("\n" + "=" * 60)
         print(f"Table 2 protocol: top-k of all {len(test_scene_ids)} test scenes")
         print("=" * 60)
-        random.seed(args.seed)
-        np.random.seed(args.seed)
-        torch.manual_seed(args.seed)
+        set_seed(args.seed)
         results = eval_full(
             query_emb_cache=query_emb_cache,
             db_emb_cache=db_emb_cache,
