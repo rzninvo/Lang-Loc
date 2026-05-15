@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% set page_class = 'localize' %}
+{% block title %}Choose a scene · LangLoc{% endblock %}
+
+{% block content %}
+<section class="hero hero-compact">
+  <div class="hero-inner narrow">
+    <div class="reveal">
+      <span class="eyebrow">localize</span>
+      <h1 class="hero-title small">
+        Pick a {{ dataset_label }} scene to localize in.
+      </h1>
+      <p class="lede small">
+        Each row is one scene. Click <strong>open</strong> to walk through it.
+        Once a frame is localized by anyone, it's removed from the pool.
+        Scenes marked ⭐ are the priority anchors.
+      </p>
+      <div class="cta-row">
+        <a href="/localize?dataset={{ chosen_dataset }}" class="btn-primary">
+          Auto-pick for me
+          <span class="btn-arrow" aria-hidden="true">&rarr;</span>
+        </a>
+        <a href="/history" class="btn-ghost">See my work</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="scene-grid">
+    {% for it in items %}
+    <article class="scene-card reveal {% if it.fully_done %}done{% endif %}" style="--reveal-delay: {{ loop.index0 * 25 }}ms;">
+      <div class="scene-card-head">
+        <span class="scene-rank">#{{ it.rank }}</span>
+        {% if it.is_anchor %}<span class="scene-anchor">⭐ anchor</span>{% endif %}
+        {% if it.fully_done %}<span class="scene-done">✅ done</span>{% endif %}
+      </div>
+      <h3 class="scene-id">{{ it.scene_short }}</h3>
+      <div class="scene-progress" aria-hidden="true">
+        <div class="scene-progress-fill" style="width: {{ '%.0f' | format(it.pct) }}%"></div>
+      </div>
+      <div class="scene-meta">
+        <span><strong>{{ it.n_loc }}</strong> / {{ it.n_desc }} frames localized</span>
+        {% if it.n_mine %}<span class="scene-mine">{{ it.n_mine }} from you</span>{% endif %}
+      </div>
+      <div class="scene-actions">
+        {% if it.fully_done %}
+          <span class="btn-ghost btn-sm" aria-disabled="true">Fully done</span>
+        {% else %}
+          <a href="/localize?dataset={{ chosen_dataset }}&scene={{ it.scene_id }}"
+             class="btn-primary btn-sm">
+            Open
+            <span class="btn-arrow" aria-hidden="true">&rarr;</span>
+          </a>
+        {% endif %}
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/reveal.js?v={{ static_version('js/reveal.js') }}" defer></script>
+{% endblock %}

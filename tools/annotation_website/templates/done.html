@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% set page_class = 'done' %}
+{% block title %}Thanks · LangLoc{% endblock %}
+
+{% block content %}
+<section class="hero hero-compact">
+  <div class="hero-inner narrow">
+    <div class="reveal">
+      <span class="eyebrow">all caught up</span>
+      <h1 class="hero-title small">
+        {% if your_completed %}
+          Thanks for the
+          <span class="hero-title-accent">{{ your_completed }}</span>
+          frame{{ '' if your_completed == 1 else 's' }}.
+        {% else %}
+          Nothing left for you right now.
+        {% endif %}
+      </h1>
+      <p class="lede small">
+        {% if your_completed %}
+          That's a real help{% if dataset_label %} on the
+          <strong>{{ dataset_label }}</strong> dataset{% endif %}.
+          You can describe more, switch datasets, or close the tab and come back another day.
+        {% else %}
+          {% if dataset_label %}
+            You've described every {{ dataset_label }} frame available
+            to you, or every frame already has the descriptions we need.
+            You could try the other dataset.
+          {% else %}
+            Nothing left for you right now. Try a different dataset, or
+            come back later.
+          {% endif %}
+        {% endif %}
+      </p>
+      <div class="cta-row">
+        {% if your_completed %}
+          <a href="/history" class="btn-primary">
+            See my descriptions
+            <span class="btn-arrow" aria-hidden="true">&rarr;</span>
+          </a>
+          <a href="/datasets" class="btn-ghost">Switch dataset</a>
+        {% else %}
+          <a href="/datasets" class="btn-primary">
+            Try the other dataset
+            <span class="btn-arrow" aria-hidden="true">&rarr;</span>
+          </a>
+          <a href="/history" class="btn-ghost">See my descriptions</a>
+        {% endif %}
+      </div>
+      {% if your_completed %}
+      <p class="share-note">
+        If you'd send this link to one friend, the pool effectively
+        doubles. No pressure.
+      </p>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/reveal.js" defer></script>
+{% endblock %}

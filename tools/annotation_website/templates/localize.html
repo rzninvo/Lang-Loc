@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% set page_class = 'localize' %}
+{% block title %}Localize · LangLoc{% endblock %}
+
+{% block content %}
+<section class="annotate-shell">
+  <div id="localize-root"
+       data-scene="{{ scene_id }}"
+       data-frame="{{ frame_id }}"
+       data-dataset="{{ dataset }}"
+       data-dataset-label="{{ dataset_label }}"
+       data-mesh-url="{{ mesh_url }}"
+       data-eye-height="{{ eye_height_m }}"
+       data-h-fov-deg="{{ h_fov_deg }}"
+       data-v-fov-deg="{{ v_fov_deg }}"
+       data-edit-mode="{{ '1' if edit_mode else '0' }}"
+       data-prompt-annotator="{{ prompt_annotator_id }}"
+       {% if existing_pose %}
+       data-existing-x="{{ existing_pose.x }}"
+       data-existing-y="{{ existing_pose.y }}"
+       data-existing-z="{{ existing_pose.z }}"
+       data-existing-yaw="{{ existing_pose.yaw }}"
+       {% endif %}>
+
+    <div class="annotate-toolbar reveal">
+      <div class="toolbar-left">
+        {% if edit_mode %}
+          <span class="badge edit-badge">Editing</span>
+          <span class="toolbar-text">
+            Refining a localization you did before
+            {% if existing_errors %}
+              &middot; previous error:
+              <strong>{{ '%.2f' | format(existing_errors.distance_error or 0) }}&nbsp;m</strong>
+              {% if existing_errors.angular_error_deg is not none %}
+                / <strong>{{ '%.1f' | format(existing_errors.angular_error_deg) }}°</strong>
+              {% endif %}
+            {% endif %}
+          </span>
+        {% else %}
+          <span class="toolbar-text">
+            Read the description &middot; walk through the scene &middot; stand where you think it was written from.
+          </span>
+        {% endif %}
+      </div>
+      <div class="toolbar-right">
+        <button id="loc-fullscreen" type="button" class="link-button" onclick="window.__langlocToggleFullscreen && window.__langlocToggleFullscreen()">
+          ⛶ Fullscreen <span class="kbd-hint" aria-hidden="true">F</span>
+        </button>
+        <span id="loc-status" class="save-status" role="status" aria-live="polite" aria-atomic="true">Loading mesh…</span>
+      </div>
+    </div>
+
+    <div class="localize-grid">
+
+      <div class="localize-viewer-card reveal">
+        <div id="localize-viewer" class="localize-viewer"></div>
+        <div class="localize-overlay">
+          <div class="localize-hint">
+            <strong>WASD</strong> move &nbsp;·&nbsp;
+            <strong>mouse</strong> look (click viewer to capture) &nbsp;·&nbsp;
+            <strong>shift</strong> sprint &nbsp;·&nbsp;
+            <strong>esc</strong> release mouse
+          </div>
+          <div id="localize-readout" class="localize-readout">
+            <span class="localize-readout-pair"><span class="lbl">x</span> <span id="rdx">—</span></span>
+            <span class="localize-readout-pair"><span class="lbl">y</span> <span id="rdy">—</span></span>
+            <span class="localize-readout-pair"><span class="lbl">yaw</span> <span id="rdyaw">—</span>°</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="localize-side reveal" style="--reveal-delay: 80ms;">
+        <p class="prompt-question">
+          Where in this room was someone standing when they wrote this?
+        </p>
+        <div class="prompt-text-card">
+          <p class="prompt-text">{{ prompt_text }}</p>
+          <p class="prompt-attrib">— another annotator wrote this from the same scene</p>
+        </div>
+
+        <div class="localize-controls">
+          <button id="localize-submit-button" class="btn-primary btn-lg" type="button" disabled>
+            {% if edit_mode %}Save changes{% else %}Submit my guess{% endif %}
+            <span class="btn-arrow" aria-hidden="true">&rarr;</span>
+          </button>
+          {% if not edit_mode %}
+            <button id="localize-skip-button" class="btn-ghost btn-sm" type="button">
+              Skip this one
+            </button>
+            <a href="/localize/scenes?dataset={{ dataset }}" class="btn-link">Choose another scene</a>
+          {% endif %}
+          <a href="/done" class="btn-link">I'm done for today</a>
+          <span class="kbd-hint" aria-hidden="true">⌘ Enter</span>
+        </div>
+
+        <div id="localize-result" class="localize-result" hidden>
+          <p class="localize-result-line">
+            Position err <strong id="resp-dist">—</strong>&nbsp;m
+            &middot; angle err <strong id="resp-angle">—</strong>°
+            &middot; 3D&nbsp;IoU <strong id="resp-iou">—</strong>
+          </p>
+          <div class="cta-row">
+            <a id="localize-next" href="/localize" class="btn-primary">
+              Try another &rarr;
+            </a>
+            <a href="/history" class="btn-ghost">See my work</a>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module" src="/static/js/localize.js?v={{ static_version('js/localize.js') }}" defer></script>
+<script src="/static/js/reveal.js?v={{ static_version('js/reveal.js') }}" defer></script>
+{% endblock %}

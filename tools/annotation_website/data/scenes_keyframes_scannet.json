@@ -1,0 +1,4581 @@
+{
+  "dataset": "scannet",
+  "scenes": [
+    {
+      "scene_id": "scene0000_00",
+      "display_index": 1,
+      "frames": [
+        {
+          "frame_id": "001541",
+          "image_path": "keyframes/scannet/scene0000_00/001541.jpg"
+        },
+        {
+          "frame_id": "005215",
+          "image_path": "keyframes/scannet/scene0000_00/005215.jpg"
+        },
+        {
+          "frame_id": "003814",
+          "image_path": "keyframes/scannet/scene0000_00/003814.jpg"
+        },
+        {
+          "frame_id": "001229",
+          "image_path": "keyframes/scannet/scene0000_00/001229.jpg"
+        },
+        {
+          "frame_id": "001753",
+          "image_path": "keyframes/scannet/scene0000_00/001753.jpg"
+        },
+        {
+          "frame_id": "001635",
+          "image_path": "keyframes/scannet/scene0000_00/001635.jpg"
+        },
+        {
+          "frame_id": "003761",
+          "image_path": "keyframes/scannet/scene0000_00/003761.jpg"
+        },
+        {
+          "frame_id": "001362",
+          "image_path": "keyframes/scannet/scene0000_00/001362.jpg"
+        },
+        {
+          "frame_id": "001696",
+          "image_path": "keyframes/scannet/scene0000_00/001696.jpg"
+        },
+        {
+          "frame_id": "001487",
+          "image_path": "keyframes/scannet/scene0000_00/001487.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0000_01",
+      "display_index": 2,
+      "frames": [
+        {
+          "frame_id": "001438",
+          "image_path": "keyframes/scannet/scene0000_01/001438.jpg"
+        },
+        {
+          "frame_id": "005028",
+          "image_path": "keyframes/scannet/scene0000_01/005028.jpg"
+        },
+        {
+          "frame_id": "003613",
+          "image_path": "keyframes/scannet/scene0000_01/003613.jpg"
+        },
+        {
+          "frame_id": "004138",
+          "image_path": "keyframes/scannet/scene0000_01/004138.jpg"
+        },
+        {
+          "frame_id": "001214",
+          "image_path": "keyframes/scannet/scene0000_01/001214.jpg"
+        },
+        {
+          "frame_id": "004192",
+          "image_path": "keyframes/scannet/scene0000_01/004192.jpg"
+        },
+        {
+          "frame_id": "001407",
+          "image_path": "keyframes/scannet/scene0000_01/001407.jpg"
+        },
+        {
+          "frame_id": "003481",
+          "image_path": "keyframes/scannet/scene0000_01/003481.jpg"
+        },
+        {
+          "frame_id": "001269",
+          "image_path": "keyframes/scannet/scene0000_01/001269.jpg"
+        },
+        {
+          "frame_id": "001158",
+          "image_path": "keyframes/scannet/scene0000_01/001158.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0000_02",
+      "display_index": 3,
+      "frames": [
+        {
+          "frame_id": "004850",
+          "image_path": "keyframes/scannet/scene0000_02/004850.jpg"
+        },
+        {
+          "frame_id": "001777",
+          "image_path": "keyframes/scannet/scene0000_02/001777.jpg"
+        },
+        {
+          "frame_id": "001299",
+          "image_path": "keyframes/scannet/scene0000_02/001299.jpg"
+        },
+        {
+          "frame_id": "004988",
+          "image_path": "keyframes/scannet/scene0000_02/004988.jpg"
+        },
+        {
+          "frame_id": "001478",
+          "image_path": "keyframes/scannet/scene0000_02/001478.jpg"
+        },
+        {
+          "frame_id": "004685",
+          "image_path": "keyframes/scannet/scene0000_02/004685.jpg"
+        },
+        {
+          "frame_id": "004894",
+          "image_path": "keyframes/scannet/scene0000_02/004894.jpg"
+        },
+        {
+          "frame_id": "004712",
+          "image_path": "keyframes/scannet/scene0000_02/004712.jpg"
+        },
+        {
+          "frame_id": "001331",
+          "image_path": "keyframes/scannet/scene0000_02/001331.jpg"
+        },
+        {
+          "frame_id": "004876",
+          "image_path": "keyframes/scannet/scene0000_02/004876.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0001_00",
+      "display_index": 4,
+      "frames": [
+        {
+          "frame_id": "001529",
+          "image_path": "keyframes/scannet/scene0001_00/001529.jpg"
+        },
+        {
+          "frame_id": "000000",
+          "image_path": "keyframes/scannet/scene0001_00/000000.jpg"
+        },
+        {
+          "frame_id": "000268",
+          "image_path": "keyframes/scannet/scene0001_00/000268.jpg"
+        },
+        {
+          "frame_id": "001479",
+          "image_path": "keyframes/scannet/scene0001_00/001479.jpg"
+        },
+        {
+          "frame_id": "000281",
+          "image_path": "keyframes/scannet/scene0001_00/000281.jpg"
+        },
+        {
+          "frame_id": "001438",
+          "image_path": "keyframes/scannet/scene0001_00/001438.jpg"
+        },
+        {
+          "frame_id": "001483",
+          "image_path": "keyframes/scannet/scene0001_00/001483.jpg"
+        },
+        {
+          "frame_id": "000286",
+          "image_path": "keyframes/scannet/scene0001_00/000286.jpg"
+        },
+        {
+          "frame_id": "001527",
+          "image_path": "keyframes/scannet/scene0001_00/001527.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0001_01",
+      "display_index": 5,
+      "frames": [
+        {
+          "frame_id": "000737",
+          "image_path": "keyframes/scannet/scene0001_01/000737.jpg"
+        },
+        {
+          "frame_id": "000383",
+          "image_path": "keyframes/scannet/scene0001_01/000383.jpg"
+        },
+        {
+          "frame_id": "000000",
+          "image_path": "keyframes/scannet/scene0001_01/000000.jpg"
+        },
+        {
+          "frame_id": "001084",
+          "image_path": "keyframes/scannet/scene0001_01/001084.jpg"
+        },
+        {
+          "frame_id": "000923",
+          "image_path": "keyframes/scannet/scene0001_01/000923.jpg"
+        },
+        {
+          "frame_id": "000118",
+          "image_path": "keyframes/scannet/scene0001_01/000118.jpg"
+        },
+        {
+          "frame_id": "001264",
+          "image_path": "keyframes/scannet/scene0001_01/001264.jpg"
+        },
+        {
+          "frame_id": "000816",
+          "image_path": "keyframes/scannet/scene0001_01/000816.jpg"
+        },
+        {
+          "frame_id": "001182",
+          "image_path": "keyframes/scannet/scene0001_01/001182.jpg"
+        },
+        {
+          "frame_id": "000293",
+          "image_path": "keyframes/scannet/scene0001_01/000293.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0002_00",
+      "display_index": 6,
+      "frames": [
+        {
+          "frame_id": "003770",
+          "image_path": "keyframes/scannet/scene0002_00/003770.jpg"
+        },
+        {
+          "frame_id": "001933",
+          "image_path": "keyframes/scannet/scene0002_00/001933.jpg"
+        },
+        {
+          "frame_id": "000658",
+          "image_path": "keyframes/scannet/scene0002_00/000658.jpg"
+        },
+        {
+          "frame_id": "003894",
+          "image_path": "keyframes/scannet/scene0002_00/003894.jpg"
+        },
+        {
+          "frame_id": "000838",
+          "image_path": "keyframes/scannet/scene0002_00/000838.jpg"
+        },
+        {
+          "frame_id": "002762",
+          "image_path": "keyframes/scannet/scene0002_00/002762.jpg"
+        },
+        {
+          "frame_id": "002951",
+          "image_path": "keyframes/scannet/scene0002_00/002951.jpg"
+        },
+        {
+          "frame_id": "000744",
+          "image_path": "keyframes/scannet/scene0002_00/000744.jpg"
+        },
+        {
+          "frame_id": "003693",
+          "image_path": "keyframes/scannet/scene0002_00/003693.jpg"
+        },
+        {
+          "frame_id": "002138",
+          "image_path": "keyframes/scannet/scene0002_00/002138.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0002_01",
+      "display_index": 7,
+      "frames": [
+        {
+          "frame_id": "005469",
+          "image_path": "keyframes/scannet/scene0002_01/005469.jpg"
+        },
+        {
+          "frame_id": "005094",
+          "image_path": "keyframes/scannet/scene0002_01/005094.jpg"
+        },
+        {
+          "frame_id": "004741",
+          "image_path": "keyframes/scannet/scene0002_01/004741.jpg"
+        },
+        {
+          "frame_id": "000019",
+          "image_path": "keyframes/scannet/scene0002_01/000019.jpg"
+        },
+        {
+          "frame_id": "001445",
+          "image_path": "keyframes/scannet/scene0002_01/001445.jpg"
+        },
+        {
+          "frame_id": "005292",
+          "image_path": "keyframes/scannet/scene0002_01/005292.jpg"
+        },
+        {
+          "frame_id": "004869",
+          "image_path": "keyframes/scannet/scene0002_01/004869.jpg"
+        },
+        {
+          "frame_id": "004949",
+          "image_path": "keyframes/scannet/scene0002_01/004949.jpg"
+        },
+        {
+          "frame_id": "000886",
+          "image_path": "keyframes/scannet/scene0002_01/000886.jpg"
+        },
+        {
+          "frame_id": "000484",
+          "image_path": "keyframes/scannet/scene0002_01/000484.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0003_00",
+      "display_index": 8,
+      "frames": [
+        {
+          "frame_id": "000105",
+          "image_path": "keyframes/scannet/scene0003_00/000105.jpg"
+        },
+        {
+          "frame_id": "001203",
+          "image_path": "keyframes/scannet/scene0003_00/001203.jpg"
+        },
+        {
+          "frame_id": "001406",
+          "image_path": "keyframes/scannet/scene0003_00/001406.jpg"
+        },
+        {
+          "frame_id": "001274",
+          "image_path": "keyframes/scannet/scene0003_00/001274.jpg"
+        },
+        {
+          "frame_id": "000365",
+          "image_path": "keyframes/scannet/scene0003_00/000365.jpg"
+        },
+        {
+          "frame_id": "000003",
+          "image_path": "keyframes/scannet/scene0003_00/000003.jpg"
+        },
+        {
+          "frame_id": "001447",
+          "image_path": "keyframes/scannet/scene0003_00/001447.jpg"
+        },
+        {
+          "frame_id": "001622",
+          "image_path": "keyframes/scannet/scene0003_00/001622.jpg"
+        },
+        {
+          "frame_id": "001227",
+          "image_path": "keyframes/scannet/scene0003_00/001227.jpg"
+        },
+        {
+          "frame_id": "000333",
+          "image_path": "keyframes/scannet/scene0003_00/000333.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0003_01",
+      "display_index": 9,
+      "frames": [
+        {
+          "frame_id": "000042",
+          "image_path": "keyframes/scannet/scene0003_01/000042.jpg"
+        },
+        {
+          "frame_id": "001403",
+          "image_path": "keyframes/scannet/scene0003_01/001403.jpg"
+        },
+        {
+          "frame_id": "000547",
+          "image_path": "keyframes/scannet/scene0003_01/000547.jpg"
+        },
+        {
+          "frame_id": "001474",
+          "image_path": "keyframes/scannet/scene0003_01/001474.jpg"
+        },
+        {
+          "frame_id": "000787",
+          "image_path": "keyframes/scannet/scene0003_01/000787.jpg"
+        },
+        {
+          "frame_id": "000395",
+          "image_path": "keyframes/scannet/scene0003_01/000395.jpg"
+        },
+        {
+          "frame_id": "001437",
+          "image_path": "keyframes/scannet/scene0003_01/001437.jpg"
+        },
+        {
+          "frame_id": "000436",
+          "image_path": "keyframes/scannet/scene0003_01/000436.jpg"
+        },
+        {
+          "frame_id": "000488",
+          "image_path": "keyframes/scannet/scene0003_01/000488.jpg"
+        },
+        {
+          "frame_id": "001412",
+          "image_path": "keyframes/scannet/scene0003_01/001412.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0003_02",
+      "display_index": 10,
+      "frames": [
+        {
+          "frame_id": "000818",
+          "image_path": "keyframes/scannet/scene0003_02/000818.jpg"
+        },
+        {
+          "frame_id": "001055",
+          "image_path": "keyframes/scannet/scene0003_02/001055.jpg"
+        },
+        {
+          "frame_id": "000111",
+          "image_path": "keyframes/scannet/scene0003_02/000111.jpg"
+        },
+        {
+          "frame_id": "000386",
+          "image_path": "keyframes/scannet/scene0003_02/000386.jpg"
+        },
+        {
+          "frame_id": "001333",
+          "image_path": "keyframes/scannet/scene0003_02/001333.jpg"
+        },
+        {
+          "frame_id": "000006",
+          "image_path": "keyframes/scannet/scene0003_02/000006.jpg"
+        },
+        {
+          "frame_id": "001340",
+          "image_path": "keyframes/scannet/scene0003_02/001340.jpg"
+        },
+        {
+          "frame_id": "000379",
+          "image_path": "keyframes/scannet/scene0003_02/000379.jpg"
+        },
+        {
+          "frame_id": "000108",
+          "image_path": "keyframes/scannet/scene0003_02/000108.jpg"
+        },
+        {
+          "frame_id": "001329",
+          "image_path": "keyframes/scannet/scene0003_02/001329.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0004_00",
+      "display_index": 11,
+      "frames": [
+        {
+          "frame_id": "000683",
+          "image_path": "keyframes/scannet/scene0004_00/000683.jpg"
+        },
+        {
+          "frame_id": "000013",
+          "image_path": "keyframes/scannet/scene0004_00/000013.jpg"
+        },
+        {
+          "frame_id": "000506",
+          "image_path": "keyframes/scannet/scene0004_00/000506.jpg"
+        },
+        {
+          "frame_id": "000129",
+          "image_path": "keyframes/scannet/scene0004_00/000129.jpg"
+        },
+        {
+          "frame_id": "000280",
+          "image_path": "keyframes/scannet/scene0004_00/000280.jpg"
+        },
+        {
+          "frame_id": "000586",
+          "image_path": "keyframes/scannet/scene0004_00/000586.jpg"
+        },
+        {
+          "frame_id": "000173",
+          "image_path": "keyframes/scannet/scene0004_00/000173.jpg"
+        },
+        {
+          "frame_id": "000083",
+          "image_path": "keyframes/scannet/scene0004_00/000083.jpg"
+        },
+        {
+          "frame_id": "000057",
+          "image_path": "keyframes/scannet/scene0004_00/000057.jpg"
+        },
+        {
+          "frame_id": "000561",
+          "image_path": "keyframes/scannet/scene0004_00/000561.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0005_00",
+      "display_index": 12,
+      "frames": [
+        {
+          "frame_id": "000470",
+          "image_path": "keyframes/scannet/scene0005_00/000470.jpg"
+        },
+        {
+          "frame_id": "000787",
+          "image_path": "keyframes/scannet/scene0005_00/000787.jpg"
+        },
+        {
+          "frame_id": "000997",
+          "image_path": "keyframes/scannet/scene0005_00/000997.jpg"
+        },
+        {
+          "frame_id": "000011",
+          "image_path": "keyframes/scannet/scene0005_00/000011.jpg"
+        },
+        {
+          "frame_id": "000293",
+          "image_path": "keyframes/scannet/scene0005_00/000293.jpg"
+        },
+        {
+          "frame_id": "000443",
+          "image_path": "keyframes/scannet/scene0005_00/000443.jpg"
+        },
+        {
+          "frame_id": "000054",
+          "image_path": "keyframes/scannet/scene0005_00/000054.jpg"
+        },
+        {
+          "frame_id": "000761",
+          "image_path": "keyframes/scannet/scene0005_00/000761.jpg"
+        },
+        {
+          "frame_id": "000026",
+          "image_path": "keyframes/scannet/scene0005_00/000026.jpg"
+        },
+        {
+          "frame_id": "000003",
+          "image_path": "keyframes/scannet/scene0005_00/000003.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0005_01",
+      "display_index": 13,
+      "frames": [
+        {
+          "frame_id": "000767",
+          "image_path": "keyframes/scannet/scene0005_01/000767.jpg"
+        },
+        {
+          "frame_id": "000931",
+          "image_path": "keyframes/scannet/scene0005_01/000931.jpg"
+        },
+        {
+          "frame_id": "000030",
+          "image_path": "keyframes/scannet/scene0005_01/000030.jpg"
+        },
+        {
+          "frame_id": "000732",
+          "image_path": "keyframes/scannet/scene0005_01/000732.jpg"
+        },
+        {
+          "frame_id": "000005",
+          "image_path": "keyframes/scannet/scene0005_01/000005.jpg"
+        },
+        {
+          "frame_id": "000024",
+          "image_path": "keyframes/scannet/scene0005_01/000024.jpg"
+        },
+        {
+          "frame_id": "000760",
+          "image_path": "keyframes/scannet/scene0005_01/000760.jpg"
+        },
+        {
+          "frame_id": "000001",
+          "image_path": "keyframes/scannet/scene0005_01/000001.jpg"
+        },
+        {
+          "frame_id": "000013",
+          "image_path": "keyframes/scannet/scene0005_01/000013.jpg"
+        },
+        {
+          "frame_id": "000026",
+          "image_path": "keyframes/scannet/scene0005_01/000026.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0006_00",
+      "display_index": 14,
+      "frames": [
+        {
+          "frame_id": "001018",
+          "image_path": "keyframes/scannet/scene0006_00/001018.jpg"
+        },
+        {
+          "frame_id": "000012",
+          "image_path": "keyframes/scannet/scene0006_00/000012.jpg"
+        },
+        {
+          "frame_id": "001288",
+          "image_path": "keyframes/scannet/scene0006_00/001288.jpg"
+        },
+        {
+          "frame_id": "000780",
+          "image_path": "keyframes/scannet/scene0006_00/000780.jpg"
+        },
+        {
+          "frame_id": "001119",
+          "image_path": "keyframes/scannet/scene0006_00/001119.jpg"
+        },
+        {
+          "frame_id": "000845",
+          "image_path": "keyframes/scannet/scene0006_00/000845.jpg"
+        },
+        {
+          "frame_id": "001048",
+          "image_path": "keyframes/scannet/scene0006_00/001048.jpg"
+        },
+        {
+          "frame_id": "000745",
+          "image_path": "keyframes/scannet/scene0006_00/000745.jpg"
+        },
+        {
+          "frame_id": "000841",
+          "image_path": "keyframes/scannet/scene0006_00/000841.jpg"
+        },
+        {
+          "frame_id": "001041",
+          "image_path": "keyframes/scannet/scene0006_00/001041.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0006_01",
+      "display_index": 15,
+      "frames": [
+        {
+          "frame_id": "000822",
+          "image_path": "keyframes/scannet/scene0006_01/000822.jpg"
+        },
+        {
+          "frame_id": "001419",
+          "image_path": "keyframes/scannet/scene0006_01/001419.jpg"
+        },
+        {
+          "frame_id": "001129",
+          "image_path": "keyframes/scannet/scene0006_01/001129.jpg"
+        },
+        {
+          "frame_id": "000242",
+          "image_path": "keyframes/scannet/scene0006_01/000242.jpg"
+        },
+        {
+          "frame_id": "001585",
+          "image_path": "keyframes/scannet/scene0006_01/001585.jpg"
+        },
+        {
+          "frame_id": "001044",
+          "image_path": "keyframes/scannet/scene0006_01/001044.jpg"
+        },
+        {
+          "frame_id": "001806",
+          "image_path": "keyframes/scannet/scene0006_01/001806.jpg"
+        },
+        {
+          "frame_id": "001209",
+          "image_path": "keyframes/scannet/scene0006_01/001209.jpg"
+        },
+        {
+          "frame_id": "001163",
+          "image_path": "keyframes/scannet/scene0006_01/001163.jpg"
+        },
+        {
+          "frame_id": "001638",
+          "image_path": "keyframes/scannet/scene0006_01/001638.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0006_02",
+      "display_index": 16,
+      "frames": [
+        {
+          "frame_id": "002673",
+          "image_path": "keyframes/scannet/scene0006_02/002673.jpg"
+        },
+        {
+          "frame_id": "002034",
+          "image_path": "keyframes/scannet/scene0006_02/002034.jpg"
+        },
+        {
+          "frame_id": "001238",
+          "image_path": "keyframes/scannet/scene0006_02/001238.jpg"
+        },
+        {
+          "frame_id": "001007",
+          "image_path": "keyframes/scannet/scene0006_02/001007.jpg"
+        },
+        {
+          "frame_id": "000130",
+          "image_path": "keyframes/scannet/scene0006_02/000130.jpg"
+        },
+        {
+          "frame_id": "001153",
+          "image_path": "keyframes/scannet/scene0006_02/001153.jpg"
+        },
+        {
+          "frame_id": "000875",
+          "image_path": "keyframes/scannet/scene0006_02/000875.jpg"
+        },
+        {
+          "frame_id": "001421",
+          "image_path": "keyframes/scannet/scene0006_02/001421.jpg"
+        },
+        {
+          "frame_id": "000091",
+          "image_path": "keyframes/scannet/scene0006_02/000091.jpg"
+        },
+        {
+          "frame_id": "000891",
+          "image_path": "keyframes/scannet/scene0006_02/000891.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0007_00",
+      "display_index": 17,
+      "frames": [
+        {
+          "frame_id": "000884",
+          "image_path": "keyframes/scannet/scene0007_00/000884.jpg"
+        },
+        {
+          "frame_id": "000360",
+          "image_path": "keyframes/scannet/scene0007_00/000360.jpg"
+        },
+        {
+          "frame_id": "000088",
+          "image_path": "keyframes/scannet/scene0007_00/000088.jpg"
+        },
+        {
+          "frame_id": "000000",
+          "image_path": "keyframes/scannet/scene0007_00/000000.jpg"
+        },
+        {
+          "frame_id": "000898",
+          "image_path": "keyframes/scannet/scene0007_00/000898.jpg"
+        },
+        {
+          "frame_id": "000024",
+          "image_path": "keyframes/scannet/scene0007_00/000024.jpg"
+        },
+        {
+          "frame_id": "000051",
+          "image_path": "keyframes/scannet/scene0007_00/000051.jpg"
+        },
+        {
+          "frame_id": "000037",
+          "image_path": "keyframes/scannet/scene0007_00/000037.jpg"
+        },
+        {
+          "frame_id": "000007",
+          "image_path": "keyframes/scannet/scene0007_00/000007.jpg"
+        },
+        {
+          "frame_id": "000020",
+          "image_path": "keyframes/scannet/scene0007_00/000020.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0008_00",
+      "display_index": 18,
+      "frames": [
+        {
+          "frame_id": "000291",
+          "image_path": "keyframes/scannet/scene0008_00/000291.jpg"
+        },
+        {
+          "frame_id": "000649",
+          "image_path": "keyframes/scannet/scene0008_00/000649.jpg"
+        },
+        {
+          "frame_id": "000002",
+          "image_path": "keyframes/scannet/scene0008_00/000002.jpg"
+        },
+        {
+          "frame_id": "000894",
+          "image_path": "keyframes/scannet/scene0008_00/000894.jpg"
+        },
+        {
+          "frame_id": "000803",
+          "image_path": "keyframes/scannet/scene0008_00/000803.jpg"
+        },
+        {
+          "frame_id": "000379",
+          "image_path": "keyframes/scannet/scene0008_00/000379.jpg"
+        },
+        {
+          "frame_id": "000217",
+          "image_path": "keyframes/scannet/scene0008_00/000217.jpg"
+        },
+        {
+          "frame_id": "000940",
+          "image_path": "keyframes/scannet/scene0008_00/000940.jpg"
+        },
+        {
+          "frame_id": "000338",
+          "image_path": "keyframes/scannet/scene0008_00/000338.jpg"
+        },
+        {
+          "frame_id": "000312",
+          "image_path": "keyframes/scannet/scene0008_00/000312.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0009_00",
+      "display_index": 19,
+      "frames": [
+        {
+          "frame_id": "000112",
+          "image_path": "keyframes/scannet/scene0009_00/000112.jpg"
+        },
+        {
+          "frame_id": "000606",
+          "image_path": "keyframes/scannet/scene0009_00/000606.jpg"
+        },
+        {
+          "frame_id": "000340",
+          "image_path": "keyframes/scannet/scene0009_00/000340.jpg"
+        },
+        {
+          "frame_id": "000015",
+          "image_path": "keyframes/scannet/scene0009_00/000015.jpg"
+        },
+        {
+          "frame_id": "000280",
+          "image_path": "keyframes/scannet/scene0009_00/000280.jpg"
+        },
+        {
+          "frame_id": "000152",
+          "image_path": "keyframes/scannet/scene0009_00/000152.jpg"
+        },
+        {
+          "frame_id": "000572",
+          "image_path": "keyframes/scannet/scene0009_00/000572.jpg"
+        },
+        {
+          "frame_id": "000133",
+          "image_path": "keyframes/scannet/scene0009_00/000133.jpg"
+        },
+        {
+          "frame_id": "000977",
+          "image_path": "keyframes/scannet/scene0009_00/000977.jpg"
+        },
+        {
+          "frame_id": "000144",
+          "image_path": "keyframes/scannet/scene0009_00/000144.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0009_01",
+      "display_index": 20,
+      "frames": [
+        {
+          "frame_id": "000099",
+          "image_path": "keyframes/scannet/scene0009_01/000099.jpg"
+        },
+        {
+          "frame_id": "000635",
+          "image_path": "keyframes/scannet/scene0009_01/000635.jpg"
+        },
+        {
+          "frame_id": "000262",
+          "image_path": "keyframes/scannet/scene0009_01/000262.jpg"
+        },
+        {
+          "frame_id": "000897",
+          "image_path": "keyframes/scannet/scene0009_01/000897.jpg"
+        },
+        {
+          "frame_id": "000650",
+          "image_path": "keyframes/scannet/scene0009_01/000650.jpg"
+        },
+        {
+          "frame_id": "000093",
+          "image_path": "keyframes/scannet/scene0009_01/000093.jpg"
+        },
+        {
+          "frame_id": "000918",
+          "image_path": "keyframes/scannet/scene0009_01/000918.jpg"
+        },
+        {
+          "frame_id": "000087",
+          "image_path": "keyframes/scannet/scene0009_01/000087.jpg"
+        },
+        {
+          "frame_id": "000630",
+          "image_path": "keyframes/scannet/scene0009_01/000630.jpg"
+        },
+        {
+          "frame_id": "000910",
+          "image_path": "keyframes/scannet/scene0009_01/000910.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0009_02",
+      "display_index": 21,
+      "frames": [
+        {
+          "frame_id": "000100",
+          "image_path": "keyframes/scannet/scene0009_02/000100.jpg"
+        },
+        {
+          "frame_id": "000615",
+          "image_path": "keyframes/scannet/scene0009_02/000615.jpg"
+        },
+        {
+          "frame_id": "000321",
+          "image_path": "keyframes/scannet/scene0009_02/000321.jpg"
+        },
+        {
+          "frame_id": "000219",
+          "image_path": "keyframes/scannet/scene0009_02/000219.jpg"
+        },
+        {
+          "frame_id": "000558",
+          "image_path": "keyframes/scannet/scene0009_02/000558.jpg"
+        },
+        {
+          "frame_id": "001085",
+          "image_path": "keyframes/scannet/scene0009_02/001085.jpg"
+        },
+        {
+          "frame_id": "000116",
+          "image_path": "keyframes/scannet/scene0009_02/000116.jpg"
+        },
+        {
+          "frame_id": "001102",
+          "image_path": "keyframes/scannet/scene0009_02/001102.jpg"
+        },
+        {
+          "frame_id": "000309",
+          "image_path": "keyframes/scannet/scene0009_02/000309.jpg"
+        },
+        {
+          "frame_id": "000090",
+          "image_path": "keyframes/scannet/scene0009_02/000090.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0010_00",
+      "display_index": 22,
+      "frames": [
+        {
+          "frame_id": "002205",
+          "image_path": "keyframes/scannet/scene0010_00/002205.jpg"
+        },
+        {
+          "frame_id": "000598",
+          "image_path": "keyframes/scannet/scene0010_00/000598.jpg"
+        },
+        {
+          "frame_id": "001563",
+          "image_path": "keyframes/scannet/scene0010_00/001563.jpg"
+        },
+        {
+          "frame_id": "001460",
+          "image_path": "keyframes/scannet/scene0010_00/001460.jpg"
+        },
+        {
+          "frame_id": "001785",
+          "image_path": "keyframes/scannet/scene0010_00/001785.jpg"
+        },
+        {
+          "frame_id": "002132",
+          "image_path": "keyframes/scannet/scene0010_00/002132.jpg"
+        },
+        {
+          "frame_id": "002172",
+          "image_path": "keyframes/scannet/scene0010_00/002172.jpg"
+        },
+        {
+          "frame_id": "000298",
+          "image_path": "keyframes/scannet/scene0010_00/000298.jpg"
+        },
+        {
+          "frame_id": "001818",
+          "image_path": "keyframes/scannet/scene0010_00/001818.jpg"
+        },
+        {
+          "frame_id": "002116",
+          "image_path": "keyframes/scannet/scene0010_00/002116.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0010_01",
+      "display_index": 23,
+      "frames": [
+        {
+          "frame_id": "000910",
+          "image_path": "keyframes/scannet/scene0010_01/000910.jpg"
+        },
+        {
+          "frame_id": "000417",
+          "image_path": "keyframes/scannet/scene0010_01/000417.jpg"
+        },
+        {
+          "frame_id": "000629",
+          "image_path": "keyframes/scannet/scene0010_01/000629.jpg"
+        },
+        {
+          "frame_id": "001051",
+          "image_path": "keyframes/scannet/scene0010_01/001051.jpg"
+        },
+        {
+          "frame_id": "000033",
+          "image_path": "keyframes/scannet/scene0010_01/000033.jpg"
+        },
+        {
+          "frame_id": "000187",
+          "image_path": "keyframes/scannet/scene0010_01/000187.jpg"
+        },
+        {
+          "frame_id": "000322",
+          "image_path": "keyframes/scannet/scene0010_01/000322.jpg"
+        },
+        {
+          "frame_id": "001221",
+          "image_path": "keyframes/scannet/scene0010_01/001221.jpg"
+        },
+        {
+          "frame_id": "000890",
+          "image_path": "keyframes/scannet/scene0010_01/000890.jpg"
+        },
+        {
+          "frame_id": "000368",
+          "image_path": "keyframes/scannet/scene0010_01/000368.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0011_00",
+      "display_index": 24,
+      "frames": [
+        {
+          "frame_id": "000420",
+          "image_path": "keyframes/scannet/scene0011_00/000420.jpg"
+        },
+        {
+          "frame_id": "001088",
+          "image_path": "keyframes/scannet/scene0011_00/001088.jpg"
+        },
+        {
+          "frame_id": "000979",
+          "image_path": "keyframes/scannet/scene0011_00/000979.jpg"
+        },
+        {
+          "frame_id": "002371",
+          "image_path": "keyframes/scannet/scene0011_00/002371.jpg"
+        },
+        {
+          "frame_id": "000720",
+          "image_path": "keyframes/scannet/scene0011_00/000720.jpg"
+        },
+        {
+          "frame_id": "000658",
+          "image_path": "keyframes/scannet/scene0011_00/000658.jpg"
+        },
+        {
+          "frame_id": "000318",
+          "image_path": "keyframes/scannet/scene0011_00/000318.jpg"
+        },
+        {
+          "frame_id": "000478",
+          "image_path": "keyframes/scannet/scene0011_00/000478.jpg"
+        },
+        {
+          "frame_id": "000241",
+          "image_path": "keyframes/scannet/scene0011_00/000241.jpg"
+        },
+        {
+          "frame_id": "000177",
+          "image_path": "keyframes/scannet/scene0011_00/000177.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0011_01",
+      "display_index": 25,
+      "frames": [
+        {
+          "frame_id": "000668",
+          "image_path": "keyframes/scannet/scene0011_01/000668.jpg"
+        },
+        {
+          "frame_id": "001436",
+          "image_path": "keyframes/scannet/scene0011_01/001436.jpg"
+        },
+        {
+          "frame_id": "002050",
+          "image_path": "keyframes/scannet/scene0011_01/002050.jpg"
+        },
+        {
+          "frame_id": "002285",
+          "image_path": "keyframes/scannet/scene0011_01/002285.jpg"
+        },
+        {
+          "frame_id": "001670",
+          "image_path": "keyframes/scannet/scene0011_01/001670.jpg"
+        },
+        {
+          "frame_id": "000006",
+          "image_path": "keyframes/scannet/scene0011_01/000006.jpg"
+        },
+        {
+          "frame_id": "001567",
+          "image_path": "keyframes/scannet/scene0011_01/001567.jpg"
+        },
+        {
+          "frame_id": "001498",
+          "image_path": "keyframes/scannet/scene0011_01/001498.jpg"
+        },
+        {
+          "frame_id": "001699",
+          "image_path": "keyframes/scannet/scene0011_01/001699.jpg"
+        },
+        {
+          "frame_id": "000618",
+          "image_path": "keyframes/scannet/scene0011_01/000618.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0012_00",
+      "display_index": 26,
+      "frames": [
+        {
+          "frame_id": "000000",
+          "image_path": "keyframes/scannet/scene0012_00/000000.jpg"
+        },
+        {
+          "frame_id": "001617",
+          "image_path": "keyframes/scannet/scene0012_00/001617.jpg"
+        },
+        {
+          "frame_id": "003878",
+          "image_path": "keyframes/scannet/scene0012_00/003878.jpg"
+        },
+        {
+          "frame_id": "003007",
+          "image_path": "keyframes/scannet/scene0012_00/003007.jpg"
+        },
+        {
+          "frame_id": "000420",
+          "image_path": "keyframes/scannet/scene0012_00/000420.jpg"
+        },
+        {
+          "frame_id": "001846",
+          "image_path": "keyframes/scannet/scene0012_00/001846.jpg"
+        },
+        {
+          "frame_id": "003123",
+          "image_path": "keyframes/scannet/scene0012_00/003123.jpg"
+        },
+        {
+          "frame_id": "003038",
+          "image_path": "keyframes/scannet/scene0012_00/003038.jpg"
+        },
+        {
+          "frame_id": "000438",
+          "image_path": "keyframes/scannet/scene0012_00/000438.jpg"
+        },
+        {
+          "frame_id": "003851",
+          "image_path": "keyframes/scannet/scene0012_00/003851.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0012_01",
+      "display_index": 27,
+      "frames": [
+        {
+          "frame_id": "002581",
+          "image_path": "keyframes/scannet/scene0012_01/002581.jpg"
+        },
+        {
+          "frame_id": "003038",
+          "image_path": "keyframes/scannet/scene0012_01/003038.jpg"
+        },
+        {
+          "frame_id": "001627",
+          "image_path": "keyframes/scannet/scene0012_01/001627.jpg"
+        },
+        {
+          "frame_id": "003143",
+          "image_path": "keyframes/scannet/scene0012_01/003143.jpg"
+        },
+        {
+          "frame_id": "003354",
+          "image_path": "keyframes/scannet/scene0012_01/003354.jpg"
+        },
+        {
+          "frame_id": "001170",
+          "image_path": "keyframes/scannet/scene0012_01/001170.jpg"
+        },
+        {
+          "frame_id": "002253",
+          "image_path": "keyframes/scannet/scene0012_01/002253.jpg"
+        },
+        {
+          "frame_id": "001316",
+          "image_path": "keyframes/scannet/scene0012_01/001316.jpg"
+        },
+        {
+          "frame_id": "002663",
+          "image_path": "keyframes/scannet/scene0012_01/002663.jpg"
+        },
+        {
+          "frame_id": "003088",
+          "image_path": "keyframes/scannet/scene0012_01/003088.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0012_02",
+      "display_index": 28,
+      "frames": [
+        {
+          "frame_id": "000998",
+          "image_path": "keyframes/scannet/scene0012_02/000998.jpg"
+        },
+        {
+          "frame_id": "000490",
+          "image_path": "keyframes/scannet/scene0012_02/000490.jpg"
+        },
+        {
+          "frame_id": "002226",
+          "image_path": "keyframes/scannet/scene0012_02/002226.jpg"
+        },
+        {
+          "frame_id": "003097",
+          "image_path": "keyframes/scannet/scene0012_02/003097.jpg"
+        },
+        {
+          "frame_id": "004360",
+          "image_path": "keyframes/scannet/scene0012_02/004360.jpg"
+        },
+        {
+          "frame_id": "000037",
+          "image_path": "keyframes/scannet/scene0012_02/000037.jpg"
+        },
+        {
+          "frame_id": "002914",
+          "image_path": "keyframes/scannet/scene0012_02/002914.jpg"
+        },
+        {
+          "frame_id": "003888",
+          "image_path": "keyframes/scannet/scene0012_02/003888.jpg"
+        },
+        {
+          "frame_id": "003533",
+          "image_path": "keyframes/scannet/scene0012_02/003533.jpg"
+        },
+        {
+          "frame_id": "002524",
+          "image_path": "keyframes/scannet/scene0012_02/002524.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0013_00",
+      "display_index": 29,
+      "frames": [
+        {
+          "frame_id": "000010",
+          "image_path": "keyframes/scannet/scene0013_00/000010.jpg"
+        },
+        {
+          "frame_id": "000427",
+          "image_path": "keyframes/scannet/scene0013_00/000427.jpg"
+        },
+        {
+          "frame_id": "000643",
+          "image_path": "keyframes/scannet/scene0013_00/000643.jpg"
+        },
+        {
+          "frame_id": "000681",
+          "image_path": "keyframes/scannet/scene0013_00/000681.jpg"
+        },
+        {
+          "frame_id": "000025",
+          "image_path": "keyframes/scannet/scene0013_00/000025.jpg"
+        },
+        {
+          "frame_id": "000650",
+          "image_path": "keyframes/scannet/scene0013_00/000650.jpg"
+        },
+        {
+          "frame_id": "000015",
+          "image_path": "keyframes/scannet/scene0013_00/000015.jpg"
+        },
+        {
+          "frame_id": "000666",
+          "image_path": "keyframes/scannet/scene0013_00/000666.jpg"
+        },
+        {
+          "frame_id": "000431",
+          "image_path": "keyframes/scannet/scene0013_00/000431.jpg"
+        },
+        {
+          "frame_id": "000005",
+          "image_path": "keyframes/scannet/scene0013_00/000005.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0013_01",
+      "display_index": 30,
+      "frames": [
+        {
+          "frame_id": "000007",
+          "image_path": "keyframes/scannet/scene0013_01/000007.jpg"
+        },
+        {
+          "frame_id": "000199",
+          "image_path": "keyframes/scannet/scene0013_01/000199.jpg"
+        },
+        {
+          "frame_id": "000268",
+          "image_path": "keyframes/scannet/scene0013_01/000268.jpg"
+        },
+        {
+          "frame_id": "000134",
+          "image_path": "keyframes/scannet/scene0013_01/000134.jpg"
+        },
+        {
+          "frame_id": "000057",
+          "image_path": "keyframes/scannet/scene0013_01/000057.jpg"
+        },
+        {
+          "frame_id": "000288",
+          "image_path": "keyframes/scannet/scene0013_01/000288.jpg"
+        },
+        {
+          "frame_id": "000178",
+          "image_path": "keyframes/scannet/scene0013_01/000178.jpg"
+        },
+        {
+          "frame_id": "000147",
+          "image_path": "keyframes/scannet/scene0013_01/000147.jpg"
+        },
+        {
+          "frame_id": "000001",
+          "image_path": "keyframes/scannet/scene0013_01/000001.jpg"
+        },
+        {
+          "frame_id": "000063",
+          "image_path": "keyframes/scannet/scene0013_01/000063.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0013_02",
+      "display_index": 31,
+      "frames": [
+        {
+          "frame_id": "000175",
+          "image_path": "keyframes/scannet/scene0013_02/000175.jpg"
+        },
+        {
+          "frame_id": "000691",
+          "image_path": "keyframes/scannet/scene0013_02/000691.jpg"
+        },
+        {
+          "frame_id": "000460",
+          "image_path": "keyframes/scannet/scene0013_02/000460.jpg"
+        },
+        {
+          "frame_id": "000321",
+          "image_path": "keyframes/scannet/scene0013_02/000321.jpg"
+        },
+        {
+          "frame_id": "000912",
+          "image_path": "keyframes/scannet/scene0013_02/000912.jpg"
+        },
+        {
+          "frame_id": "000242",
+          "image_path": "keyframes/scannet/scene0013_02/000242.jpg"
+        },
+        {
+          "frame_id": "000020",
+          "image_path": "keyframes/scannet/scene0013_02/000020.jpg"
+        },
+        {
+          "frame_id": "000408",
+          "image_path": "keyframes/scannet/scene0013_02/000408.jpg"
+        },
+        {
+          "frame_id": "000739",
+          "image_path": "keyframes/scannet/scene0013_02/000739.jpg"
+        },
+        {
+          "frame_id": "000007",
+          "image_path": "keyframes/scannet/scene0013_02/000007.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0014_00",
+      "display_index": 32,
+      "frames": [
+        {
+          "frame_id": "000415",
+          "image_path": "keyframes/scannet/scene0014_00/000415.jpg"
+        },
+        {
+          "frame_id": "002276",
+          "image_path": "keyframes/scannet/scene0014_00/002276.jpg"
+        },
+        {
+          "frame_id": "001894",
+          "image_path": "keyframes/scannet/scene0014_00/001894.jpg"
+        },
+        {
+          "frame_id": "001048",
+          "image_path": "keyframes/scannet/scene0014_00/001048.jpg"
+        },
+        {
+          "frame_id": "000819",
+          "image_path": "keyframes/scannet/scene0014_00/000819.jpg"
+        },
+        {
+          "frame_id": "000074",
+          "image_path": "keyframes/scannet/scene0014_00/000074.jpg"
+        },
+        {
+          "frame_id": "000185",
+          "image_path": "keyframes/scannet/scene0014_00/000185.jpg"
+        },
+        {
+          "frame_id": "002315",
+          "image_path": "keyframes/scannet/scene0014_00/002315.jpg"
+        },
+        {
+          "frame_id": "001925",
+          "image_path": "keyframes/scannet/scene0014_00/001925.jpg"
+        },
+        {
+          "frame_id": "000106",
+          "image_path": "keyframes/scannet/scene0014_00/000106.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0015_00",
+      "display_index": 33,
+      "frames": [
+        {
+          "frame_id": "001965",
+          "image_path": "keyframes/scannet/scene0015_00/001965.jpg"
+        },
+        {
+          "frame_id": "001126",
+          "image_path": "keyframes/scannet/scene0015_00/001126.jpg"
+        },
+        {
+          "frame_id": "000812",
+          "image_path": "keyframes/scannet/scene0015_00/000812.jpg"
+        },
+        {
+          "frame_id": "000994",
+          "image_path": "keyframes/scannet/scene0015_00/000994.jpg"
+        },
+        {
+          "frame_id": "001058",
+          "image_path": "keyframes/scannet/scene0015_00/001058.jpg"
+        },
+        {
+          "frame_id": "001661",
+          "image_path": "keyframes/scannet/scene0015_00/001661.jpg"
+        },
+        {
+          "frame_id": "000871",
+          "image_path": "keyframes/scannet/scene0015_00/000871.jpg"
+        },
+        {
+          "frame_id": "000192",
+          "image_path": "keyframes/scannet/scene0015_00/000192.jpg"
+        },
+        {
+          "frame_id": "000198",
+          "image_path": "keyframes/scannet/scene0015_00/000198.jpg"
+        },
+        {
+          "frame_id": "001677",
+          "image_path": "keyframes/scannet/scene0015_00/001677.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0016_00",
+      "display_index": 34,
+      "frames": [
+        {
+          "frame_id": "000668",
+          "image_path": "keyframes/scannet/scene0016_00/000668.jpg"
+        },
+        {
+          "frame_id": "000450",
+          "image_path": "keyframes/scannet/scene0016_00/000450.jpg"
+        },
+        {
+          "frame_id": "001423",
+          "image_path": "keyframes/scannet/scene0016_00/001423.jpg"
+        },
+        {
+          "frame_id": "000090",
+          "image_path": "keyframes/scannet/scene0016_00/000090.jpg"
+        },
+        {
+          "frame_id": "000004",
+          "image_path": "keyframes/scannet/scene0016_00/000004.jpg"
+        },
+        {
+          "frame_id": "000771",
+          "image_path": "keyframes/scannet/scene0016_00/000771.jpg"
+        },
+        {
+          "frame_id": "001393",
+          "image_path": "keyframes/scannet/scene0016_00/001393.jpg"
+        },
+        {
+          "frame_id": "000703",
+          "image_path": "keyframes/scannet/scene0016_00/000703.jpg"
+        },
+        {
+          "frame_id": "000473",
+          "image_path": "keyframes/scannet/scene0016_00/000473.jpg"
+        },
+        {
+          "frame_id": "000043",
+          "image_path": "keyframes/scannet/scene0016_00/000043.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0016_01",
+      "display_index": 35,
+      "frames": [
+        {
+          "frame_id": "001117",
+          "image_path": "keyframes/scannet/scene0016_01/001117.jpg"
+        },
+        {
+          "frame_id": "000564",
+          "image_path": "keyframes/scannet/scene0016_01/000564.jpg"
+        },
+        {
+          "frame_id": "000763",
+          "image_path": "keyframes/scannet/scene0016_01/000763.jpg"
+        },
+        {
+          "frame_id": "001743",
+          "image_path": "keyframes/scannet/scene0016_01/001743.jpg"
+        },
+        {
+          "frame_id": "000338",
+          "image_path": "keyframes/scannet/scene0016_01/000338.jpg"
+        },
+        {
+          "frame_id": "000000",
+          "image_path": "keyframes/scannet/scene0016_01/000000.jpg"
+        },
+        {
+          "frame_id": "000100",
+          "image_path": "keyframes/scannet/scene0016_01/000100.jpg"
+        },
+        {
+          "frame_id": "000288",
+          "image_path": "keyframes/scannet/scene0016_01/000288.jpg"
+        },
+        {
+          "frame_id": "001002",
+          "image_path": "keyframes/scannet/scene0016_01/001002.jpg"
+        },
+        {
+          "frame_id": "001435",
+          "image_path": "keyframes/scannet/scene0016_01/001435.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0016_02",
+      "display_index": 36,
+      "frames": [
+        {
+          "frame_id": "000339",
+          "image_path": "keyframes/scannet/scene0016_02/000339.jpg"
+        },
+        {
+          "frame_id": "000589",
+          "image_path": "keyframes/scannet/scene0016_02/000589.jpg"
+        },
+        {
+          "frame_id": "000914",
+          "image_path": "keyframes/scannet/scene0016_02/000914.jpg"
+        },
+        {
+          "frame_id": "000392",
+          "image_path": "keyframes/scannet/scene0016_02/000392.jpg"
+        },
+        {
+          "frame_id": "000535",
+          "image_path": "keyframes/scannet/scene0016_02/000535.jpg"
+        },
+        {
+          "frame_id": "000938",
+          "image_path": "keyframes/scannet/scene0016_02/000938.jpg"
+        },
+        {
+          "frame_id": "000191",
+          "image_path": "keyframes/scannet/scene0016_02/000191.jpg"
+        },
+        {
+          "frame_id": "000361",
+          "image_path": "keyframes/scannet/scene0016_02/000361.jpg"
+        },
+        {
+          "frame_id": "000341",
+          "image_path": "keyframes/scannet/scene0016_02/000341.jpg"
+        },
+        {
+          "frame_id": "000355",
+          "image_path": "keyframes/scannet/scene0016_02/000355.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0017_00",
+      "display_index": 37,
+      "frames": [
+        {
+          "frame_id": "000372",
+          "image_path": "keyframes/scannet/scene0017_00/000372.jpg"
+        },
+        {
+          "frame_id": "000999",
+          "image_path": "keyframes/scannet/scene0017_00/000999.jpg"
+        },
+        {
+          "frame_id": "000830",
+          "image_path": "keyframes/scannet/scene0017_00/000830.jpg"
+        },
+        {
+          "frame_id": "000310",
+          "image_path": "keyframes/scannet/scene0017_00/000310.jpg"
+        },
+        {
+          "frame_id": "000439",
+          "image_path": "keyframes/scannet/scene0017_00/000439.jpg"
+        },
+        {
+          "frame_id": "000881",
+          "image_path": "keyframes/scannet/scene0017_00/000881.jpg"
+        },
+        {
+          "frame_id": "000488",
+          "image_path": "keyframes/scannet/scene0017_00/000488.jpg"
+        },
+        {
+          "frame_id": "000990",
+          "image_path": "keyframes/scannet/scene0017_00/000990.jpg"
+        },
+        {
+          "frame_id": "000841",
+          "image_path": "keyframes/scannet/scene0017_00/000841.jpg"
+        },
+        {
+          "frame_id": "000460",
+          "image_path": "keyframes/scannet/scene0017_00/000460.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0017_01",
+      "display_index": 38,
+      "frames": [
+        {
+          "frame_id": "001137",
+          "image_path": "keyframes/scannet/scene0017_01/001137.jpg"
+        },
+        {
+          "frame_id": "000136",
+          "image_path": "keyframes/scannet/scene0017_01/000136.jpg"
+        },
+        {
+          "frame_id": "000538",
+          "image_path": "keyframes/scannet/scene0017_01/000538.jpg"
+        },
+        {
+          "frame_id": "000000",
+          "image_path": "keyframes/scannet/scene0017_01/000000.jpg"
+        },
+        {
+          "frame_id": "001023",
+          "image_path": "keyframes/scannet/scene0017_01/001023.jpg"
+        },
+        {
+          "frame_id": "000464",
+          "image_path": "keyframes/scannet/scene0017_01/000464.jpg"
+        },
+        {
+          "frame_id": "000197",
+          "image_path": "keyframes/scannet/scene0017_01/000197.jpg"
+        },
+        {
+          "frame_id": "000323",
+          "image_path": "keyframes/scannet/scene0017_01/000323.jpg"
+        },
+        {
+          "frame_id": "001269",
+          "image_path": "keyframes/scannet/scene0017_01/001269.jpg"
+        },
+        {
+          "frame_id": "000389",
+          "image_path": "keyframes/scannet/scene0017_01/000389.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0017_02",
+      "display_index": 39,
+      "frames": [
+        {
+          "frame_id": "000923",
+          "image_path": "keyframes/scannet/scene0017_02/000923.jpg"
+        },
+        {
+          "frame_id": "000501",
+          "image_path": "keyframes/scannet/scene0017_02/000501.jpg"
+        },
+        {
+          "frame_id": "000005",
+          "image_path": "keyframes/scannet/scene0017_02/000005.jpg"
+        },
+        {
+          "frame_id": "000719",
+          "image_path": "keyframes/scannet/scene0017_02/000719.jpg"
+        },
+        {
+          "frame_id": "000207",
+          "image_path": "keyframes/scannet/scene0017_02/000207.jpg"
+        },
+        {
+          "frame_id": "000578",
+          "image_path": "keyframes/scannet/scene0017_02/000578.jpg"
+        },
+        {
+          "frame_id": "000752",
+          "image_path": "keyframes/scannet/scene0017_02/000752.jpg"
+        },
+        {
+          "frame_id": "000882",
+          "image_path": "keyframes/scannet/scene0017_02/000882.jpg"
+        },
+        {
+          "frame_id": "000956",
+          "image_path": "keyframes/scannet/scene0017_02/000956.jpg"
+        },
+        {
+          "frame_id": "000740",
+          "image_path": "keyframes/scannet/scene0017_02/000740.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0018_00",
+      "display_index": 40,
+      "frames": [
+        {
+          "frame_id": "000660",
+          "image_path": "keyframes/scannet/scene0018_00/000660.jpg"
+        },
+        {
+          "frame_id": "000209",
+          "image_path": "keyframes/scannet/scene0018_00/000209.jpg"
+        },
+        {
+          "frame_id": "000338",
+          "image_path": "keyframes/scannet/scene0018_00/000338.jpg"
+        },
+        {
+          "frame_id": "000814",
+          "image_path": "keyframes/scannet/scene0018_00/000814.jpg"
+        },
+        {
+          "frame_id": "000726",
+          "image_path": "keyframes/scannet/scene0018_00/000726.jpg"
+        },
+        {
+          "frame_id": "000584",
+          "image_path": "keyframes/scannet/scene0018_00/000584.jpg"
+        },
+        {
+          "frame_id": "000708",
+          "image_path": "keyframes/scannet/scene0018_00/000708.jpg"
+        },
+        {
+          "frame_id": "000559",
+          "image_path": "keyframes/scannet/scene0018_00/000559.jpg"
+        },
+        {
+          "frame_id": "000304",
+          "image_path": "keyframes/scannet/scene0018_00/000304.jpg"
+        },
+        {
+          "frame_id": "000652",
+          "image_path": "keyframes/scannet/scene0018_00/000652.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0019_00",
+      "display_index": 41,
+      "frames": [
+        {
+          "frame_id": "000422",
+          "image_path": "keyframes/scannet/scene0019_00/000422.jpg"
+        },
+        {
+          "frame_id": "000005",
+          "image_path": "keyframes/scannet/scene0019_00/000005.jpg"
+        },
+        {
+          "frame_id": "000477",
+          "image_path": "keyframes/scannet/scene0019_00/000477.jpg"
+        },
+        {
+          "frame_id": "000415",
+          "image_path": "keyframes/scannet/scene0019_00/000415.jpg"
+        },
+        {
+          "frame_id": "000389",
+          "image_path": "keyframes/scannet/scene0019_00/000389.jpg"
+        },
+        {
+          "frame_id": "000018",
+          "image_path": "keyframes/scannet/scene0019_00/000018.jpg"
+        },
+        {
+          "frame_id": "000431",
+          "image_path": "keyframes/scannet/scene0019_00/000431.jpg"
+        },
+        {
+          "frame_id": "000439",
+          "image_path": "keyframes/scannet/scene0019_00/000439.jpg"
+        },
+        {
+          "frame_id": "000402",
+          "image_path": "keyframes/scannet/scene0019_00/000402.jpg"
+        },
+        {
+          "frame_id": "000408",
+          "image_path": "keyframes/scannet/scene0019_00/000408.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0019_01",
+      "display_index": 42,
+      "frames": [
+        {
+          "frame_id": "000259",
+          "image_path": "keyframes/scannet/scene0019_01/000259.jpg"
+        },
+        {
+          "frame_id": "000001",
+          "image_path": "keyframes/scannet/scene0019_01/000001.jpg"
+        },
+        {
+          "frame_id": "000130",
+          "image_path": "keyframes/scannet/scene0019_01/000130.jpg"
+        },
+        {
+          "frame_id": "000458",
+          "image_path": "keyframes/scannet/scene0019_01/000458.jpg"
+        },
+        {
+          "frame_id": "000294",
+          "image_path": "keyframes/scannet/scene0019_01/000294.jpg"
+        },
+        {
+          "frame_id": "000223",
+          "image_path": "keyframes/scannet/scene0019_01/000223.jpg"
+        },
+        {
+          "frame_id": "000112",
+          "image_path": "keyframes/scannet/scene0019_01/000112.jpg"
+        },
+        {
+          "frame_id": "000234",
+          "image_path": "keyframes/scannet/scene0019_01/000234.jpg"
+        },
+        {
+          "frame_id": "000123",
+          "image_path": "keyframes/scannet/scene0019_01/000123.jpg"
+        },
+        {
+          "frame_id": "000265",
+          "image_path": "keyframes/scannet/scene0019_01/000265.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0020_00",
+      "display_index": 43,
+      "frames": [
+        {
+          "frame_id": "000269",
+          "image_path": "keyframes/scannet/scene0020_00/000269.jpg"
+        },
+        {
+          "frame_id": "000784",
+          "image_path": "keyframes/scannet/scene0020_00/000784.jpg"
+        },
+        {
+          "frame_id": "000060",
+          "image_path": "keyframes/scannet/scene0020_00/000060.jpg"
+        },
+        {
+          "frame_id": "001124",
+          "image_path": "keyframes/scannet/scene0020_00/001124.jpg"
+        },
+        {
+          "frame_id": "000292",
+          "image_path": "keyframes/scannet/scene0020_00/000292.jpg"
+        },
+        {
+          "frame_id": "000028",
+          "image_path": "keyframes/scannet/scene0020_00/000028.jpg"
+        },
+        {
+          "frame_id": "000754",
+          "image_path": "keyframes/scannet/scene0020_00/000754.jpg"
+        },
+        {
+          "frame_id": "000774",
+          "image_path": "keyframes/scannet/scene0020_00/000774.jpg"
+        },
+        {
+          "frame_id": "000027",
+          "image_path": "keyframes/scannet/scene0020_00/000027.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0020_01",
+      "display_index": 44,
+      "frames": [
+        {
+          "frame_id": "000241",
+          "image_path": "keyframes/scannet/scene0020_01/000241.jpg"
+        },
+        {
+          "frame_id": "000750",
+          "image_path": "keyframes/scannet/scene0020_01/000750.jpg"
+        },
+        {
+          "frame_id": "000949",
+          "image_path": "keyframes/scannet/scene0020_01/000949.jpg"
+        },
+        {
+          "frame_id": "000642",
+          "image_path": "keyframes/scannet/scene0020_01/000642.jpg"
+        },
+        {
+          "frame_id": "000108",
+          "image_path": "keyframes/scannet/scene0020_01/000108.jpg"
+        },
+        {
+          "frame_id": "000008",
+          "image_path": "keyframes/scannet/scene0020_01/000008.jpg"
+        },
+        {
+          "frame_id": "000610",
+          "image_path": "keyframes/scannet/scene0020_01/000610.jpg"
+        },
+        {
+          "frame_id": "000172",
+          "image_path": "keyframes/scannet/scene0020_01/000172.jpg"
+        },
+        {
+          "frame_id": "000900",
+          "image_path": "keyframes/scannet/scene0020_01/000900.jpg"
+        },
+        {
+          "frame_id": "000328",
+          "image_path": "keyframes/scannet/scene0020_01/000328.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0021_00",
+      "display_index": 45,
+      "frames": [
+        {
+          "frame_id": "000038",
+          "image_path": "keyframes/scannet/scene0021_00/000038.jpg"
+        },
+        {
+          "frame_id": "000483",
+          "image_path": "keyframes/scannet/scene0021_00/000483.jpg"
+        },
+        {
+          "frame_id": "000593",
+          "image_path": "keyframes/scannet/scene0021_00/000593.jpg"
+        },
+        {
+          "frame_id": "000261",
+          "image_path": "keyframes/scannet/scene0021_00/000261.jpg"
+        },
+        {
+          "frame_id": "000672",
+          "image_path": "keyframes/scannet/scene0021_00/000672.jpg"
+        },
+        {
+          "frame_id": "000997",
+          "image_path": "keyframes/scannet/scene0021_00/000997.jpg"
+        },
+        {
+          "frame_id": "000805",
+          "image_path": "keyframes/scannet/scene0021_00/000805.jpg"
+        },
+        {
+          "frame_id": "000304",
+          "image_path": "keyframes/scannet/scene0021_00/000304.jpg"
+        },
+        {
+          "frame_id": "000248",
+          "image_path": "keyframes/scannet/scene0021_00/000248.jpg"
+        },
+        {
+          "frame_id": "000294",
+          "image_path": "keyframes/scannet/scene0021_00/000294.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0022_00",
+      "display_index": 46,
+      "frames": [
+        {
+          "frame_id": "001059",
+          "image_path": "keyframes/scannet/scene0022_00/001059.jpg"
+        },
+        {
+          "frame_id": "001586",
+          "image_path": "keyframes/scannet/scene0022_00/001586.jpg"
+        },
+        {
+          "frame_id": "001893",
+          "image_path": "keyframes/scannet/scene0022_00/001893.jpg"
+        },
+        {
+          "frame_id": "001694",
+          "image_path": "keyframes/scannet/scene0022_00/001694.jpg"
+        },
+        {
+          "frame_id": "000042",
+          "image_path": "keyframes/scannet/scene0022_00/000042.jpg"
+        },
+        {
+          "frame_id": "001655",
+          "image_path": "keyframes/scannet/scene0022_00/001655.jpg"
+        },
+        {
+          "frame_id": "000007",
+          "image_path": "keyframes/scannet/scene0022_00/000007.jpg"
+        },
+        {
+          "frame_id": "001679",
+          "image_path": "keyframes/scannet/scene0022_00/001679.jpg"
+        },
+        {
+          "frame_id": "001072",
+          "image_path": "keyframes/scannet/scene0022_00/001072.jpg"
+        },
+        {
+          "frame_id": "000014",
+          "image_path": "keyframes/scannet/scene0022_00/000014.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0022_01",
+      "display_index": 47,
+      "frames": [
+        {
+          "frame_id": "000343",
+          "image_path": "keyframes/scannet/scene0022_01/000343.jpg"
+        },
+        {
+          "frame_id": "000649",
+          "image_path": "keyframes/scannet/scene0022_01/000649.jpg"
+        },
+        {
+          "frame_id": "000864",
+          "image_path": "keyframes/scannet/scene0022_01/000864.jpg"
+        },
+        {
+          "frame_id": "001078",
+          "image_path": "keyframes/scannet/scene0022_01/001078.jpg"
+        },
+        {
+          "frame_id": "000519",
+          "image_path": "keyframes/scannet/scene0022_01/000519.jpg"
+        },
+        {
+          "frame_id": "001160",
+          "image_path": "keyframes/scannet/scene0022_01/001160.jpg"
+        },
+        {
+          "frame_id": "000809",
+          "image_path": "keyframes/scannet/scene0022_01/000809.jpg"
+        },
+        {
+          "frame_id": "000684",
+          "image_path": "keyframes/scannet/scene0022_01/000684.jpg"
+        },
+        {
+          "frame_id": "001178",
+          "image_path": "keyframes/scannet/scene0022_01/001178.jpg"
+        },
+        {
+          "frame_id": "000906",
+          "image_path": "keyframes/scannet/scene0022_01/000906.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0023_00",
+      "display_index": 48,
+      "frames": [
+        {
+          "frame_id": "000476",
+          "image_path": "keyframes/scannet/scene0023_00/000476.jpg"
+        },
+        {
+          "frame_id": "001139",
+          "image_path": "keyframes/scannet/scene0023_00/001139.jpg"
+        },
+        {
+          "frame_id": "000270",
+          "image_path": "keyframes/scannet/scene0023_00/000270.jpg"
+        },
+        {
+          "frame_id": "000313",
+          "image_path": "keyframes/scannet/scene0023_00/000313.jpg"
+        },
+        {
+          "frame_id": "000291",
+          "image_path": "keyframes/scannet/scene0023_00/000291.jpg"
+        },
+        {
+          "frame_id": "000304",
+          "image_path": "keyframes/scannet/scene0023_00/000304.jpg"
+        },
+        {
+          "frame_id": "000256",
+          "image_path": "keyframes/scannet/scene0023_00/000256.jpg"
+        },
+        {
+          "frame_id": "000308",
+          "image_path": "keyframes/scannet/scene0023_00/000308.jpg"
+        },
+        {
+          "frame_id": "000275",
+          "image_path": "keyframes/scannet/scene0023_00/000275.jpg"
+        },
+        {
+          "frame_id": "000287",
+          "image_path": "keyframes/scannet/scene0023_00/000287.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0024_00",
+      "display_index": 49,
+      "frames": [
+        {
+          "frame_id": "000481",
+          "image_path": "keyframes/scannet/scene0024_00/000481.jpg"
+        },
+        {
+          "frame_id": "003396",
+          "image_path": "keyframes/scannet/scene0024_00/003396.jpg"
+        },
+        {
+          "frame_id": "000216",
+          "image_path": "keyframes/scannet/scene0024_00/000216.jpg"
+        },
+        {
+          "frame_id": "000400",
+          "image_path": "keyframes/scannet/scene0024_00/000400.jpg"
+        },
+        {
+          "frame_id": "000457",
+          "image_path": "keyframes/scannet/scene0024_00/000457.jpg"
+        },
+        {
+          "frame_id": "000472",
+          "image_path": "keyframes/scannet/scene0024_00/000472.jpg"
+        },
+        {
+          "frame_id": "000007",
+          "image_path": "keyframes/scannet/scene0024_00/000007.jpg"
+        },
+        {
+          "frame_id": "000201",
+          "image_path": "keyframes/scannet/scene0024_00/000201.jpg"
+        },
+        {
+          "frame_id": "000462",
+          "image_path": "keyframes/scannet/scene0024_00/000462.jpg"
+        },
+        {
+          "frame_id": "000477",
+          "image_path": "keyframes/scannet/scene0024_00/000477.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0024_01",
+      "display_index": 50,
+      "frames": [
+        {
+          "frame_id": "000629",
+          "image_path": "keyframes/scannet/scene0024_01/000629.jpg"
+        },
+        {
+          "frame_id": "001074",
+          "image_path": "keyframes/scannet/scene0024_01/001074.jpg"
+        },
+        {
+          "frame_id": "001307",
+          "image_path": "keyframes/scannet/scene0024_01/001307.jpg"
+        },
+        {
+          "frame_id": "002099",
+          "image_path": "keyframes/scannet/scene0024_01/002099.jpg"
+        },
+        {
+          "frame_id": "000446",
+          "image_path": "keyframes/scannet/scene0024_01/000446.jpg"
+        },
+        {
+          "frame_id": "000004",
+          "image_path": "keyframes/scannet/scene0024_01/000004.jpg"
+        },
+        {
+          "frame_id": "000646",
+          "image_path": "keyframes/scannet/scene0024_01/000646.jpg"
+        },
+        {
+          "frame_id": "000615",
+          "image_path": "keyframes/scannet/scene0024_01/000615.jpg"
+        },
+        {
+          "frame_id": "000416",
+          "image_path": "keyframes/scannet/scene0024_01/000416.jpg"
+        },
+        {
+          "frame_id": "000623",
+          "image_path": "keyframes/scannet/scene0024_01/000623.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0024_02",
+      "display_index": 51,
+      "frames": [
+        {
+          "frame_id": "000361",
+          "image_path": "keyframes/scannet/scene0024_02/000361.jpg"
+        },
+        {
+          "frame_id": "000784",
+          "image_path": "keyframes/scannet/scene0024_02/000784.jpg"
+        },
+        {
+          "frame_id": "000013",
+          "image_path": "keyframes/scannet/scene0024_02/000013.jpg"
+        },
+        {
+          "frame_id": "000540",
+          "image_path": "keyframes/scannet/scene0024_02/000540.jpg"
+        },
+        {
+          "frame_id": "000238",
+          "image_path": "keyframes/scannet/scene0024_02/000238.jpg"
+        },
+        {
+          "frame_id": "000337",
+          "image_path": "keyframes/scannet/scene0024_02/000337.jpg"
+        },
+        {
+          "frame_id": "000346",
+          "image_path": "keyframes/scannet/scene0024_02/000346.jpg"
+        },
+        {
+          "frame_id": "000352",
+          "image_path": "keyframes/scannet/scene0024_02/000352.jpg"
+        },
+        {
+          "frame_id": "000364",
+          "image_path": "keyframes/scannet/scene0024_02/000364.jpg"
+        },
+        {
+          "frame_id": "000341",
+          "image_path": "keyframes/scannet/scene0024_02/000341.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0025_00",
+      "display_index": 52,
+      "frames": [
+        {
+          "frame_id": "001831",
+          "image_path": "keyframes/scannet/scene0025_00/001831.jpg"
+        },
+        {
+          "frame_id": "001392",
+          "image_path": "keyframes/scannet/scene0025_00/001392.jpg"
+        },
+        {
+          "frame_id": "000632",
+          "image_path": "keyframes/scannet/scene0025_00/000632.jpg"
+        },
+        {
+          "frame_id": "000000",
+          "image_path": "keyframes/scannet/scene0025_00/000000.jpg"
+        },
+        {
+          "frame_id": "001529",
+          "image_path": "keyframes/scannet/scene0025_00/001529.jpg"
+        },
+        {
+          "frame_id": "000691",
+          "image_path": "keyframes/scannet/scene0025_00/000691.jpg"
+        },
+        {
+          "frame_id": "000020",
+          "image_path": "keyframes/scannet/scene0025_00/000020.jpg"
+        },
+        {
+          "frame_id": "001838",
+          "image_path": "keyframes/scannet/scene0025_00/001838.jpg"
+        },
+        {
+          "frame_id": "001400",
+          "image_path": "keyframes/scannet/scene0025_00/001400.jpg"
+        },
+        {
+          "frame_id": "000007",
+          "image_path": "keyframes/scannet/scene0025_00/000007.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0025_01",
+      "display_index": 53,
+      "frames": [
+        {
+          "frame_id": "001770",
+          "image_path": "keyframes/scannet/scene0025_01/001770.jpg"
+        },
+        {
+          "frame_id": "000998",
+          "image_path": "keyframes/scannet/scene0025_01/000998.jpg"
+        },
+        {
+          "frame_id": "001334",
+          "image_path": "keyframes/scannet/scene0025_01/001334.jpg"
+        },
+        {
+          "frame_id": "001595",
+          "image_path": "keyframes/scannet/scene0025_01/001595.jpg"
+        },
+        {
+          "frame_id": "000835",
+          "image_path": "keyframes/scannet/scene0025_01/000835.jpg"
+        },
+        {
+          "frame_id": "000476",
+          "image_path": "keyframes/scannet/scene0025_01/000476.jpg"
+        },
+        {
+          "frame_id": "000921",
+          "image_path": "keyframes/scannet/scene0025_01/000921.jpg"
+        },
+        {
+          "frame_id": "000322",
+          "image_path": "keyframes/scannet/scene0025_01/000322.jpg"
+        },
+        {
+          "frame_id": "000196",
+          "image_path": "keyframes/scannet/scene0025_01/000196.jpg"
+        },
+        {
+          "frame_id": "001100",
+          "image_path": "keyframes/scannet/scene0025_01/001100.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0025_02",
+      "display_index": 54,
+      "frames": [
+        {
+          "frame_id": "001259",
+          "image_path": "keyframes/scannet/scene0025_02/001259.jpg"
+        },
+        {
+          "frame_id": "000426",
+          "image_path": "keyframes/scannet/scene0025_02/000426.jpg"
+        },
+        {
+          "frame_id": "000702",
+          "image_path": "keyframes/scannet/scene0025_02/000702.jpg"
+        },
+        {
+          "frame_id": "000046",
+          "image_path": "keyframes/scannet/scene0025_02/000046.jpg"
+        },
+        {
+          "frame_id": "000861",
+          "image_path": "keyframes/scannet/scene0025_02/000861.jpg"
+        },
+        {
+          "frame_id": "001499",
+          "image_path": "keyframes/scannet/scene0025_02/001499.jpg"
+        },
+        {
+          "frame_id": "000320",
+          "image_path": "keyframes/scannet/scene0025_02/000320.jpg"
+        },
+        {
+          "frame_id": "001128",
+          "image_path": "keyframes/scannet/scene0025_02/001128.jpg"
+        },
+        {
+          "frame_id": "000378",
+          "image_path": "keyframes/scannet/scene0025_02/000378.jpg"
+        },
+        {
+          "frame_id": "000001",
+          "image_path": "keyframes/scannet/scene0025_02/000001.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0026_00",
+      "display_index": 55,
+      "frames": [
+        {
+          "frame_id": "001651",
+          "image_path": "keyframes/scannet/scene0026_00/001651.jpg"
+        },
+        {
+          "frame_id": "002360",
+          "image_path": "keyframes/scannet/scene0026_00/002360.jpg"
+        },
+        {
+          "frame_id": "001277",
+          "image_path": "keyframes/scannet/scene0026_00/001277.jpg"
+        },
+        {
+          "frame_id": "001118",
+          "image_path": "keyframes/scannet/scene0026_00/001118.jpg"
+        },
+        {
+          "frame_id": "002038",
+          "image_path": "keyframes/scannet/scene0026_00/002038.jpg"
+        },
+        {
+          "frame_id": "001958",
+          "image_path": "keyframes/scannet/scene0026_00/001958.jpg"
+        },
+        {
+          "frame_id": "001733",
+          "image_path": "keyframes/scannet/scene0026_00/001733.jpg"
+        },
+        {
+          "frame_id": "001560",
+          "image_path": "keyframes/scannet/scene0026_00/001560.jpg"
+        },
+        {
+          "frame_id": "001629",
+          "image_path": "keyframes/scannet/scene0026_00/001629.jpg"
+        },
+        {
+          "frame_id": "002051",
+          "image_path": "keyframes/scannet/scene0026_00/002051.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0027_00",
+      "display_index": 56,
+      "frames": [
+        {
+          "frame_id": "000265",
+          "image_path": "keyframes/scannet/scene0027_00/000265.jpg"
+        },
+        {
+          "frame_id": "000068",
+          "image_path": "keyframes/scannet/scene0027_00/000068.jpg"
+        },
+        {
+          "frame_id": "000617",
+          "image_path": "keyframes/scannet/scene0027_00/000617.jpg"
+        },
+        {
+          "frame_id": "001083",
+          "image_path": "keyframes/scannet/scene0027_00/001083.jpg"
+        },
+        {
+          "frame_id": "000222",
+          "image_path": "keyframes/scannet/scene0027_00/000222.jpg"
+        },
+        {
+          "frame_id": "001137",
+          "image_path": "keyframes/scannet/scene0027_00/001137.jpg"
+        },
+        {
+          "frame_id": "000295",
+          "image_path": "keyframes/scannet/scene0027_00/000295.jpg"
+        },
+        {
+          "frame_id": "000240",
+          "image_path": "keyframes/scannet/scene0027_00/000240.jpg"
+        },
+        {
+          "frame_id": "001132",
+          "image_path": "keyframes/scannet/scene0027_00/001132.jpg"
+        },
+        {
+          "frame_id": "001126",
+          "image_path": "keyframes/scannet/scene0027_00/001126.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0027_01",
+      "display_index": 57,
+      "frames": [
+        {
+          "frame_id": "000079",
+          "image_path": "keyframes/scannet/scene0027_01/000079.jpg"
+        },
+        {
+          "frame_id": "000791",
+          "image_path": "keyframes/scannet/scene0027_01/000791.jpg"
+        },
+        {
+          "frame_id": "000000",
+          "image_path": "keyframes/scannet/scene0027_01/000000.jpg"
+        },
+        {
+          "frame_id": "000158",
+          "image_path": "keyframes/scannet/scene0027_01/000158.jpg"
+        },
+        {
+          "frame_id": "000034",
+          "image_path": "keyframes/scannet/scene0027_01/000034.jpg"
+        },
+        {
+          "frame_id": "000020",
+          "image_path": "keyframes/scannet/scene0027_01/000020.jpg"
+        },
+        {
+          "frame_id": "000102",
+          "image_path": "keyframes/scannet/scene0027_01/000102.jpg"
+        },
+        {
+          "frame_id": "000007",
+          "image_path": "keyframes/scannet/scene0027_01/000007.jpg"
+        },
+        {
+          "frame_id": "000002",
+          "image_path": "keyframes/scannet/scene0027_01/000002.jpg"
+        },
+        {
+          "frame_id": "000027",
+          "image_path": "keyframes/scannet/scene0027_01/000027.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0027_02",
+      "display_index": 58,
+      "frames": [
+        {
+          "frame_id": "000003",
+          "image_path": "keyframes/scannet/scene0027_02/000003.jpg"
+        },
+        {
+          "frame_id": "000482",
+          "image_path": "keyframes/scannet/scene0027_02/000482.jpg"
+        },
+        {
+          "frame_id": "000827",
+          "image_path": "keyframes/scannet/scene0027_02/000827.jpg"
+        },
+        {
+          "frame_id": "000755",
+          "image_path": "keyframes/scannet/scene0027_02/000755.jpg"
+        },
+        {
+          "frame_id": "000118",
+          "image_path": "keyframes/scannet/scene0027_02/000118.jpg"
+        },
+        {
+          "frame_id": "000682",
+          "image_path": "keyframes/scannet/scene0027_02/000682.jpg"
+        },
+        {
+          "frame_id": "000719",
+          "image_path": "keyframes/scannet/scene0027_02/000719.jpg"
+        },
+        {
+          "frame_id": "000055",
+          "image_path": "keyframes/scannet/scene0027_02/000055.jpg"
+        },
+        {
+          "frame_id": "000144",
+          "image_path": "keyframes/scannet/scene0027_02/000144.jpg"
+        },
+        {
+          "frame_id": "000125",
+          "image_path": "keyframes/scannet/scene0027_02/000125.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0028_00",
+      "display_index": 59,
+      "frames": [
+        {
+          "frame_id": "000309",
+          "image_path": "keyframes/scannet/scene0028_00/000309.jpg"
+        },
+        {
+          "frame_id": "000975",
+          "image_path": "keyframes/scannet/scene0028_00/000975.jpg"
+        },
+        {
+          "frame_id": "001060",
+          "image_path": "keyframes/scannet/scene0028_00/001060.jpg"
+        },
+        {
+          "frame_id": "000013",
+          "image_path": "keyframes/scannet/scene0028_00/000013.jpg"
+        },
+        {
+          "frame_id": "000243",
+          "image_path": "keyframes/scannet/scene0028_00/000243.jpg"
+        },
+        {
+          "frame_id": "000518",
+          "image_path": "keyframes/scannet/scene0028_00/000518.jpg"
+        },
+        {
+          "frame_id": "000166",
+          "image_path": "keyframes/scannet/scene0028_00/000166.jpg"
+        },
+        {
+          "frame_id": "000937",
+          "image_path": "keyframes/scannet/scene0028_00/000937.jpg"
+        },
+        {
+          "frame_id": "001067",
+          "image_path": "keyframes/scannet/scene0028_00/001067.jpg"
+        },
+        {
+          "frame_id": "000980",
+          "image_path": "keyframes/scannet/scene0028_00/000980.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0029_00",
+      "display_index": 60,
+      "frames": [
+        {
+          "frame_id": "000504",
+          "image_path": "keyframes/scannet/scene0029_00/000504.jpg"
+        },
+        {
+          "frame_id": "001857",
+          "image_path": "keyframes/scannet/scene0029_00/001857.jpg"
+        },
+        {
+          "frame_id": "000653",
+          "image_path": "keyframes/scannet/scene0029_00/000653.jpg"
+        },
+        {
+          "frame_id": "000338",
+          "image_path": "keyframes/scannet/scene0029_00/000338.jpg"
+        },
+        {
+          "frame_id": "001098",
+          "image_path": "keyframes/scannet/scene0029_00/001098.jpg"
+        },
+        {
+          "frame_id": "000257",
+          "image_path": "keyframes/scannet/scene0029_00/000257.jpg"
+        },
+        {
+          "frame_id": "000299",
+          "image_path": "keyframes/scannet/scene0029_00/000299.jpg"
+        },
+        {
+          "frame_id": "001157",
+          "image_path": "keyframes/scannet/scene0029_00/001157.jpg"
+        },
+        {
+          "frame_id": "000637",
+          "image_path": "keyframes/scannet/scene0029_00/000637.jpg"
+        },
+        {
+          "frame_id": "000352",
+          "image_path": "keyframes/scannet/scene0029_00/000352.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0029_01",
+      "display_index": 61,
+      "frames": [
+        {
+          "frame_id": "000096",
+          "image_path": "keyframes/scannet/scene0029_01/000096.jpg"
+        },
+        {
+          "frame_id": "000466",
+          "image_path": "keyframes/scannet/scene0029_01/000466.jpg"
+        },
+        {
+          "frame_id": "001790",
+          "image_path": "keyframes/scannet/scene0029_01/001790.jpg"
+        },
+        {
+          "frame_id": "001370",
+          "image_path": "keyframes/scannet/scene0029_01/001370.jpg"
+        },
+        {
+          "frame_id": "001306",
+          "image_path": "keyframes/scannet/scene0029_01/001306.jpg"
+        },
+        {
+          "frame_id": "001536",
+          "image_path": "keyframes/scannet/scene0029_01/001536.jpg"
+        },
+        {
+          "frame_id": "001231",
+          "image_path": "keyframes/scannet/scene0029_01/001231.jpg"
+        },
+        {
+          "frame_id": "001601",
+          "image_path": "keyframes/scannet/scene0029_01/001601.jpg"
+        },
+        {
+          "frame_id": "000419",
+          "image_path": "keyframes/scannet/scene0029_01/000419.jpg"
+        },
+        {
+          "frame_id": "000057",
+          "image_path": "keyframes/scannet/scene0029_01/000057.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0029_02",
+      "display_index": 62,
+      "frames": [
+        {
+          "frame_id": "000129",
+          "image_path": "keyframes/scannet/scene0029_02/000129.jpg"
+        },
+        {
+          "frame_id": "000975",
+          "image_path": "keyframes/scannet/scene0029_02/000975.jpg"
+        },
+        {
+          "frame_id": "001803",
+          "image_path": "keyframes/scannet/scene0029_02/001803.jpg"
+        },
+        {
+          "frame_id": "000752",
+          "image_path": "keyframes/scannet/scene0029_02/000752.jpg"
+        },
+        {
+          "frame_id": "001677",
+          "image_path": "keyframes/scannet/scene0029_02/001677.jpg"
+        },
+        {
+          "frame_id": "000305",
+          "image_path": "keyframes/scannet/scene0029_02/000305.jpg"
+        },
+        {
+          "frame_id": "000603",
+          "image_path": "keyframes/scannet/scene0029_02/000603.jpg"
+        },
+        {
+          "frame_id": "000520",
+          "image_path": "keyframes/scannet/scene0029_02/000520.jpg"
+        },
+        {
+          "frame_id": "000776",
+          "image_path": "keyframes/scannet/scene0029_02/000776.jpg"
+        },
+        {
+          "frame_id": "000544",
+          "image_path": "keyframes/scannet/scene0029_02/000544.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0030_00",
+      "display_index": 63,
+      "frames": [
+        {
+          "frame_id": "000985",
+          "image_path": "keyframes/scannet/scene0030_00/000985.jpg"
+        },
+        {
+          "frame_id": "001857",
+          "image_path": "keyframes/scannet/scene0030_00/001857.jpg"
+        },
+        {
+          "frame_id": "000351",
+          "image_path": "keyframes/scannet/scene0030_00/000351.jpg"
+        },
+        {
+          "frame_id": "001093",
+          "image_path": "keyframes/scannet/scene0030_00/001093.jpg"
+        },
+        {
+          "frame_id": "000458",
+          "image_path": "keyframes/scannet/scene0030_00/000458.jpg"
+        },
+        {
+          "frame_id": "001795",
+          "image_path": "keyframes/scannet/scene0030_00/001795.jpg"
+        },
+        {
+          "frame_id": "001758",
+          "image_path": "keyframes/scannet/scene0030_00/001758.jpg"
+        },
+        {
+          "frame_id": "000393",
+          "image_path": "keyframes/scannet/scene0030_00/000393.jpg"
+        },
+        {
+          "frame_id": "001810",
+          "image_path": "keyframes/scannet/scene0030_00/001810.jpg"
+        },
+        {
+          "frame_id": "000447",
+          "image_path": "keyframes/scannet/scene0030_00/000447.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0030_01",
+      "display_index": 64,
+      "frames": [
+        {
+          "frame_id": "001154",
+          "image_path": "keyframes/scannet/scene0030_01/001154.jpg"
+        },
+        {
+          "frame_id": "000252",
+          "image_path": "keyframes/scannet/scene0030_01/000252.jpg"
+        },
+        {
+          "frame_id": "000830",
+          "image_path": "keyframes/scannet/scene0030_01/000830.jpg"
+        },
+        {
+          "frame_id": "001516",
+          "image_path": "keyframes/scannet/scene0030_01/001516.jpg"
+        },
+        {
+          "frame_id": "001093",
+          "image_path": "keyframes/scannet/scene0030_01/001093.jpg"
+        },
+        {
+          "frame_id": "000190",
+          "image_path": "keyframes/scannet/scene0030_01/000190.jpg"
+        },
+        {
+          "frame_id": "001203",
+          "image_path": "keyframes/scannet/scene0030_01/001203.jpg"
+        },
+        {
+          "frame_id": "000848",
+          "image_path": "keyframes/scannet/scene0030_01/000848.jpg"
+        },
+        {
+          "frame_id": "001125",
+          "image_path": "keyframes/scannet/scene0030_01/001125.jpg"
+        },
+        {
+          "frame_id": "000274",
+          "image_path": "keyframes/scannet/scene0030_01/000274.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0030_02",
+      "display_index": 65,
+      "frames": [
+        {
+          "frame_id": "000810",
+          "image_path": "keyframes/scannet/scene0030_02/000810.jpg"
+        },
+        {
+          "frame_id": "000387",
+          "image_path": "keyframes/scannet/scene0030_02/000387.jpg"
+        },
+        {
+          "frame_id": "000088",
+          "image_path": "keyframes/scannet/scene0030_02/000088.jpg"
+        },
+        {
+          "frame_id": "001063",
+          "image_path": "keyframes/scannet/scene0030_02/001063.jpg"
+        },
+        {
+          "frame_id": "000487",
+          "image_path": "keyframes/scannet/scene0030_02/000487.jpg"
+        },
+        {
+          "frame_id": "000546",
+          "image_path": "keyframes/scannet/scene0030_02/000546.jpg"
+        },
+        {
+          "frame_id": "000678",
+          "image_path": "keyframes/scannet/scene0030_02/000678.jpg"
+        },
+        {
+          "frame_id": "000160",
+          "image_path": "keyframes/scannet/scene0030_02/000160.jpg"
+        },
+        {
+          "frame_id": "000615",
+          "image_path": "keyframes/scannet/scene0030_02/000615.jpg"
+        },
+        {
+          "frame_id": "000340",
+          "image_path": "keyframes/scannet/scene0030_02/000340.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0031_00",
+      "display_index": 66,
+      "frames": [
+        {
+          "frame_id": "000915",
+          "image_path": "keyframes/scannet/scene0031_00/000915.jpg"
+        },
+        {
+          "frame_id": "001539",
+          "image_path": "keyframes/scannet/scene0031_00/001539.jpg"
+        },
+        {
+          "frame_id": "002067",
+          "image_path": "keyframes/scannet/scene0031_00/002067.jpg"
+        },
+        {
+          "frame_id": "002407",
+          "image_path": "keyframes/scannet/scene0031_00/002407.jpg"
+        },
+        {
+          "frame_id": "002557",
+          "image_path": "keyframes/scannet/scene0031_00/002557.jpg"
+        },
+        {
+          "frame_id": "002179",
+          "image_path": "keyframes/scannet/scene0031_00/002179.jpg"
+        },
+        {
+          "frame_id": "001948",
+          "image_path": "keyframes/scannet/scene0031_00/001948.jpg"
+        },
+        {
+          "frame_id": "002754",
+          "image_path": "keyframes/scannet/scene0031_00/002754.jpg"
+        },
+        {
+          "frame_id": "001583",
+          "image_path": "keyframes/scannet/scene0031_00/001583.jpg"
+        },
+        {
+          "frame_id": "002024",
+          "image_path": "keyframes/scannet/scene0031_00/002024.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0031_01",
+      "display_index": 67,
+      "frames": [
+        {
+          "frame_id": "001144",
+          "image_path": "keyframes/scannet/scene0031_01/001144.jpg"
+        },
+        {
+          "frame_id": "000179",
+          "image_path": "keyframes/scannet/scene0031_01/000179.jpg"
+        },
+        {
+          "frame_id": "001697",
+          "image_path": "keyframes/scannet/scene0031_01/001697.jpg"
+        },
+        {
+          "frame_id": "002073",
+          "image_path": "keyframes/scannet/scene0031_01/002073.jpg"
+        },
+        {
+          "frame_id": "001872",
+          "image_path": "keyframes/scannet/scene0031_01/001872.jpg"
+        },
+        {
+          "frame_id": "000280",
+          "image_path": "keyframes/scannet/scene0031_01/000280.jpg"
+        },
+        {
+          "frame_id": "001598",
+          "image_path": "keyframes/scannet/scene0031_01/001598.jpg"
+        },
+        {
+          "frame_id": "001082",
+          "image_path": "keyframes/scannet/scene0031_01/001082.jpg"
+        },
+        {
+          "frame_id": "000216",
+          "image_path": "keyframes/scannet/scene0031_01/000216.jpg"
+        },
+        {
+          "frame_id": "001846",
+          "image_path": "keyframes/scannet/scene0031_01/001846.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0031_02",
+      "display_index": 68,
+      "frames": [
+        {
+          "frame_id": "000916",
+          "image_path": "keyframes/scannet/scene0031_02/000916.jpg"
+        },
+        {
+          "frame_id": "000295",
+          "image_path": "keyframes/scannet/scene0031_02/000295.jpg"
+        },
+        {
+          "frame_id": "001925",
+          "image_path": "keyframes/scannet/scene0031_02/001925.jpg"
+        },
+        {
+          "frame_id": "001035",
+          "image_path": "keyframes/scannet/scene0031_02/001035.jpg"
+        },
+        {
+          "frame_id": "000179",
+          "image_path": "keyframes/scannet/scene0031_02/000179.jpg"
+        },
+        {
+          "frame_id": "002092",
+          "image_path": "keyframes/scannet/scene0031_02/002092.jpg"
+        },
+        {
+          "frame_id": "000840",
+          "image_path": "keyframes/scannet/scene0031_02/000840.jpg"
+        },
+        {
+          "frame_id": "000105",
+          "image_path": "keyframes/scannet/scene0031_02/000105.jpg"
+        },
+        {
+          "frame_id": "001398",
+          "image_path": "keyframes/scannet/scene0031_02/001398.jpg"
+        },
+        {
+          "frame_id": "002045",
+          "image_path": "keyframes/scannet/scene0031_02/002045.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0032_00",
+      "display_index": 69,
+      "frames": [
+        {
+          "frame_id": "000013",
+          "image_path": "keyframes/scannet/scene0032_00/000013.jpg"
+        },
+        {
+          "frame_id": "000551",
+          "image_path": "keyframes/scannet/scene0032_00/000551.jpg"
+        },
+        {
+          "frame_id": "000591",
+          "image_path": "keyframes/scannet/scene0032_00/000591.jpg"
+        },
+        {
+          "frame_id": "000560",
+          "image_path": "keyframes/scannet/scene0032_00/000560.jpg"
+        },
+        {
+          "frame_id": "000554",
+          "image_path": "keyframes/scannet/scene0032_00/000554.jpg"
+        },
+        {
+          "frame_id": "000004",
+          "image_path": "keyframes/scannet/scene0032_00/000004.jpg"
+        },
+        {
+          "frame_id": "000586",
+          "image_path": "keyframes/scannet/scene0032_00/000586.jpg"
+        },
+        {
+          "frame_id": "000559",
+          "image_path": "keyframes/scannet/scene0032_00/000559.jpg"
+        },
+        {
+          "frame_id": "000594",
+          "image_path": "keyframes/scannet/scene0032_00/000594.jpg"
+        },
+        {
+          "frame_id": "000552",
+          "image_path": "keyframes/scannet/scene0032_00/000552.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0032_01",
+      "display_index": 70,
+      "frames": [
+        {
+          "frame_id": "000063",
+          "image_path": "keyframes/scannet/scene0032_01/000063.jpg"
+        },
+        {
+          "frame_id": "000352",
+          "image_path": "keyframes/scannet/scene0032_01/000352.jpg"
+        },
+        {
+          "frame_id": "000657",
+          "image_path": "keyframes/scannet/scene0032_01/000657.jpg"
+        },
+        {
+          "frame_id": "000007",
+          "image_path": "keyframes/scannet/scene0032_01/000007.jpg"
+        },
+        {
+          "frame_id": "000633",
+          "image_path": "keyframes/scannet/scene0032_01/000633.jpg"
+        },
+        {
+          "frame_id": "000079",
+          "image_path": "keyframes/scannet/scene0032_01/000079.jpg"
+        },
+        {
+          "frame_id": "000590",
+          "image_path": "keyframes/scannet/scene0032_01/000590.jpg"
+        },
+        {
+          "frame_id": "000028",
+          "image_path": "keyframes/scannet/scene0032_01/000028.jpg"
+        },
+        {
+          "frame_id": "000048",
+          "image_path": "keyframes/scannet/scene0032_01/000048.jpg"
+        },
+        {
+          "frame_id": "000592",
+          "image_path": "keyframes/scannet/scene0032_01/000592.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0033_00",
+      "display_index": 71,
+      "frames": [
+        {
+          "frame_id": "000185",
+          "image_path": "keyframes/scannet/scene0033_00/000185.jpg"
+        },
+        {
+          "frame_id": "000869",
+          "image_path": "keyframes/scannet/scene0033_00/000869.jpg"
+        },
+        {
+          "frame_id": "001256",
+          "image_path": "keyframes/scannet/scene0033_00/001256.jpg"
+        },
+        {
+          "frame_id": "000604",
+          "image_path": "keyframes/scannet/scene0033_00/000604.jpg"
+        },
+        {
+          "frame_id": "000107",
+          "image_path": "keyframes/scannet/scene0033_00/000107.jpg"
+        },
+        {
+          "frame_id": "000939",
+          "image_path": "keyframes/scannet/scene0033_00/000939.jpg"
+        },
+        {
+          "frame_id": "000248",
+          "image_path": "keyframes/scannet/scene0033_00/000248.jpg"
+        },
+        {
+          "frame_id": "000581",
+          "image_path": "keyframes/scannet/scene0033_00/000581.jpg"
+        },
+        {
+          "frame_id": "000150",
+          "image_path": "keyframes/scannet/scene0033_00/000150.jpg"
+        },
+        {
+          "frame_id": "000918",
+          "image_path": "keyframes/scannet/scene0033_00/000918.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0034_00",
+      "display_index": 72,
+      "frames": [
+        {
+          "frame_id": "000541",
+          "image_path": "keyframes/scannet/scene0034_00/000541.jpg"
+        },
+        {
+          "frame_id": "000230",
+          "image_path": "keyframes/scannet/scene0034_00/000230.jpg"
+        },
+        {
+          "frame_id": "000425",
+          "image_path": "keyframes/scannet/scene0034_00/000425.jpg"
+        },
+        {
+          "frame_id": "000156",
+          "image_path": "keyframes/scannet/scene0034_00/000156.jpg"
+        },
+        {
+          "frame_id": "000638",
+          "image_path": "keyframes/scannet/scene0034_00/000638.jpg"
+        },
+        {
+          "frame_id": "000673",
+          "image_path": "keyframes/scannet/scene0034_00/000673.jpg"
+        },
+        {
+          "frame_id": "000013",
+          "image_path": "keyframes/scannet/scene0034_00/000013.jpg"
+        },
+        {
+          "frame_id": "000122",
+          "image_path": "keyframes/scannet/scene0034_00/000122.jpg"
+        },
+        {
+          "frame_id": "000171",
+          "image_path": "keyframes/scannet/scene0034_00/000171.jpg"
+        },
+        {
+          "frame_id": "000131",
+          "image_path": "keyframes/scannet/scene0034_00/000131.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0034_01",
+      "display_index": 73,
+      "frames": [
+        {
+          "frame_id": "000268",
+          "image_path": "keyframes/scannet/scene0034_01/000268.jpg"
+        },
+        {
+          "frame_id": "000647",
+          "image_path": "keyframes/scannet/scene0034_01/000647.jpg"
+        },
+        {
+          "frame_id": "001144",
+          "image_path": "keyframes/scannet/scene0034_01/001144.jpg"
+        },
+        {
+          "frame_id": "000493",
+          "image_path": "keyframes/scannet/scene0034_01/000493.jpg"
+        },
+        {
+          "frame_id": "000775",
+          "image_path": "keyframes/scannet/scene0034_01/000775.jpg"
+        },
+        {
+          "frame_id": "000238",
+          "image_path": "keyframes/scannet/scene0034_01/000238.jpg"
+        },
+        {
+          "frame_id": "000802",
+          "image_path": "keyframes/scannet/scene0034_01/000802.jpg"
+        },
+        {
+          "frame_id": "001174",
+          "image_path": "keyframes/scannet/scene0034_01/001174.jpg"
+        },
+        {
+          "frame_id": "000248",
+          "image_path": "keyframes/scannet/scene0034_01/000248.jpg"
+        },
+        {
+          "frame_id": "000788",
+          "image_path": "keyframes/scannet/scene0034_01/000788.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0034_02",
+      "display_index": 74,
+      "frames": [
+        {
+          "frame_id": "000632",
+          "image_path": "keyframes/scannet/scene0034_02/000632.jpg"
+        },
+        {
+          "frame_id": "000250",
+          "image_path": "keyframes/scannet/scene0034_02/000250.jpg"
+        },
+        {
+          "frame_id": "000451",
+          "image_path": "keyframes/scannet/scene0034_02/000451.jpg"
+        },
+        {
+          "frame_id": "000825",
+          "image_path": "keyframes/scannet/scene0034_02/000825.jpg"
+        },
+        {
+          "frame_id": "000405",
+          "image_path": "keyframes/scannet/scene0034_02/000405.jpg"
+        },
+        {
+          "frame_id": "001150",
+          "image_path": "keyframes/scannet/scene0034_02/001150.jpg"
+        },
+        {
+          "frame_id": "000095",
+          "image_path": "keyframes/scannet/scene0034_02/000095.jpg"
+        },
+        {
+          "frame_id": "000369",
+          "image_path": "keyframes/scannet/scene0034_02/000369.jpg"
+        },
+        {
+          "frame_id": "000429",
+          "image_path": "keyframes/scannet/scene0034_02/000429.jpg"
+        },
+        {
+          "frame_id": "000074",
+          "image_path": "keyframes/scannet/scene0034_02/000074.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0035_00",
+      "display_index": 75,
+      "frames": [
+        {
+          "frame_id": "000306",
+          "image_path": "keyframes/scannet/scene0035_00/000306.jpg"
+        },
+        {
+          "frame_id": "000009",
+          "image_path": "keyframes/scannet/scene0035_00/000009.jpg"
+        },
+        {
+          "frame_id": "000513",
+          "image_path": "keyframes/scannet/scene0035_00/000513.jpg"
+        },
+        {
+          "frame_id": "000130",
+          "image_path": "keyframes/scannet/scene0035_00/000130.jpg"
+        },
+        {
+          "frame_id": "000391",
+          "image_path": "keyframes/scannet/scene0035_00/000391.jpg"
+        },
+        {
+          "frame_id": "000741",
+          "image_path": "keyframes/scannet/scene0035_00/000741.jpg"
+        },
+        {
+          "frame_id": "000489",
+          "image_path": "keyframes/scannet/scene0035_00/000489.jpg"
+        },
+        {
+          "frame_id": "000044",
+          "image_path": "keyframes/scannet/scene0035_00/000044.jpg"
+        },
+        {
+          "frame_id": "000002",
+          "image_path": "keyframes/scannet/scene0035_00/000002.jpg"
+        },
+        {
+          "frame_id": "000020",
+          "image_path": "keyframes/scannet/scene0035_00/000020.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0035_01",
+      "display_index": 76,
+      "frames": [
+        {
+          "frame_id": "001011",
+          "image_path": "keyframes/scannet/scene0035_01/001011.jpg"
+        },
+        {
+          "frame_id": "000126",
+          "image_path": "keyframes/scannet/scene0035_01/000126.jpg"
+        },
+        {
+          "frame_id": "000009",
+          "image_path": "keyframes/scannet/scene0035_01/000009.jpg"
+        },
+        {
+          "frame_id": "000362",
+          "image_path": "keyframes/scannet/scene0035_01/000362.jpg"
+        },
+        {
+          "frame_id": "000482",
+          "image_path": "keyframes/scannet/scene0035_01/000482.jpg"
+        },
+        {
+          "frame_id": "000044",
+          "image_path": "keyframes/scannet/scene0035_01/000044.jpg"
+        },
+        {
+          "frame_id": "000381",
+          "image_path": "keyframes/scannet/scene0035_01/000381.jpg"
+        },
+        {
+          "frame_id": "000140",
+          "image_path": "keyframes/scannet/scene0035_01/000140.jpg"
+        },
+        {
+          "frame_id": "000347",
+          "image_path": "keyframes/scannet/scene0035_01/000347.jpg"
+        },
+        {
+          "frame_id": "000019",
+          "image_path": "keyframes/scannet/scene0035_01/000019.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0036_00",
+      "display_index": 77,
+      "frames": [
+        {
+          "frame_id": "000554",
+          "image_path": "keyframes/scannet/scene0036_00/000554.jpg"
+        },
+        {
+          "frame_id": "000682",
+          "image_path": "keyframes/scannet/scene0036_00/000682.jpg"
+        },
+        {
+          "frame_id": "000012",
+          "image_path": "keyframes/scannet/scene0036_00/000012.jpg"
+        },
+        {
+          "frame_id": "000099",
+          "image_path": "keyframes/scannet/scene0036_00/000099.jpg"
+        },
+        {
+          "frame_id": "000047",
+          "image_path": "keyframes/scannet/scene0036_00/000047.jpg"
+        },
+        {
+          "frame_id": "000027",
+          "image_path": "keyframes/scannet/scene0036_00/000027.jpg"
+        },
+        {
+          "frame_id": "000060",
+          "image_path": "keyframes/scannet/scene0036_00/000060.jpg"
+        },
+        {
+          "frame_id": "000086",
+          "image_path": "keyframes/scannet/scene0036_00/000086.jpg"
+        },
+        {
+          "frame_id": "000033",
+          "image_path": "keyframes/scannet/scene0036_00/000033.jpg"
+        },
+        {
+          "frame_id": "000077",
+          "image_path": "keyframes/scannet/scene0036_00/000077.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0036_01",
+      "display_index": 78,
+      "frames": [
+        {
+          "frame_id": "000534",
+          "image_path": "keyframes/scannet/scene0036_01/000534.jpg"
+        },
+        {
+          "frame_id": "000711",
+          "image_path": "keyframes/scannet/scene0036_01/000711.jpg"
+        },
+        {
+          "frame_id": "000389",
+          "image_path": "keyframes/scannet/scene0036_01/000389.jpg"
+        },
+        {
+          "frame_id": "000437",
+          "image_path": "keyframes/scannet/scene0036_01/000437.jpg"
+        },
+        {
+          "frame_id": "000506",
+          "image_path": "keyframes/scannet/scene0036_01/000506.jpg"
+        },
+        {
+          "frame_id": "000023",
+          "image_path": "keyframes/scannet/scene0036_01/000023.jpg"
+        },
+        {
+          "frame_id": "000416",
+          "image_path": "keyframes/scannet/scene0036_01/000416.jpg"
+        },
+        {
+          "frame_id": "000000",
+          "image_path": "keyframes/scannet/scene0036_01/000000.jpg"
+        },
+        {
+          "frame_id": "000426",
+          "image_path": "keyframes/scannet/scene0036_01/000426.jpg"
+        },
+        {
+          "frame_id": "000012",
+          "image_path": "keyframes/scannet/scene0036_01/000012.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0037_00",
+      "display_index": 79,
+      "frames": [
+        {
+          "frame_id": "000954",
+          "image_path": "keyframes/scannet/scene0037_00/000954.jpg"
+        },
+        {
+          "frame_id": "000255",
+          "image_path": "keyframes/scannet/scene0037_00/000255.jpg"
+        },
+        {
+          "frame_id": "000668",
+          "image_path": "keyframes/scannet/scene0037_00/000668.jpg"
+        },
+        {
+          "frame_id": "001070",
+          "image_path": "keyframes/scannet/scene0037_00/001070.jpg"
+        },
+        {
+          "frame_id": "000067",
+          "image_path": "keyframes/scannet/scene0037_00/000067.jpg"
+        },
+        {
+          "frame_id": "000862",
+          "image_path": "keyframes/scannet/scene0037_00/000862.jpg"
+        },
+        {
+          "frame_id": "000633",
+          "image_path": "keyframes/scannet/scene0037_00/000633.jpg"
+        },
+        {
+          "frame_id": "000696",
+          "image_path": "keyframes/scannet/scene0037_00/000696.jpg"
+        },
+        {
+          "frame_id": "000003",
+          "image_path": "keyframes/scannet/scene0037_00/000003.jpg"
+        },
+        {
+          "frame_id": "001050",
+          "image_path": "keyframes/scannet/scene0037_00/001050.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0038_00",
+      "display_index": 80,
+      "frames": [
+        {
+          "frame_id": "000305",
+          "image_path": "keyframes/scannet/scene0038_00/000305.jpg"
+        },
+        {
+          "frame_id": "000206",
+          "image_path": "keyframes/scannet/scene0038_00/000206.jpg"
+        },
+        {
+          "frame_id": "000599",
+          "image_path": "keyframes/scannet/scene0038_00/000599.jpg"
+        },
+        {
+          "frame_id": "000002",
+          "image_path": "keyframes/scannet/scene0038_00/000002.jpg"
+        },
+        {
+          "frame_id": "001096",
+          "image_path": "keyframes/scannet/scene0038_00/001096.jpg"
+        },
+        {
+          "frame_id": "000578",
+          "image_path": "keyframes/scannet/scene0038_00/000578.jpg"
+        },
+        {
+          "frame_id": "000613",
+          "image_path": "keyframes/scannet/scene0038_00/000613.jpg"
+        },
+        {
+          "frame_id": "000320",
+          "image_path": "keyframes/scannet/scene0038_00/000320.jpg"
+        },
+        {
+          "frame_id": "000211",
+          "image_path": "keyframes/scannet/scene0038_00/000211.jpg"
+        },
+        {
+          "frame_id": "000588",
+          "image_path": "keyframes/scannet/scene0038_00/000588.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0038_01",
+      "display_index": 81,
+      "frames": [
+        {
+          "frame_id": "000516",
+          "image_path": "keyframes/scannet/scene0038_01/000516.jpg"
+        },
+        {
+          "frame_id": "000000",
+          "image_path": "keyframes/scannet/scene0038_01/000000.jpg"
+        },
+        {
+          "frame_id": "000418",
+          "image_path": "keyframes/scannet/scene0038_01/000418.jpg"
+        },
+        {
+          "frame_id": "000479",
+          "image_path": "keyframes/scannet/scene0038_01/000479.jpg"
+        },
+        {
+          "frame_id": "000524",
+          "image_path": "keyframes/scannet/scene0038_01/000524.jpg"
+        },
+        {
+          "frame_id": "000492",
+          "image_path": "keyframes/scannet/scene0038_01/000492.jpg"
+        },
+        {
+          "frame_id": "000009",
+          "image_path": "keyframes/scannet/scene0038_01/000009.jpg"
+        },
+        {
+          "frame_id": "000509",
+          "image_path": "keyframes/scannet/scene0038_01/000509.jpg"
+        },
+        {
+          "frame_id": "000490",
+          "image_path": "keyframes/scannet/scene0038_01/000490.jpg"
+        },
+        {
+          "frame_id": "000501",
+          "image_path": "keyframes/scannet/scene0038_01/000501.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0038_02",
+      "display_index": 82,
+      "frames": [
+        {
+          "frame_id": "000966",
+          "image_path": "keyframes/scannet/scene0038_02/000966.jpg"
+        },
+        {
+          "frame_id": "000514",
+          "image_path": "keyframes/scannet/scene0038_02/000514.jpg"
+        },
+        {
+          "frame_id": "000480",
+          "image_path": "keyframes/scannet/scene0038_02/000480.jpg"
+        },
+        {
+          "frame_id": "000121",
+          "image_path": "keyframes/scannet/scene0038_02/000121.jpg"
+        },
+        {
+          "frame_id": "000954",
+          "image_path": "keyframes/scannet/scene0038_02/000954.jpg"
+        },
+        {
+          "frame_id": "000493",
+          "image_path": "keyframes/scannet/scene0038_02/000493.jpg"
+        },
+        {
+          "frame_id": "000503",
+          "image_path": "keyframes/scannet/scene0038_02/000503.jpg"
+        },
+        {
+          "frame_id": "000485",
+          "image_path": "keyframes/scannet/scene0038_02/000485.jpg"
+        },
+        {
+          "frame_id": "000498",
+          "image_path": "keyframes/scannet/scene0038_02/000498.jpg"
+        },
+        {
+          "frame_id": "000510",
+          "image_path": "keyframes/scannet/scene0038_02/000510.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0039_00",
+      "display_index": 83,
+      "frames": [
+        {
+          "frame_id": "000948",
+          "image_path": "keyframes/scannet/scene0039_00/000948.jpg"
+        },
+        {
+          "frame_id": "000962",
+          "image_path": "keyframes/scannet/scene0039_00/000962.jpg"
+        },
+        {
+          "frame_id": "000938",
+          "image_path": "keyframes/scannet/scene0039_00/000938.jpg"
+        },
+        {
+          "frame_id": "000955",
+          "image_path": "keyframes/scannet/scene0039_00/000955.jpg"
+        },
+        {
+          "frame_id": "000941",
+          "image_path": "keyframes/scannet/scene0039_00/000941.jpg"
+        },
+        {
+          "frame_id": "000952",
+          "image_path": "keyframes/scannet/scene0039_00/000952.jpg"
+        },
+        {
+          "frame_id": "000950",
+          "image_path": "keyframes/scannet/scene0039_00/000950.jpg"
+        },
+        {
+          "frame_id": "000954",
+          "image_path": "keyframes/scannet/scene0039_00/000954.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0039_01",
+      "display_index": 84,
+      "frames": [
+        {
+          "frame_id": "000394",
+          "image_path": "keyframes/scannet/scene0039_01/000394.jpg"
+        },
+        {
+          "frame_id": "000369",
+          "image_path": "keyframes/scannet/scene0039_01/000369.jpg"
+        },
+        {
+          "frame_id": "000412",
+          "image_path": "keyframes/scannet/scene0039_01/000412.jpg"
+        },
+        {
+          "frame_id": "000012",
+          "image_path": "keyframes/scannet/scene0039_01/000012.jpg"
+        },
+        {
+          "frame_id": "000399",
+          "image_path": "keyframes/scannet/scene0039_01/000399.jpg"
+        },
+        {
+          "frame_id": "000000",
+          "image_path": "keyframes/scannet/scene0039_01/000000.jpg"
+        },
+        {
+          "frame_id": "000407",
+          "image_path": "keyframes/scannet/scene0039_01/000407.jpg"
+        },
+        {
+          "frame_id": "000379",
+          "image_path": "keyframes/scannet/scene0039_01/000379.jpg"
+        },
+        {
+          "frame_id": "000387",
+          "image_path": "keyframes/scannet/scene0039_01/000387.jpg"
+        },
+        {
+          "frame_id": "000019",
+          "image_path": "keyframes/scannet/scene0039_01/000019.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0040_00",
+      "display_index": 85,
+      "frames": [
+        {
+          "frame_id": "000580",
+          "image_path": "keyframes/scannet/scene0040_00/000580.jpg"
+        },
+        {
+          "frame_id": "001283",
+          "image_path": "keyframes/scannet/scene0040_00/001283.jpg"
+        },
+        {
+          "frame_id": "002032",
+          "image_path": "keyframes/scannet/scene0040_00/002032.jpg"
+        },
+        {
+          "frame_id": "000956",
+          "image_path": "keyframes/scannet/scene0040_00/000956.jpg"
+        },
+        {
+          "frame_id": "002665",
+          "image_path": "keyframes/scannet/scene0040_00/002665.jpg"
+        },
+        {
+          "frame_id": "002524",
+          "image_path": "keyframes/scannet/scene0040_00/002524.jpg"
+        },
+        {
+          "frame_id": "001125",
+          "image_path": "keyframes/scannet/scene0040_00/001125.jpg"
+        },
+        {
+          "frame_id": "002662",
+          "image_path": "keyframes/scannet/scene0040_00/002662.jpg"
+        },
+        {
+          "frame_id": "002538",
+          "image_path": "keyframes/scannet/scene0040_00/002538.jpg"
+        },
+        {
+          "frame_id": "002033",
+          "image_path": "keyframes/scannet/scene0040_00/002033.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0040_01",
+      "display_index": 86,
+      "frames": [
+        {
+          "frame_id": "002944",
+          "image_path": "keyframes/scannet/scene0040_01/002944.jpg"
+        },
+        {
+          "frame_id": "000004",
+          "image_path": "keyframes/scannet/scene0040_01/000004.jpg"
+        },
+        {
+          "frame_id": "002510",
+          "image_path": "keyframes/scannet/scene0040_01/002510.jpg"
+        },
+        {
+          "frame_id": "001893",
+          "image_path": "keyframes/scannet/scene0040_01/001893.jpg"
+        },
+        {
+          "frame_id": "000545",
+          "image_path": "keyframes/scannet/scene0040_01/000545.jpg"
+        },
+        {
+          "frame_id": "001654",
+          "image_path": "keyframes/scannet/scene0040_01/001654.jpg"
+        },
+        {
+          "frame_id": "001434",
+          "image_path": "keyframes/scannet/scene0040_01/001434.jpg"
+        },
+        {
+          "frame_id": "002690",
+          "image_path": "keyframes/scannet/scene0040_01/002690.jpg"
+        },
+        {
+          "frame_id": "000686",
+          "image_path": "keyframes/scannet/scene0040_01/000686.jpg"
+        },
+        {
+          "frame_id": "000391",
+          "image_path": "keyframes/scannet/scene0040_01/000391.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0041_00",
+      "display_index": 87,
+      "frames": [
+        {
+          "frame_id": "003245",
+          "image_path": "keyframes/scannet/scene0041_00/003245.jpg"
+        },
+        {
+          "frame_id": "000147",
+          "image_path": "keyframes/scannet/scene0041_00/000147.jpg"
+        },
+        {
+          "frame_id": "002731",
+          "image_path": "keyframes/scannet/scene0041_00/002731.jpg"
+        },
+        {
+          "frame_id": "000018",
+          "image_path": "keyframes/scannet/scene0041_00/000018.jpg"
+        },
+        {
+          "frame_id": "000223",
+          "image_path": "keyframes/scannet/scene0041_00/000223.jpg"
+        },
+        {
+          "frame_id": "000512",
+          "image_path": "keyframes/scannet/scene0041_00/000512.jpg"
+        },
+        {
+          "frame_id": "000605",
+          "image_path": "keyframes/scannet/scene0041_00/000605.jpg"
+        },
+        {
+          "frame_id": "000558",
+          "image_path": "keyframes/scannet/scene0041_00/000558.jpg"
+        },
+        {
+          "frame_id": "000577",
+          "image_path": "keyframes/scannet/scene0041_00/000577.jpg"
+        },
+        {
+          "frame_id": "000536",
+          "image_path": "keyframes/scannet/scene0041_00/000536.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0041_01",
+      "display_index": 88,
+      "frames": [
+        {
+          "frame_id": "002043",
+          "image_path": "keyframes/scannet/scene0041_01/002043.jpg"
+        },
+        {
+          "frame_id": "000048",
+          "image_path": "keyframes/scannet/scene0041_01/000048.jpg"
+        },
+        {
+          "frame_id": "000666",
+          "image_path": "keyframes/scannet/scene0041_01/000666.jpg"
+        },
+        {
+          "frame_id": "002192",
+          "image_path": "keyframes/scannet/scene0041_01/002192.jpg"
+        },
+        {
+          "frame_id": "000855",
+          "image_path": "keyframes/scannet/scene0041_01/000855.jpg"
+        },
+        {
+          "frame_id": "000531",
+          "image_path": "keyframes/scannet/scene0041_01/000531.jpg"
+        },
+        {
+          "frame_id": "000353",
+          "image_path": "keyframes/scannet/scene0041_01/000353.jpg"
+        },
+        {
+          "frame_id": "001630",
+          "image_path": "keyframes/scannet/scene0041_01/001630.jpg"
+        },
+        {
+          "frame_id": "001664",
+          "image_path": "keyframes/scannet/scene0041_01/001664.jpg"
+        },
+        {
+          "frame_id": "000473",
+          "image_path": "keyframes/scannet/scene0041_01/000473.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0042_00",
+      "display_index": 89,
+      "frames": [
+        {
+          "frame_id": "000009",
+          "image_path": "keyframes/scannet/scene0042_00/000009.jpg"
+        },
+        {
+          "frame_id": "000279",
+          "image_path": "keyframes/scannet/scene0042_00/000279.jpg"
+        },
+        {
+          "frame_id": "001032",
+          "image_path": "keyframes/scannet/scene0042_00/001032.jpg"
+        },
+        {
+          "frame_id": "001089",
+          "image_path": "keyframes/scannet/scene0042_00/001089.jpg"
+        },
+        {
+          "frame_id": "000166",
+          "image_path": "keyframes/scannet/scene0042_00/000166.jpg"
+        },
+        {
+          "frame_id": "001074",
+          "image_path": "keyframes/scannet/scene0042_00/001074.jpg"
+        },
+        {
+          "frame_id": "001058",
+          "image_path": "keyframes/scannet/scene0042_00/001058.jpg"
+        },
+        {
+          "frame_id": "001101",
+          "image_path": "keyframes/scannet/scene0042_00/001101.jpg"
+        },
+        {
+          "frame_id": "001068",
+          "image_path": "keyframes/scannet/scene0042_00/001068.jpg"
+        },
+        {
+          "frame_id": "001052",
+          "image_path": "keyframes/scannet/scene0042_00/001052.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0042_01",
+      "display_index": 90,
+      "frames": [
+        {
+          "frame_id": "000246",
+          "image_path": "keyframes/scannet/scene0042_01/000246.jpg"
+        },
+        {
+          "frame_id": "000359",
+          "image_path": "keyframes/scannet/scene0042_01/000359.jpg"
+        },
+        {
+          "frame_id": "000009",
+          "image_path": "keyframes/scannet/scene0042_01/000009.jpg"
+        },
+        {
+          "frame_id": "001019",
+          "image_path": "keyframes/scannet/scene0042_01/001019.jpg"
+        },
+        {
+          "frame_id": "000271",
+          "image_path": "keyframes/scannet/scene0042_01/000271.jpg"
+        },
+        {
+          "frame_id": "000342",
+          "image_path": "keyframes/scannet/scene0042_01/000342.jpg"
+        },
+        {
+          "frame_id": "000260",
+          "image_path": "keyframes/scannet/scene0042_01/000260.jpg"
+        },
+        {
+          "frame_id": "000252",
+          "image_path": "keyframes/scannet/scene0042_01/000252.jpg"
+        },
+        {
+          "frame_id": "000351",
+          "image_path": "keyframes/scannet/scene0042_01/000351.jpg"
+        },
+        {
+          "frame_id": "000256",
+          "image_path": "keyframes/scannet/scene0042_01/000256.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0042_02",
+      "display_index": 91,
+      "frames": [
+        {
+          "frame_id": "000255",
+          "image_path": "keyframes/scannet/scene0042_02/000255.jpg"
+        },
+        {
+          "frame_id": "000417",
+          "image_path": "keyframes/scannet/scene0042_02/000417.jpg"
+        },
+        {
+          "frame_id": "000954",
+          "image_path": "keyframes/scannet/scene0042_02/000954.jpg"
+        },
+        {
+          "frame_id": "000315",
+          "image_path": "keyframes/scannet/scene0042_02/000315.jpg"
+        },
+        {
+          "frame_id": "000164",
+          "image_path": "keyframes/scannet/scene0042_02/000164.jpg"
+        },
+        {
+          "frame_id": "000940",
+          "image_path": "keyframes/scannet/scene0042_02/000940.jpg"
+        },
+        {
+          "frame_id": "000192",
+          "image_path": "keyframes/scannet/scene0042_02/000192.jpg"
+        },
+        {
+          "frame_id": "000244",
+          "image_path": "keyframes/scannet/scene0042_02/000244.jpg"
+        },
+        {
+          "frame_id": "000262",
+          "image_path": "keyframes/scannet/scene0042_02/000262.jpg"
+        },
+        {
+          "frame_id": "000252",
+          "image_path": "keyframes/scannet/scene0042_02/000252.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0043_00",
+      "display_index": 92,
+      "frames": [
+        {
+          "frame_id": "000291",
+          "image_path": "keyframes/scannet/scene0043_00/000291.jpg"
+        },
+        {
+          "frame_id": "000009",
+          "image_path": "keyframes/scannet/scene0043_00/000009.jpg"
+        },
+        {
+          "frame_id": "000452",
+          "image_path": "keyframes/scannet/scene0043_00/000452.jpg"
+        },
+        {
+          "frame_id": "000130",
+          "image_path": "keyframes/scannet/scene0043_00/000130.jpg"
+        },
+        {
+          "frame_id": "000351",
+          "image_path": "keyframes/scannet/scene0043_00/000351.jpg"
+        },
+        {
+          "frame_id": "000406",
+          "image_path": "keyframes/scannet/scene0043_00/000406.jpg"
+        },
+        {
+          "frame_id": "000493",
+          "image_path": "keyframes/scannet/scene0043_00/000493.jpg"
+        },
+        {
+          "frame_id": "000946",
+          "image_path": "keyframes/scannet/scene0043_00/000946.jpg"
+        },
+        {
+          "frame_id": "000582",
+          "image_path": "keyframes/scannet/scene0043_00/000582.jpg"
+        },
+        {
+          "frame_id": "000107",
+          "image_path": "keyframes/scannet/scene0043_00/000107.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0043_01",
+      "display_index": 93,
+      "frames": [
+        {
+          "frame_id": "000612",
+          "image_path": "keyframes/scannet/scene0043_01/000612.jpg"
+        },
+        {
+          "frame_id": "000237",
+          "image_path": "keyframes/scannet/scene0043_01/000237.jpg"
+        },
+        {
+          "frame_id": "000073",
+          "image_path": "keyframes/scannet/scene0043_01/000073.jpg"
+        },
+        {
+          "frame_id": "000473",
+          "image_path": "keyframes/scannet/scene0043_01/000473.jpg"
+        },
+        {
+          "frame_id": "000747",
+          "image_path": "keyframes/scannet/scene0043_01/000747.jpg"
+        },
+        {
+          "frame_id": "000555",
+          "image_path": "keyframes/scannet/scene0043_01/000555.jpg"
+        },
+        {
+          "frame_id": "000021",
+          "image_path": "keyframes/scannet/scene0043_01/000021.jpg"
+        },
+        {
+          "frame_id": "000394",
+          "image_path": "keyframes/scannet/scene0043_01/000394.jpg"
+        },
+        {
+          "frame_id": "000811",
+          "image_path": "keyframes/scannet/scene0043_01/000811.jpg"
+        },
+        {
+          "frame_id": "000784",
+          "image_path": "keyframes/scannet/scene0043_01/000784.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0044_00",
+      "display_index": 94,
+      "frames": [
+        {
+          "frame_id": "000000",
+          "image_path": "keyframes/scannet/scene0044_00/000000.jpg"
+        },
+        {
+          "frame_id": "001390",
+          "image_path": "keyframes/scannet/scene0044_00/001390.jpg"
+        },
+        {
+          "frame_id": "000239",
+          "image_path": "keyframes/scannet/scene0044_00/000239.jpg"
+        },
+        {
+          "frame_id": "000474",
+          "image_path": "keyframes/scannet/scene0044_00/000474.jpg"
+        },
+        {
+          "frame_id": "000007",
+          "image_path": "keyframes/scannet/scene0044_00/000007.jpg"
+        },
+        {
+          "frame_id": "001393",
+          "image_path": "keyframes/scannet/scene0044_00/001393.jpg"
+        },
+        {
+          "frame_id": "000269",
+          "image_path": "keyframes/scannet/scene0044_00/000269.jpg"
+        },
+        {
+          "frame_id": "001117",
+          "image_path": "keyframes/scannet/scene0044_00/001117.jpg"
+        },
+        {
+          "frame_id": "001198",
+          "image_path": "keyframes/scannet/scene0044_00/001198.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0044_01",
+      "display_index": 95,
+      "frames": [
+        {
+          "frame_id": "000000",
+          "image_path": "keyframes/scannet/scene0044_01/000000.jpg"
+        },
+        {
+          "frame_id": "000226",
+          "image_path": "keyframes/scannet/scene0044_01/000226.jpg"
+        },
+        {
+          "frame_id": "000727",
+          "image_path": "keyframes/scannet/scene0044_01/000727.jpg"
+        },
+        {
+          "frame_id": "000063",
+          "image_path": "keyframes/scannet/scene0044_01/000063.jpg"
+        },
+        {
+          "frame_id": "000199",
+          "image_path": "keyframes/scannet/scene0044_01/000199.jpg"
+        },
+        {
+          "frame_id": "000049",
+          "image_path": "keyframes/scannet/scene0044_01/000049.jpg"
+        },
+        {
+          "frame_id": "000009",
+          "image_path": "keyframes/scannet/scene0044_01/000009.jpg"
+        },
+        {
+          "frame_id": "000054",
+          "image_path": "keyframes/scannet/scene0044_01/000054.jpg"
+        },
+        {
+          "frame_id": "000003",
+          "image_path": "keyframes/scannet/scene0044_01/000003.jpg"
+        },
+        {
+          "frame_id": "000051",
+          "image_path": "keyframes/scannet/scene0044_01/000051.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0044_02",
+      "display_index": 96,
+      "frames": [
+        {
+          "frame_id": "000219",
+          "image_path": "keyframes/scannet/scene0044_02/000219.jpg"
+        },
+        {
+          "frame_id": "000232",
+          "image_path": "keyframes/scannet/scene0044_02/000232.jpg"
+        },
+        {
+          "frame_id": "000825",
+          "image_path": "keyframes/scannet/scene0044_02/000825.jpg"
+        },
+        {
+          "frame_id": "000272",
+          "image_path": "keyframes/scannet/scene0044_02/000272.jpg"
+        },
+        {
+          "frame_id": "000218",
+          "image_path": "keyframes/scannet/scene0044_02/000218.jpg"
+        },
+        {
+          "frame_id": "000233",
+          "image_path": "keyframes/scannet/scene0044_02/000233.jpg"
+        },
+        {
+          "frame_id": "000824",
+          "image_path": "keyframes/scannet/scene0044_02/000824.jpg"
+        },
+        {
+          "frame_id": "000242",
+          "image_path": "keyframes/scannet/scene0044_02/000242.jpg"
+        },
+        {
+          "frame_id": "000240",
+          "image_path": "keyframes/scannet/scene0044_02/000240.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0045_00",
+      "display_index": 97,
+      "frames": [
+        {
+          "frame_id": "000815",
+          "image_path": "keyframes/scannet/scene0045_00/000815.jpg"
+        },
+        {
+          "frame_id": "000093",
+          "image_path": "keyframes/scannet/scene0045_00/000093.jpg"
+        },
+        {
+          "frame_id": "001174",
+          "image_path": "keyframes/scannet/scene0045_00/001174.jpg"
+        },
+        {
+          "frame_id": "000175",
+          "image_path": "keyframes/scannet/scene0045_00/000175.jpg"
+        },
+        {
+          "frame_id": "000246",
+          "image_path": "keyframes/scannet/scene0045_00/000246.jpg"
+        },
+        {
+          "frame_id": "000213",
+          "image_path": "keyframes/scannet/scene0045_00/000213.jpg"
+        },
+        {
+          "frame_id": "000133",
+          "image_path": "keyframes/scannet/scene0045_00/000133.jpg"
+        },
+        {
+          "frame_id": "000231",
+          "image_path": "keyframes/scannet/scene0045_00/000231.jpg"
+        },
+        {
+          "frame_id": "000155",
+          "image_path": "keyframes/scannet/scene0045_00/000155.jpg"
+        },
+        {
+          "frame_id": "000111",
+          "image_path": "keyframes/scannet/scene0045_00/000111.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0045_01",
+      "display_index": 98,
+      "frames": [
+        {
+          "frame_id": "001258",
+          "image_path": "keyframes/scannet/scene0045_01/001258.jpg"
+        },
+        {
+          "frame_id": "001572",
+          "image_path": "keyframes/scannet/scene0045_01/001572.jpg"
+        },
+        {
+          "frame_id": "001024",
+          "image_path": "keyframes/scannet/scene0045_01/001024.jpg"
+        },
+        {
+          "frame_id": "000422",
+          "image_path": "keyframes/scannet/scene0045_01/000422.jpg"
+        },
+        {
+          "frame_id": "001125",
+          "image_path": "keyframes/scannet/scene0045_01/001125.jpg"
+        },
+        {
+          "frame_id": "000198",
+          "image_path": "keyframes/scannet/scene0045_01/000198.jpg"
+        },
+        {
+          "frame_id": "001481",
+          "image_path": "keyframes/scannet/scene0045_01/001481.jpg"
+        },
+        {
+          "frame_id": "001295",
+          "image_path": "keyframes/scannet/scene0045_01/001295.jpg"
+        },
+        {
+          "frame_id": "000388",
+          "image_path": "keyframes/scannet/scene0045_01/000388.jpg"
+        },
+        {
+          "frame_id": "001539",
+          "image_path": "keyframes/scannet/scene0045_01/001539.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0046_00",
+      "display_index": 99,
+      "frames": [
+        {
+          "frame_id": "002037",
+          "image_path": "keyframes/scannet/scene0046_00/002037.jpg"
+        },
+        {
+          "frame_id": "002190",
+          "image_path": "keyframes/scannet/scene0046_00/002190.jpg"
+        },
+        {
+          "frame_id": "002077",
+          "image_path": "keyframes/scannet/scene0046_00/002077.jpg"
+        },
+        {
+          "frame_id": "002095",
+          "image_path": "keyframes/scannet/scene0046_00/002095.jpg"
+        },
+        {
+          "frame_id": "002063",
+          "image_path": "keyframes/scannet/scene0046_00/002063.jpg"
+        },
+        {
+          "frame_id": "002049",
+          "image_path": "keyframes/scannet/scene0046_00/002049.jpg"
+        },
+        {
+          "frame_id": "002040",
+          "image_path": "keyframes/scannet/scene0046_00/002040.jpg"
+        },
+        {
+          "frame_id": "002085",
+          "image_path": "keyframes/scannet/scene0046_00/002085.jpg"
+        },
+        {
+          "frame_id": "002067",
+          "image_path": "keyframes/scannet/scene0046_00/002067.jpg"
+        },
+        {
+          "frame_id": "002055",
+          "image_path": "keyframes/scannet/scene0046_00/002055.jpg"
+        }
+      ]
+    },
+    {
+      "scene_id": "scene0046_01",
+      "display_index": 100,
+      "frames": [
+        {
+          "frame_id": "001671",
+          "image_path": "keyframes/scannet/scene0046_01/001671.jpg"
+        },
+        {
+          "frame_id": "001328",
+          "image_path": "keyframes/scannet/scene0046_01/001328.jpg"
+        },
+        {
+          "frame_id": "001257",
+          "image_path": "keyframes/scannet/scene0046_01/001257.jpg"
+        },
+        {
+          "frame_id": "001428",
+          "image_path": "keyframes/scannet/scene0046_01/001428.jpg"
+        },
+        {
+          "frame_id": "001601",
+          "image_path": "keyframes/scannet/scene0046_01/001601.jpg"
+        },
+        {
+          "frame_id": "001214",
+          "image_path": "keyframes/scannet/scene0046_01/001214.jpg"
+        },
+        {
+          "frame_id": "001795",
+          "image_path": "keyframes/scannet/scene0046_01/001795.jpg"
+        },
+        {
+          "frame_id": "001693",
+          "image_path": "keyframes/scannet/scene0046_01/001693.jpg"
+        },
+        {
+          "frame_id": "001222",
+          "image_path": "keyframes/scannet/scene0046_01/001222.jpg"
+        },
+        {
+          "frame_id": "001679",
+          "image_path": "keyframes/scannet/scene0046_01/001679.jpg"
+        }
+      ]
+    }
+  ]
+}
