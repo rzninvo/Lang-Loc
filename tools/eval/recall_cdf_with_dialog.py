@@ -22,9 +22,13 @@ from typing import Dict, List
 import matplotlib.pyplot as plt
 import numpy as np
 
-REPO = Path("/home/rohamzn/UZH_Uni/Master-Project/Lang-Loc")
-EVAL_NEW = REPO / "eval" / "new_data"
-WHEREAMI_EVAL = REPO / "whereami-text2sgm" / "playground" / "graph_models" / "models" / "eval"
+REPO = Path(__file__).resolve().parents[2]
+EVAL = REPO / "eval"
+EVAL_NEW = EVAL / "new_data"
+QWEN_BASELINE = {
+    "3rscan":  EVAL / "baseline_eval_metrics_qwen_3rscan.json",
+    "scannet": EVAL / "baseline_eval_metrics_qwen_scannet.json",
+}
 OUT = REPO / "eval" / "rebuttal_plots"
 OUT.mkdir(parents=True, exist_ok=True)
 
@@ -65,18 +69,30 @@ COLOR = {
 }
 
 
+def _load_qwen(dataset: str) -> List[float]:
+    """Load Qwen-VLM baseline pos errors. Returns [] if the file is absent so
+    the CDF figure can still be produced for the other three series — run
+    `bash scripts/localization/baseline_eval_qwen.sh` to populate it."""
+    path = QWEN_BASELINE[dataset]
+    if not path.exists():
+        print(f"[WARN] Qwen baseline metrics missing: expected={path}, "
+              f"got=absent, fallback=skip Qwen series in plots", flush=True)
+        return []
+    return load_pos_errors(path)
+
+
 def gather(dataset: str) -> Dict[str, List[float]]:
     if dataset == "3rscan":
         return {
             "Midpoint":              load_pos_errors(EVAL_NEW / "midpoint_3rscan_100_NEW.json"),
-            "Qwen baseline":         load_pos_errors(WHEREAMI_EVAL / "baseline_eval_metrics_qwen_3rscan_subset.json"),
+            "Qwen baseline":         _load_qwen("3rscan"),
             "LangLoc":               parse_dialog_pos(EVAL_NEW / "dialog_3rscan_100_NEW.log", "A3", "MAP"),
             "LangLoc top-10 oracle": load_pos_errors(EVAL_NEW / "eval_metrics_table4_3rscan_parsed_NEW.json", key="topk_min_dist"),
         }
     if dataset == "scannet":
         return {
             "Midpoint":              load_pos_errors(EVAL_NEW / "midpoint_scannet_100_NEW.json"),
-            "Qwen baseline":         load_pos_errors(WHEREAMI_EVAL / "baseline_eval_metrics_qwen_scannet.json"),
+            "Qwen baseline":         _load_qwen("scannet"),
             "LangLoc":               parse_dialog_pos(EVAL_NEW / "dialog_scannet_100_NEW.log", "A3", "MAP"),
             "LangLoc top-10 oracle": load_pos_errors(EVAL_NEW / "eval_metrics_table4_scannet_parsed_NEW.json", key="topk_min_dist"),
         }

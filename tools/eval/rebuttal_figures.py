@@ -11,7 +11,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-OUT = Path("/home/rohamzn/UZH_Uni/Master-Project/Lang-Loc/eval/rebuttal_plots")
+REPO = Path(__file__).resolve().parents[2]
+OUT = REPO / "eval" / "rebuttal_plots"
 OUT.mkdir(parents=True, exist_ok=True)
 
 # -----------------------------------------------------------------------------
