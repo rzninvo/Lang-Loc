@@ -55,6 +55,7 @@ from langloc.dialogue.dialogue_runner import (
     nearest_frame_to_gt,
     run_dialogue_one_backend,
 )
+from langloc.utils.seed import CANONICAL_SEED, set_seed
 from langloc.dialogue.qwen_answerer import (
     QwenAnswerer,
     QwenFrameContext,
@@ -386,6 +387,7 @@ def run_batch(cfg: DialogueConfig) -> None:
     Args:
         cfg: Populated dialogue configuration.
     """
+    set_seed(getattr(cfg, "seed", CANONICAL_SEED))
     try:
         data = load_relaxed_json(Path(cfg.candidates_json))
     except Exception:
@@ -516,7 +518,8 @@ def main() -> None:
     ap.add_argument("--p_k_nn", type=int, default=10)
     ap.add_argument("--p_sigma", type=float, default=0.25)
     ap.add_argument("--p_jitter", type=float, default=0.07)
-    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--seed", type=int, default=CANONICAL_SEED,
+                    help="Canonical project seed (42). Override only for ablations.")
 
     # answering mode (mock evaluation)
     ap.add_argument("--answer_mode", choices=["interactive", "oracle", "qwen"], default="interactive")

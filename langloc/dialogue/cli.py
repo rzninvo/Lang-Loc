@@ -13,6 +13,7 @@ from omegaconf import DictConfig
 
 from langloc.dialogue.dialogue_config import extract_dialogue_config
 from langloc.dialogue.eval_runner import run_batch
+from langloc.utils.seed import CANONICAL_SEED, set_seed
 
 
 @hydra.main(version_base=None, config_path="../../configs", config_name="config")
@@ -26,6 +27,7 @@ def main(cfg: DictConfig) -> None:
         cfg: Merged Hydra configuration.
     """
     dialogue_cfg = extract_dialogue_config(cfg.dialogue)
+    set_seed(getattr(dialogue_cfg, "seed", CANONICAL_SEED))
     run_batch(dialogue_cfg)
 
 
