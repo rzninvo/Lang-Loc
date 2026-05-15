@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import numpy as np
 
 from langloc.dialogue.likelihood import salience_to_answerable, salience_to_visprob
+from langloc.dialogue.qwen_answerer import QwenAnswerer, QwenFrameContext, qwen_answer
 from langloc.dialogue.question_pool import HELP_TEXT, Question
 from langloc.dialogue.question_selection import (
     pick_next_question_system,
@@ -105,6 +106,8 @@ def run_dialogue_one_backend(
     cand_pos: Optional[np.ndarray] = None,
     cand_dir: Optional[np.ndarray] = None,
     frames_pool: Optional[Sequence[Any]] = None,
+    qwen_answerer: Optional[QwenAnswerer] = None,
+    qwen_frame_context: Optional[QwenFrameContext] = None,
 ) -> int:
     """Run a full dialogue loop for one backend.
 
@@ -185,6 +188,14 @@ def run_dialogue_one_backend(
             if cfg.answer_mode == "oracle":
                 ans = oracle_answer(q, label_pool, rel_pool, oracle_gt_frame_label_dict or {}, oracle_gt_frame_rel_set or set(), cfg)
                 print(f"[oracle answer: {ans}]")
+            elif cfg.answer_mode == "qwen":
+                if qwen_answerer is None or qwen_frame_context is None:
+                    raise RuntimeError(
+                        "answer_mode=qwen requires qwen_answerer and "
+                        "qwen_frame_context to be passed to run_dialogue_one_backend."
+                    )
+                ans = qwen_answer(q, label_pool, rel_pool, qwen_frame_context, qwen_answerer)
+                print(f"[qwen answer: {ans}]")
             else:
                 ans = input("[y/n/u/q/tf/tc/tp/o/h] > ").strip().lower()
 

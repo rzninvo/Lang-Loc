@@ -55,6 +55,11 @@ from langloc.dialogue.dialogue_runner import (
     nearest_frame_to_gt,
     run_dialogue_one_backend,
 )
+from langloc.dialogue.qwen_answerer import (
+    QwenAnswerer,
+    QwenFrameContext,
+    build_frame_context,
+)
 from langloc.dialogue.math_utils import (
     _normalize,
     c2f_to_dense,
@@ -180,17 +185,24 @@ def run_entry(
             print(f"Predicted_pose vs gt_pose: pos_err={pred_pos_err:.3f} m | rot_err={pred_rot_err:.2f} deg")
         print(f"Nearest candidate idx={idx_near}: pos_err={near_pos_err:.3f} m | rot_err={near_rot_err:.2f} deg")
 
-    # oracle support (optional)
+    # oracle / qwen GT-frame support (optional)
     oracle_label_dict = None
     oracle_rel_set = None
-    if cfg.answer_mode == "oracle":
+    qwen_frame_context: Optional[QwenFrameContext] = None
+    if cfg.answer_mode in ("oracle", "qwen"):
         gt_frame_idx = nearest_frame_to_gt(gt_pos, frames_all, scene)
         fr_gt = frames_all[gt_frame_idx]
         oracle_label_dict = frame_label_salience(fr_gt)
         oracle_rel_set = frame_relations(fr_gt)
+        if cfg.answer_mode == "qwen":
+            qwen_frame_context = build_frame_context(
+                description=getattr(fr_gt, "description", "") or "",
+                visible_labels=set(getattr(fr_gt, "visible_labels", set())),
+                rel_triples=set(getattr(fr_gt, "rel_triples", set())),
+            )
         if cfg.show_gt_debug:
             fid = getattr(fr_gt, "frame_id", f"idx={gt_frame_idx}")
-            print(f"[oracle] using nearest GT frame: {fid}")
+            print(f"[{cfg.answer_mode}] using nearest GT frame: {fid}")
 
     # question list (same pool; each backend will use its own selection)
     questions_init = [Question("rel", i) for i in range(len(rel_pool))] + [Question("label", i) for i in range(len(label_pool))]
@@ -338,6 +350,8 @@ def run_entry(
                 cand_pos=cand_pos if bname == "a1" else None,
                 cand_dir=cand_dir if bname == "a1" else None,
                 frames_pool=frames_pool if hasattr(bks[bname], "frame_posterior") else None,
+                qwen_answerer=getattr(cfg, "_qwen_answerer", None),
+                qwen_frame_context=qwen_frame_context,
             )
             mp, md, meanp, meand = bks[bname].predict_pose()
             pe_map, re_map = pose_errors(mp, md, gt_pos, gt_dir)
@@ -391,6 +405,12 @@ def run_batch(cfg: DialogueConfig) -> None:
     if not entries:
         print("No entries selected.")
         return
+
+    if getattr(cfg, "answer_mode", "interactive") == "qwen":
+        if getattr(cfg, "_qwen_answerer", None) is None:
+            print("[qwen] loading Qwen2.5-1.5B-Instruct …", flush=True)
+            cfg._qwen_answerer = QwenAnswerer.load()
+            print("[qwen] loaded.", flush=True)
 
     agg: Dict[str, Dict[str, List[float]]] = {name: {"pos": [], "rot": []} for name in ("PRED", "A1", "A2", "A3")}
 
@@ -499,7 +519,7 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=0)
 
     # answering mode (mock evaluation)
-    ap.add_argument("--answer_mode", choices=["interactive", "oracle"], default="interactive")
+    ap.add_argument("--answer_mode", choices=["interactive", "oracle", "qwen"], default="interactive")
     ap.add_argument("--oracle_ansable_min", type=float, default=0.25)
 
     # UI

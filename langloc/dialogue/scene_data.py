@@ -152,6 +152,8 @@ class FrameInfo:
         direction: Unit forward direction (3rd column of rotation matrix).
         visible_labels: Set of canonical label strings visible in this frame.
         rel_triples: Set of ``(subject, relation, object)`` canonical tuples.
+        description: Natural-language description of the viewpoint (may be
+            empty if not present in the source JSON).
     """
 
     frame_id: str
@@ -159,6 +161,7 @@ class FrameInfo:
     direction: np.ndarray
     visible_labels: Set[str]
     rel_triples: Set[Tuple[str, str, str]]
+    description: str = ""
 
 
 @dataclass
@@ -295,7 +298,17 @@ def load_scene_data(
                 if subj and obj and rel:
                     rel_triples.add((subj, rel, obj))
 
-        frames.append(FrameInfo(frame_id, pos, direction, visible_labels, rel_triples))
+        description = str(e.get("description", "")) if isinstance(e, dict) else ""
+        frames.append(
+            FrameInfo(
+                frame_id=frame_id,
+                position=pos,
+                direction=direction,
+                visible_labels=visible_labels,
+                rel_triples=rel_triples,
+                description=description,
+            )
+        )
 
     if not frames:
         raise RuntimeError(f"No usable frames parsed from {desc_path}")
