@@ -14,420 +14,110 @@
 </table>
 </div>
 
-# LangLoc — Language-Based 3D Indoor Localization
+# LangLoc: Tell Me What You See
 
-End-to-end pipeline for language-based localization in 3D indoor
-scenes, accompanying our ECCV 2026 paper. Evaluated on
+End-to-end pipeline for language-based 3D indoor localization,
+accompanying our ECCV 2026 paper. Given a free-form description of
+an observer's surroundings, LangLoc estimates the observer's 2D
+position and heading within a known 3D environment. Evaluated on
 [ScanNet](http://www.scan-net.org/) and
 [3RScan](http://campar.in.tum.de/public_datasets/3RScan/).
 
-**Pipeline stages:**
+## Pipeline
 
-1. **Dataset Creation** (Sec 3.1) — Download scenes, select diverse keyframes (NBV + DPP), generate text descriptions.
-2. **Scene Retrieval** (Sec 3.2) — Graph-based scene retrieval with the BigGNN dual encoder.
-3. **Fine Localization** (Sec 3.3) — Camera pose estimation from a natural-language query against a 3-D scene graph.
-4. **Dialogue System** (Sec 3.4) — Optional Bayesian-clarification refinement.
+1. **Dataset creation** (Sec. 3.1): keyframe selection by image
+   quality assessment (IQA) plus a two-stage Determinantal Point
+   Process (DPP), followed by description generation via
+   GPT-4o-mini.
+2. **Scene retrieval** (Sec. 3.2): dual-branch Graph Attention
+   Network v2 (GATv2) encoder with CLIP features, scoring the
+   text-graph against database scene-graphs.
+3. **Fine localization** (Sec. 3.3): dense floor-grid scored by
+   ray-cast object visibility.
+4. **Dialogue disambiguation** (Sec. 3.4): Bayesian posterior over
+   poses, refined by targeted yes/no questions.
 
----
+## Headline results
 
-## Table of contents
+Numbers below are from rerunning the canonical reproducer scripts on
+this repo with `seed=42`. See [REPRODUCE.md](REPRODUCE.md) for the
+full per-table breakdown.
 
-1. [Requirements](#requirements)
-2. [Installation](#installation)
-3. [Dataset setup](#dataset-setup)
-4. [Environment variables](#environment-variables)
-5. [Reproducibility & seed](#reproducibility--seed)
-6. [Reproducing the paper tables](#reproducing-the-paper-tables)
-7. [Dataset preparation](#dataset-preparation-keyframes--descriptions)
-8. [Configuration](#configuration)
-9. [Project structure](#project-structure)
-10. [Rebuttal extensions](#rebuttal-extensions)
-11. [Performance notes](#performance-notes)
-12. [Troubleshooting](#troubleshooting)
+| Table | Metric | Paper | This repo |
+|---|---|---|---|
+| Tab. 1 (ScanScribe, 10-cand) | Top-1 Recall | 76.70 | **76.60 ± 4.29** |
+| Tab. 2 (ScanScribe, full) | Top-10 Recall | 91.60 | **90.70 ± 3.58** |
+| Tab. 3 (LLM-from-image, fair) | Top-1 Recall | 76.10 | **59.50 ± 5.26** (corrected protocol) |
+| Tab. 4(a) 3RScan-100 (no dialog) | Pos median (m) | 1.551 | **1.470** |
+| Tab. 4(b) ScanNet-100 (no dialog) | Pos median (m) | 1.314 | **0.998** |
+| Tab. 5 full 1319-scene 3RScan | Pos median (m) | 1.308 | **1.230** |
 
----
+Tabs. 4(b) and 5 beat the paper on position accuracy. Tab. 4(a)
+median beats paper and the mean is within 5 cm. Retrieval recall
+is within noise everywhere except Tab. 2 Top-5 (within the
+reported standard deviation) and the Tab. 3 corrected-protocol
+gap documented in [REPRODUCE.md](REPRODUCE.md).
 
-## Requirements
+## Quickstart
 
-- **Python ≥ 3.10**
-- **CUDA-capable GPU** (PyTorch3D rasterization + CLIP). 8 GB+ VRAM is comfortable; we used an A100 (40 GB) and an RTX 5090.
-- **Disk:** ~60 GB for the ScanNet + 3RScan subsets used in the paper. Full ScanNet release is ~1.2 TB.
-- **Linux** (tested on Ubuntu 22.04/24.04). macOS works for the analysis tools but not the rasterizer.
-- An **OpenAI API key** for description generation and parsing (see [Environment variables](#environment-variables)).
-
-## Installation
+All three steps below are required in order. Step 3 reads files
+laid down by step 2.
 
 ```bash
-# 1. Conda environment
-conda create -n langloc python=3.10 -y
-conda activate langloc
-
-# 2. Repo
+# Step 1. Clone and install. Full details in INSTALL.md.
 git clone https://github.com/<your-org>/langloc.git
 cd langloc
-pip install -r requirements.txt
-pip install -e .
-
-# 3. PyTorch with CUDA (adjust for your driver)
+conda create -n langloc python=3.10 -y && conda activate langloc
+pip install -r requirements.txt && pip install -e .
 pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 \
     --index-url https://download.pytorch.org/whl/cu126
-
-# 4. PyTorch3D from source (CUDA bindings are version-sensitive)
-git clone https://github.com/facebookresearch/pytorch3d.git
-cd pytorch3d && pip install -e . --no-build-isolation && cd ..
-python -c "from pytorch3d.structures import Meshes; print('pytorch3d ok')"
-
-# 5. spaCy word2vec embeddings (used by the parsed-caption grounder)
 python -m spacy download en_core_web_lg
+# PyTorch3D from source: see INSTALL.md.
+
+# Step 2. Get the data. Required, not optional. Full details in DATA.md.
+#         Easiest path: request the Paper_Dataset Google Drive bundle
+#         and unpack into ./data/. The reproducer scripts read
+#         data/3RScan/, data/scans/, data/processed_data/eval_pool/,
+#         and data/model_checkpoints/graph2graph/paper/ from there.
+
+# Step 3. Reproduce a table. See REPRODUCE.md for the full list.
+#         Example: scene retrieval (Tabs. 1, 2, 3), about 3 s once
+#         the bundle is in place.
+bash scripts/retrieval/reproduce_paper_tables.sh
 ```
 
-The annotation website (`tools/annotation_website/`) has its own
-isolated dependencies — install them only if you plan to run the
-crowdsourcing UI:
+## Documentation
 
-```bash
-pip install -r tools/annotation_website/requirements.txt
-```
+The README is the entry point. Detailed guides live in five focused
+files:
 
-## Dataset setup
-
-There are two paths to a runnable `data/` tree:
-
-- **Option A — paper bundle (recommended).** Download our
-  pre-packaged `Paper_Dataset` from Google Drive and unpack it
-  into `data/`. This is exactly what produced every number in the
-  paper; total ~57 GB on disk, no preprocessing required.
-- **Option B — from scratch.** Download ScanNet, 3RScan,
-  ScanScribe, and 3DSSG from their official sources and run the
-  dataset-creation pipeline yourself. See
-  [Dataset preparation](#dataset-preparation-keyframes--descriptions)
-  for the keyframe-selection + description-generation flow.
-
-### Option A — paper bundle from Google Drive
-
-> **Access.** The bundle is shared on Google Drive on request — email
-> the authors for a viewer link. Both ScanNet and 3RScan have separate
-> terms-of-use; the bundle's `README.txt` re-states them and we ask
-> users to accept both before downloading.
-
-Once you have access, the Drive folder contains three items. **Only
-the first one is needed for paper reproduction:**
-
-| Drive item | Purpose | Use for paper? |
-|---|---|---|
-| `Paper_Dataset/` | 3RScan + ScanNet + processed retrieval caches + paper checkpoint, frozen at submission. Descriptions are the GPT-**4o-mini** captions used in the paper. | ✅ **Yes — this is the dataset for every table.** |
-| `Full_Dataset_GPT5.5_Descriptor/` | Same scenes, but descriptions regenerated by GPT-**5.5 vision** for the rebuttal closed-loop-bias defense. | ❌ No — rebuttal artifact only. |
-| `Scannet_300_scenes.zip` | 300-scene ScanNet sample for follow-up experiments. | ❌ No — paper Tab. 4(b) uses exactly the 100 scenes listed in [`manifests/scannet_table4_first_100.txt`](manifests/scannet_table4_first_100.txt), and Tab. 5 is 3RScan-only. |
-
-Download `Paper_Dataset/` (recommended via `rclone` or
-`gdown` so the multi-GB transfer is resumable), then unpack into
-`data/` so the final layout looks like:
-
-```text
-Lang-Loc/
-└── data/
-    ├── 3RScan/                              # 43 GB — 1319 scenes
-    │   └── <scene_uuid>/
-    │       ├── labels.instances.annotated.v2.ply
-    │       ├── semseg.v2.json
-    │       ├── mesh.refined.*               # mesh + segs.v2.json + .mtl + .obj
-    │       ├── sequence.zip                 # RGB-D frames + poses (extracted on first use)
-    │       └── output/
-    │           ├── color/  depth/  pose/    # extracted .sens / sequence outputs
-    │           ├── camera_pose.json
-    │           └── descriptions/            # <frame>.json + <frame>_parsed.json
-    ├── scans/                               # 13 GB — ScanNet 100 paper subset
-    │   └── <scene_id>/
-    │       ├── <scene_id>_vh_clean.ply         # full-res mesh
-    │       ├── <scene_id>_vh_clean_2.ply       # decimated mesh
-    │       ├── <scene_id>_vh_clean_2.labels.ply
-    │       ├── <scene_id>_vh_clean_2.0.010000.segs.json
-    │       ├── <scene_id>.aggregation.json
-    │       ├── <scene_id>.txt
-    │       ├── intrinsic/
-    │       └── output/
-    │           ├── color/  depth/  pose/    # extracted from .sens
-    │           ├── descriptions/            # <frame>.json + <frame>_parsed.json
-    │           └── <scene_id>_scene_graph.json
-    ├── processed_data/                      # 577 MB — retrieval caches (Tabs 1+2+3)
-    │   └── eval_pool/
-    │       ├── 3dssg_graphs_518D.pt              # 241 MB
-    │       ├── scanscribe_cleaned_original_518D.pt  # 131 MB (218-scene distractor pool)
-    │       ├── scanscribe_graphs_test_518D.pt    # 124 MB (Tab 1+2 queries)
-    │       ├── db_emb_cache.pt                   # model-projected DB embeddings
-    │       ├── query_emb_cache.pt                # ScanScribe-text queries
-    │       ├── query_emb_cache_img.pt            # LLM-from-image queries (Tab 3)
-    │       └── db_emb_cache_img.pt               # (Table 3, identical to db_emb_cache.pt)
-    └── model_checkpoints/                   # 20 MB — paper checkpoint
-        └── graph2graph/
-            └── paper/
-                └── epoch_70_163_cliprel.pth      # DualSceneAlignerV2 + SimpleGraphMatcher
-```
-
-These paths are the defaults declared in
-[`configs/paths/default.yaml`](configs/paths/default.yaml) and
-referenced by every reproducer script — no edits needed if you put
-the bundle here.
-
-Sanity check after unpacking:
-
-```bash
-# Should print: 1319, 100, 100, 1
-ls data/3RScan | wc -l
-ls data/scans | wc -l
-wc -l < manifests/scannet_table4_first_100.txt
-ls data/model_checkpoints/graph2graph/paper/epoch_70_163_cliprel.pth | wc -l
-```
-
-### Option B — from scratch (official sources)
-
-Required if you don't have the bundle access, or if you want to
-re-run the dataset-creation pipeline end-to-end. Both raw datasets
-require accepting their licences first.
-
-**ScanNet.** Sign the
-[ScanNet Terms of Use](http://www.scan-net.org/), then use the
-adapted downloader at [`tools/download_scannet.py`](tools/download_scannet.py)
-(you must add your personalised access token):
-
-```bash
-# ~16 GB for the 100-scene paper subset; the full release is 1.2 TB
-python tools/download_scannet.py --out_dir data --type _vh_clean_2.ply
-python tools/download_scannet.py --out_dir data --type _vh_clean.ply
-python tools/download_scannet.py --out_dir data --type .sens
-# also: .txt, .aggregation.json, _vh_clean_2.0.010000.segs.json
-```
-
-Writes to `data/scans/<scene_id>/...`.
-
-**3RScan.** Register at the
-[3RScan project page](http://campar.in.tum.de/public_datasets/3RScan/),
-accept the licence, and place each scan at `data/3RScan/<scene_uuid>/`
-with `labels.instances.annotated.v2.ply`, `sequence.zip`, and
-`semseg.v2.json`.
-
-**ScanScribe + 3DSSG.** Tabs. 1+2+3 need the
-[3DSSG](https://3dssg.github.io/) scene graphs and the
-[ScanScribe](https://kywind.github.io/scanscribe) caption dataset.
-The seven `.pt` files in `data/processed_data/eval_pool/` (listed
-in the Option A layout above) are derived from those releases by
-[`scripts/retrieval/precompute_eval_embeddings.py`](scripts/retrieval/precompute_eval_embeddings.py).
-
-**Descriptions + parsed graphs.** Once raw scans are in place, the
-per-frame caption JSONs under `output/descriptions/` are generated
-by the keyframe-selection + GPT-4o-mini captioning pipeline — see
-[Dataset preparation](#dataset-preparation-keyframes--descriptions).
-
-## Environment variables
-
-```bash
-cp .env.example .env
-# Edit .env and set OPENAI_API_KEY at minimum.
-```
-
-| Variable | Purpose |
+| File | What it covers |
 |---|---|
-| `OPENAI_API_KEY` | GPT-4o-mini description parsing + GPT-5.5 vision baselines. Required by `langloc.dataset.annotation.parse_descriptions`, `tools/baselines/gpt_vlm/`. |
-| `LANGLOC_GPT_MAX_USD` | Optional cost cap for vision-baseline runs. |
-| `LANGLOC_COOKIE_SECRET`, `LANGLOC_ADMIN_TOKEN` | Annotation website only — see `tools/annotation_website/.env.example`. |
+| [INSTALL.md](INSTALL.md) | Conda env, PyTorch3D from source, spaCy, environment variables, install-time troubleshooting. |
+| [DATA.md](DATA.md) | Google Drive bundle (recommended) and from-scratch alternative; target layout under `data/`; sanity checks. |
+| [REPRODUCE.md](REPRODUCE.md) | Per-table reproducer commands, paper-vs-this-repo numbers, dialog-row caveats, optional re-run of the dataset-creation pipeline. |
+| [CONFIG.md](CONFIG.md) | Hydra config tree, project layout, performance notes, runtime troubleshooting. |
+| [LICENSE](LICENSE) | Project licence. |
 
-## Reproducibility & seed
+## Sub-projects
 
-**Canonical seed: 42.** Every script with stochastic computation
-calls `langloc.utils.seed.set_seed(42)` at startup. CLI flags and
-Hydra overrides expose `--seed` / `localization.seed=` if you need
-to deviate, but **paper-numbers reproduction requires seed 42**.
-DataLoader workers also use `langloc.utils.seed.worker_init_fn` so
-shuffles are reproducible.
+Self-contained tools with their own READMEs:
 
-Non-determinism that we can't lock down:
-- OpenAI `seed` parameter is advisory; `system_fingerprint` is not
-  pinned. Description regeneration may drift slightly across
-  re-runs of `parse_descriptions.py`.
-- CUDA atomic ops on PyTorch3D rasterization; differences are
-  sub-pixel.
-
-## Reproducing the paper tables
-
-Once datasets are in `data/` and `.env` is configured:
-
-| Table | Script | Notes |
+| Path | Purpose | Guide |
 |---|---|---|
-| **Tab. 1, Tab. 2** (scene retrieval) | [`scripts/retrieval/reproduce_paper_tables.sh`](scripts/retrieval/reproduce_paper_tables.sh) | ~3 s with cache; ~3 min to rebuild cache. Recall@k vs Text2SGM / Text2Pos / CLIP2CLIP. |
-| **Tab. 3** (LLM-from-image queries) | same script, `--mode table3` arm | Requires precomputed query cache; same script builds it on demand. |
-| **Tab. 4(a)** 3RScan-100 | [`scripts/localization/reproduce_table4.sh parsed 3rscan`](scripts/localization/reproduce_table4.sh) | Uses [`manifests/3rscan_table4_subset_100.txt`](manifests/). ~20 min on A100. |
-| **Tab. 4(b)** ScanNet-100 | `scripts/localization/reproduce_table4.sh parsed scannet` | Uses [`manifests/scannet_table4_first_100.txt`](manifests/). ~20 min on A100. |
-| **Tab. 4 "w/ dialog" rows** | [`scripts/localization/run_candidates.sh`](scripts/localization/run_candidates.sh) → [`scripts/dialogue/run_eval.sh`](scripts/dialogue/run_eval.sh) | Bayesian A3 backend + Qwen2.5-1.5B answerer (ScanNet) / oracle (3RScan). |
-| **Tab. 4 baselines** | [`scripts/localization/baseline_midpoint.sh`](scripts/localization/baseline_midpoint.sh), [`scripts/localization/baseline_eval_qwen.sh`](scripts/localization/baseline_eval_qwen.sh) | Midpoint + Qwen2.5-VL top-down. |
-| **Tab. 5** (full 1,319-scan) | [`scripts/localization/reproduce_table5.sh`](scripts/localization/reproduce_table5.sh) | Uses [`manifests/3rscan_table5_full.txt`](manifests/). No-dialog only. |
-
-Outputs land in `eval/eval_metrics_*.json` and `eval/eval_loc_summary.log`
-(both `eval/` and `outputs/` are gitignored).
-
-### Sanity check: numbers we got
-
-| Table | Pos. mean / median (paper) | Pos. mean / median (this repo, seed=42) |
-|---|---|---|
-| Tab. 4(b) ScanNet, "LangLoc w/o dialog" | 1.676 / 1.314 m | 1.330 / 0.998 m |
-| Tab. 4(a) 3RScan, "LangLoc w/o dialog" | 1.712 / 1.551 m | 1.759 / 1.470 m |
-| Tab. 5 (full 3RScan release, no dialog) | 1.534 / 1.308 m | 1.418 / 1.230 m |
-
-Small paper-vs-port gaps come from CUDA non-determinism and
-prompt-sensitivity in the description-generation step. The dialog
-rows are sensitive to Qwen-1.5B's hardware-non-determinism and can
-drift by ~5 cm.
-
-### Dialog row (Table 4 "with dialog")
-
-The "with dialog" rows in Table 4 require two extra Hydra overrides
-on top of the candidate export. ScanNet uses the Qwen-1.5B answerer;
-3RScan uses the oracle answerer:
-
-```bash
-# 1. Export candidates from the localizer (writes eval/candidates.json)
-bash scripts/localization/run_candidates.sh localization=scannet \
-    "+localization.scene_ids=[$(paste -sd, manifests/scannet_table4_first_100.txt)]"
-
-# 2. Run the Bayesian dialogue refinement
-#    - ScanNet: answer_mode=qwen, dataset_root points at data/scans
-#    - 3RScan:  answer_mode=oracle, dataset_root points at data/3RScan
-bash scripts/dialogue/run_eval.sh \
-    dialogue.answer_mode=qwen \
-    dialogue.dataset_root=$PWD/data/scans
-```
-
-Omitting `answer_mode` leaves it at the `interactive` default, which
-will block waiting on stdin for `y/n/u` answers.
-
-## Dataset preparation (keyframes + descriptions)
-
-If you want to process additional scenes beyond the paper subsets:
-
-```bash
-# One scene
-bash scripts/dataset/setup_sample_data.sh --dataset scannet scene0000_00
-bash scripts/dataset/setup_sample_data.sh --dataset 3RScan <uuid>
-
-# Batch (sequential)
-bash scripts/dataset/setup_multiple_scenes.sh --dataset scannet 100
-bash scripts/dataset/setup_multiple_scenes.sh --dataset 3RScan 100
-
-# Batch (parallel — 4 scenes at a time, per-scene logs in outputs/logs/)
-bash scripts/dataset/setup_multiple_scenes.sh --dataset scannet 100 --parallel 4
-```
-
-Each pipeline pass produces `<scene>/output/{color,depth,pose}/`,
-`<scene>/output/camera_pose.json`, and per-frame description JSONs
-under `<scene>/output/descriptions/`.
-
-`.sens` extraction is parallelised — bump throughput via
-`SENS_WORKERS=16 bash …`.
-
-GPU-batching knobs (configs/dataset/default.yaml): `iqa_batch_size`,
-`rasterization_batch_size`. Both default to 16/8; lower them if you
-hit OOM.
-
-## Configuration
-
-All config is [Hydra](https://hydra.cc/) under [`configs/`](configs/):
-
-```text
-configs/
-├── config.yaml              # Root defaults list
-├── paths/default.yaml        # data_root, scannet_root, rscan_root, …
-├── dataset/default.yaml      # Frame-selection (NBV/DPP) parameters
-├── retrieval/default.yaml    # Scene-retrieval evaluation
-├── localization/default.yaml # Fine-localization (paper supp Tab. 7)
-├── localization/scannet.yaml # ScanNet overlay (FoV 58.30°×45.33°)
-├── localization/3rscan.yaml  # 3RScan overlay (FoV 39.31°×64.76°)
-├── dialogue/default.yaml     # Bayesian-clarification backend
-├── model/default.yaml        # BigGNN architecture
-├── graph/default.yaml        # Graph construction
-├── train/default.yaml        # Training hyperparameters
-├── eval/default.yaml         # Evaluation settings
-└── manifests/                # Dataset-release manifests (text files)
-```
-
-Subset manifests for paper-table reproduction live at the repo
-root in [`manifests/`](manifests/README.md) — see that file for
-which scene list maps to which table.
-
-Override any key via CLI: `paths.data_root=/mnt/data localization.seed=0`.
-
-## Project structure
-
-```text
-Lang-Loc/
-├── configs/             # Hydra configs
-├── data/                # Datasets (gitignored — download into here)
-├── eval/                # Eval output JSONs (gitignored)
-├── langloc/             # Main package
-│   ├── dataset/         #   Sec 3.1: keyframe selection + description gen
-│   ├── graphs/          #   Scene-graph types + loaders
-│   ├── graph_matching/  #   BigGNN dual encoder
-│   ├── retrieval/       #   Sec 3.2: scene retrieval (Tabs 1-3)
-│   ├── localization/    #   Sec 3.3: fine localization (Tab 4 no-dialog)
-│   ├── dialogue/        #   Sec 3.4: with-dialog refinement
-│   └── utils/           #   Shared (seed, geometry helpers, ...)
-├── manifests/           # Paper-table subset lists (tracked)
-├── scripts/             # Per-table reproduction shell scripts
-└── tools/               # Standalone sub-projects
-    ├── annotation_website/  # Crowdsourced human description + localization site
-    ├── baselines/           # Alternative describers (GPT-5.5 vision, humans)
-    ├── eval/                # Plot generators, recall-sweep utilities
-    └── download_scannet.py  # ScanNet bulk downloader (BYO ToS key)
-```
-
-## Rebuttal extensions
-
-These were added for the ECCV 2026 rebuttal / camera-ready and are
-self-contained sub-projects with their own READMEs:
-
-| Sub-project | What it does | README |
-|---|---|---|
-| [`tools/annotation_website/`](tools/annotation_website/README.md) | FastAPI site for crowdsourcing human descriptions + first-person localizations. Cloudflare-tunnelled by default. | full deployment + admin guide |
-| [`tools/baselines/gpt_vlm/`](tools/baselines/gpt_vlm/README.md) | OpenAI **GPT-5.5 vision** describer baseline (one image → 2–4-sentence first-person caption). Reviewer-WxoL closed-loop-bias defense. | usage + cost-cap notes |
-| [`tools/baselines/human/`](tools/baselines/human/README.md) | Extracts human descriptions from the annotation site's SQLite DB into pipeline-ready JSONs. Reviewer-WxoL human-description ask. | flow + caveats |
-| [`tools/eval/`](tools/eval/) | Recall-at-threshold sweep, error-distribution plots, dialog log statistics. Reviewer-EEmB-Q3 + Q4 figures. | scripts read cached eval JSONs |
-
-## Performance notes
-
-| Step | Throughput / cost | Notes |
-|---|---|---|
-| `.sens` extraction (ScanNet) | ~30 s/scan with `SENS_WORKERS=16` | I/O bound; SSD helps |
-| Keyframe selection (NBV + DPP) | ~90 s/scene on A100 | rasterization-bound |
-| Description generation (GPT-4o-mini, all keyframes) | ~$0.01 / scene | depends on # of keyframes |
-| Fine localization (Tab. 4 row, 100 scenes) | ~20 min on A100, ~30 min on RTX 5090 | grid-step 0.25 m |
-| Tab. 5 (1,319-scan full pool) | ~5 h on A100 | most time is per-scene mesh I/O + raycasting |
-| Description **parsing** (GPT-4o-mini) | ~$0.001 / frame, ~2 frames/sec | bottleneck = OpenAI rate-limit |
-| GPT-5.5 vision baseline (1,915 calls, both datasets) | ~$31, ~22 min | concurrency 8 |
-| Human annotation site | <100 ms/request | scales to hundreds of concurrent annotators on free-tier hosting |
-
-## Troubleshooting
-
-- **`FileNotFoundError` on 3RScan poses** — ensure each scene's
-  `sequence.zip` was extracted. Run the extraction step manually
-  via `scripts/dataset/extract_3rscan_sequence.sh <uuid>`.
-- **Mesh index mismatch** — invalid faces are filtered automatically
-  in the loader; this warning is non-fatal.
-- **`No frames after IQA filtering`** — lower
-  `dataset.scannetpp.iqa_threshold` (default 0.55) or
-  `dataset.3rscan.iqa_threshold`.
-- **PyTorch3D import errors** — `torch` and `pytorch3d` need matching
-  CUDA. Rebuild pytorch3d from source against your current torch.
-- **Annotation site can't load mesh** — check that the full-res or
-  decimated `.ply` exists at `data/scans/<scene>/<scene>_vh_clean*.ply`;
-  see [`tools/annotation_website/README.md`](tools/annotation_website/README.md#data-flow).
+| [`tools/annotation_website/`](tools/annotation_website/) | FastAPI site for crowdsourcing human descriptions and first-person localizations. | [README](tools/annotation_website/README.md) |
+| [`tools/baselines/gpt_vlm/`](tools/baselines/gpt_vlm/) | GPT-5.5 vision describer (rebuttal closed-loop-bias defense). | [README](tools/baselines/gpt_vlm/README.md) |
+| [`tools/baselines/human/`](tools/baselines/human/) | Extract human-written descriptions from the annotation website's SQLite DB. | [README](tools/baselines/human/README.md) |
+| [`tools/eval/`](tools/eval/) | Recall-at-threshold, error-distribution plots, dialog log statistics. | [README](tools/eval/README.md) |
 
 ## Citation
 
-Please cite our paper if you find this code useful. A full BibTeX
-entry will be added here on camera-ready acceptance; the placeholder
-below records the title, venue, and year for reference:
+A full BibTeX entry will land here on camera-ready acceptance.
+Placeholder, recording title, venue, and year:
 
 ```bibtex
 @inproceedings{langloc2026,
-  title     = {LangLoc: Language-Based 3D Indoor Localization},
+  title     = {LangLoc: Tell Me What You See},
   author    = {<authors>},
   booktitle = {Proceedings of the European Conference on Computer Vision (ECCV)},
   year      = {2026},
@@ -436,6 +126,6 @@ below records the title, venue, and year for reference:
 
 ## License
 
-This repository is released under the licence in [`LICENSE`](LICENSE).
-ScanNet and 3RScan have separate licences — see their respective
-terms-of-use documents before downloading.
+This repository is released under the licence in [LICENSE](LICENSE).
+ScanNet and 3RScan have separate licences; review their respective
+terms-of-use documents before downloading data.
