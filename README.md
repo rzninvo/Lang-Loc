@@ -10,6 +10,9 @@
     <td align="center" valign="middle">
       <img src="media/figures/logos/uzh-logo-white.png" height="70"/>
     </td>
+    <td align="center" valign="middle">
+      <img src="media/figures/logos/microsoft_logo.png" height="38"/>
+    </td>
   </tr>
 </table>
 </div>
