@@ -1,9 +1,0 @@
-# Annotation website local state — never commit
-.env
-data/annotations.db
-data/annotations.db-shm
-data/annotations.db-wal
-data/annotations.jsonl
-static/keyframes/
-__pycache__/
-*.pyc
