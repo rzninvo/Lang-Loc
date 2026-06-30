@@ -1,0 +1,11 @@
+{
+  "name": "LangLoc: Tell Me What You See",
+  "short_name": "LangLoc",
+  "icons": [
+    { "src": "./images/web-app-manifest-192x192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "./images/web-app-manifest-512x512.png", "sizes": "512x512", "type": "image/png" }
+  ],
+  "theme_color": "#2960c4",
+  "background_color": "#ffffff",
+  "display": "standalone"
+}

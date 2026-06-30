@@ -24,7 +24,7 @@ body {
 }
 
 .teaser {
-  font-family: 'Google Sans', sans-serif;
+  font-family: 'Inter', sans-serif;
 }
 
 
@@ -41,11 +41,11 @@ body {
 }
 
 .publication-title {
-    font-family: 'Google Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
 }
 
 .publication-authors {
-    font-family: 'Google Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
 }
 
 .publication-venue {
@@ -64,10 +64,11 @@ body {
 }
 
 .publication-authors a {
-   color: hsl(204, 86%, 53%) !important;
+   color: #363636 !important;
 }
 
 .publication-authors a:hover {
+    color: #1f4ea3 !important;
     text-decoration: underline;
 }
 

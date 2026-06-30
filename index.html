@@ -1,37 +1,115 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#2960c4">
+
+<title>LangLoc: Tell Me What You See — Indoor Localization (ECCV 2026)</title>
 <meta name="description" content="LangLoc: fine-grained indoor localization from natural language. Retrieve the scene, estimate 2D position and heading from a visibility floor-grid, and resolve ambiguity through a Bayesian yes/no dialog. ECCV 2026.">
 <meta name="keywords" content="LangLoc, language localization, indoor localization, scene retrieval, scene graph, GATv2, CLIP, dialog, ECCV 2026">
-<meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>LangLoc: Tell Me What You See</title>
+<!-- Open Graph / Twitter share cards -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="LangLoc: Tell Me What You See (ECCV 2026)">
+<meta property="og:description" content="Fine-grained indoor localization from a natural-language description — no camera. +8 pp Top-1 retrieval, ~0.95 m median pose, and a Bayesian yes/no dialog.">
+<meta property="og:url" content="https://rzninvo.github.io/Lang-Loc/">
+<meta property="og:image" content="https://rzninvo.github.io/Lang-Loc/static/images/og_card.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="LangLoc: Tell Me What You See (ECCV 2026)">
+<meta name="twitter:description" content="Fine-grained indoor localization from a natural-language description — no camera. +8 pp Top-1 retrieval, ~0.95 m median pose.">
+<meta name="twitter:image" content="https://rzninvo.github.io/Lang-Loc/static/images/og_card.jpg">
 
-<!-- favicon -->
+<!-- favicon + manifest -->
 <link rel="icon" type="image/png" href="./static/images/favicon-96x96.png" sizes="96x96" />
 <link rel="icon" type="image/svg+xml" href="./static/images/favicon.svg" />
 <link rel="shortcut icon" href="./static/images/favicon.ico" />
 <link rel="apple-touch-icon" sizes="180x180" href="./static/images/apple-touch-icon.png" />
+<link rel="manifest" href="./static/site.webmanifest" />
 <meta name="apple-mobile-web-app-title" content="LangLoc" />
+
+<!-- web fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans:wght@400;500;700&display=swap" rel="stylesheet">
 
 <link rel="stylesheet" href="./static/css/bulma.min.css">
 <link rel="stylesheet" href="./static/css/fontawesome.all.min.css">
 <link rel="stylesheet" href="./static/css/academicons.css">
 <link rel="stylesheet" href="./static/css/index.css">
-<script defer src="./static/js/fontawesome.all.min.js"></script>
-<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
 
 <style>
-  .publication-title { margin-bottom: 0.4rem; }
-  .conf-badge { color:#b5b5b5; font-weight:600; letter-spacing:0.04em; }
-  .pubtitle-sub { color:#7a7a7a; font-weight:400; }
-  .org-logos img { height: 44px; margin: 0.6rem 1.1rem 0; vertical-align: middle; }
-  .org-logos { background:#363636; border-radius:10px; padding:0.8rem 0.4rem; display:inline-block; margin-top:1rem; }
-  .btn-soon { opacity:0.5; cursor:not-allowed; }
-  .tldr { background:#f5f5f5; border-left:4px solid #363636; border-radius:6px; padding:1rem 1.25rem; }
-  .figcap { color:#555; font-size:0.95rem; margin-top:0.4rem; }
-  .stage-num { font-weight:700; }
+  :root { --accent:#2960c4; --accent-dark:#1f4ea3; --ink:#363636; }
+
+  .publication-title { margin-bottom:0.4rem; font-family:'Inter',sans-serif; font-weight:700; }
+  .pubtitle-sub { color:#5b5b5b; font-weight:600; }
+  .conf-badge { color:#5a6573; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; font-size:0.92rem; }
+  .hero-tagline { color:#3a3a3a; font-weight:400; margin-top:0.55rem; }
+  .hero-stats { margin-top:0.7rem; color:#454545; font-size:0.98rem; }
+  .hero-stats strong { color:var(--accent); font-weight:700; }
+  .hero-stats .sep { color:#cdcdcd; margin:0 0.5rem; }
+
+  /* author byline: one cohesive near-black list; link affordance on hover */
+  .publication-authors .author-block { white-space:nowrap; }
+  .publication-authors .author-block a { color:var(--ink); text-decoration:none; border-bottom:1px solid transparent; }
+  .publication-authors .author-block a:hover { color:var(--accent-dark); border-bottom-color:var(--accent-dark); }
+  .eqc-note { margin-top:0.25rem; color:#6f6f6f; }
+
+  /* link buttons */
+  .publication-links { display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:0.6rem; margin-top:1.4rem; }
+  .publication-links .button { margin:0; height:2.6em; border-radius:999px; font-weight:600; }
+  .btn-code { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .btn-code:hover, .btn-code:focus { background:var(--accent-dark); border-color:var(--accent-dark); color:#fff; }
+  .btn-soon { background:#fff; border:1px solid #dcdcdc; color:#8a8a8a; cursor:default; }
+
+  /* affiliation logos on white: CVG colour kept, white ETH/UZH darkened */
+  .org-logos { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:2.6rem; margin-top:1.9rem; }
+  .org-logos img { width:auto; display:block; }
+  .logo-cvg { height:28px; }
+  .logo-eth { height:54px; filter:brightness(0); opacity:0.8; }
+  .logo-uzh { height:48px; filter:brightness(0); opacity:0.8; }
+
+  /* highlight stat cards */
+  .hl-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-top:1.2rem; }
+  .hl-card { background:#fff; border:1px solid #ececec; border-radius:14px; padding:1.3rem 1rem; height:100%;
+             text-align:center; box-shadow:0 2px 10px rgba(0,0,0,0.05); transition:transform .15s ease, box-shadow .15s ease; }
+  .hl-card:hover { transform:translateY(-3px); box-shadow:0 8px 22px rgba(41,96,196,0.12); }
+  .hl-icon { font-size:1.7rem; color:var(--accent); }
+  .hl-num { font-weight:700; font-size:1.2rem; margin:0.5rem 0 0.3rem; color:#15233f; }
+  .hl-card p { font-size:0.9rem; color:#555; margin:0; line-height:1.4; }
+
+  /* figures framed like the cards, click to enlarge */
+  .fig-frame { display:inline-block; background:#fff; border:1px solid #ececec; border-radius:14px;
+               padding:0.6rem; box-shadow:0 2px 10px rgba(0,0,0,0.05); max-width:100%; }
+  .fig-frame img { display:block; border-radius:8px; }
+  figure { margin:0; }
+  .figcap { color:#555; font-size:0.93rem; margin-top:0.55rem; }
+  .teaser .figcap { font-family:'Noto Sans',sans-serif; }
+  .figcap .enlarge { color:#6b7177; font-size:0.82rem; }
+
+  .tldr { background:#f6f8fc; border-left:4px solid var(--accent); border-radius:8px; padding:1rem 1.25rem; }
+  .stage-num { font-weight:700; color:var(--accent-dark); }
+  .title-accent::after { content:""; display:block; width:54px; height:3px; background:var(--accent);
+             border-radius:2px; margin:0.55rem auto 0; }
+
+  /* copyable BibTeX */
+  .bibtex-block { background:#1f2430; color:#e6e8ee; border-radius:10px; padding:1.1rem 1.25rem; overflow-x:auto;
+             font-size:0.88rem; line-height:1.5; text-align:left; }
+  .bibtex-block code { color:#e6e8ee; background:none; padding:0; }
+
+  @media (max-width:768px) {
+    .publication-title { font-size:2rem; line-height:1.15; }
+    .hl-grid { grid-template-columns:repeat(2,1fr); }
+  }
+  @media (max-width:359px) {
+    .hl-grid { grid-template-columns:1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hl-card { transition:none; }
+    .hl-card:hover { transform:none; }
+  }
 </style>
 </head>
 
@@ -45,8 +123,14 @@
         <div class="column has-text-centered">
           <h1 class="title is-1 publication-title">LangLoc: <span class="pubtitle-sub">&ldquo;Tell Me What You See&rdquo;</span></h1>
           <p class="is-size-5 conf-badge">European Conference on Computer Vision (ECCV) 2026</p>
+          <p class="is-size-6 hero-tagline">Fine-grained indoor localization from a natural-language description &mdash; no camera, no GPS.</p>
+          <p class="hero-stats">
+            <strong>+8&nbsp;pp</strong> Top-1 retrieval <span class="sep">&middot;</span>
+            <strong>0.95&nbsp;m</strong> median pose <span class="sep">&middot;</span>
+            <strong>13k+</strong> queries over <strong>1.3k+</strong> scans
+          </p>
 
-          <div class="is-size-5 publication-authors" style="margin-top:0.8rem;">
+          <div class="is-size-5 publication-authors" style="margin-top:0.9rem;">
             <span class="author-block"><a href="https://github.com/KlrShaK">Shaurya Kishore Panwar</a><sup>1,2,&#42;</sup>,</span>
             <span class="author-block"><a href="https://github.com/rzninvo">Roham Zendehdel Nobari</a><sup>1,2,&#42;</sup>,</span>
             <span class="author-block"><a href="https://github.com/shirleyl1220">Shirley Feng Yi Lau</a><sup>1,2,&#42;</sup>,</span>
@@ -62,48 +146,42 @@
             <span class="author-block"><sup>3</sup>Microsoft</span>&nbsp;&nbsp;
             <span class="author-block"><sup>4</sup>HUN-REN&nbsp;SZTAKI</span>
           </div>
-          <div class="is-size-7 publication-authors" style="margin-top:0.25rem;color:#7a7a7a;">
+          <div class="is-size-7 eqc-note">
             <span class="author-block">&#42;&nbsp;Equal contribution</span>
           </div>
 
           <!-- link buttons -->
-          <div class="column has-text-centered">
-            <div class="publication-links">
-              <!-- Paper (coming soon) -->
-              <span class="link-block">
-                <button class="external-link button is-normal is-rounded is-dark btn-soon" disabled>
-                  <span class="icon"><i class="fas fa-file-pdf"></i></span>
-                  <span>Paper (coming soon)</span>
-                </button>
+          <div class="publication-links">
+            <span class="link-block">
+              <a href="https://github.com/rzninvo/Lang-Loc" class="button is-rounded btn-code">
+                <span class="icon"><i class="fab fa-github" aria-hidden="true"></i></span>
+                <span>Code</span>
+              </a>
+            </span>
+            <span class="link-block">
+              <span class="button is-rounded btn-soon" aria-disabled="true">
+                <span class="icon"><i class="fas fa-file-pdf" aria-hidden="true"></i></span>
+                <span>Paper (coming soon)</span>
               </span>
-              <!-- arXiv (coming soon) -->
-              <span class="link-block">
-                <button class="external-link button is-normal is-rounded is-dark btn-soon" disabled>
-                  <span class="icon"><i class="ai ai-arxiv"></i></span>
-                  <span>arXiv (coming soon)</span>
-                </button>
+            </span>
+            <span class="link-block">
+              <span class="button is-rounded btn-soon" aria-disabled="true">
+                <span class="icon"><i class="ai ai-arxiv" aria-hidden="true"></i></span>
+                <span>arXiv (coming soon)</span>
               </span>
-              <!-- Code -->
-              <span class="link-block">
-                <a href="https://github.com/rzninvo/Lang-Loc" class="external-link button is-normal is-rounded is-dark">
-                  <span class="icon"><i class="fab fa-github"></i></span>
-                  <span>Code</span>
-                </a>
+            </span>
+            <span class="link-block">
+              <span class="button is-rounded btn-soon" aria-disabled="true">
+                <span class="icon"><i class="fas fa-database" aria-hidden="true"></i></span>
+                <span>Dataset (coming soon)</span>
               </span>
-              <!-- Dataset (coming soon; available on request) -->
-              <span class="link-block">
-                <button class="external-link button is-normal is-rounded is-dark btn-soon" disabled>
-                  <span class="icon"><i class="fas fa-database"></i></span>
-                  <span>Dataset (coming soon)</span>
-                </button>
-              </span>
-            </div>
+            </span>
           </div>
 
           <div class="org-logos">
-            <img src="./static/images/logo_cvg.png" alt="Computer Vision Group"/>
-            <img src="./static/images/logo_eth.png" alt="ETH Zürich"/>
-            <img src="./static/images/logo_uzh.png" alt="University of Zurich"/>
+            <img class="logo-cvg" src="./static/images/logo_cvg.png" alt="Computer Vision and Geometry Group, ETH Zürich"/>
+            <img class="logo-eth" src="./static/images/logo_eth.png" alt="ETH Zürich"/>
+            <img class="logo-uzh" src="./static/images/logo_uzh.png" alt="University of Zürich"/>
           </div>
         </div>
       </div>
@@ -115,22 +193,47 @@
 <section class="hero teaser">
   <div class="container is-max-desktop">
     <div class="hero-body">
-      <div class="content has-text-centered">
-        <img src="./static/images/teaser.png" alt="LangLoc teaser"/>
-        <p class="figcap">From a free-form description of the surroundings, LangLoc estimates the observer&rsquo;s 2D floor position and heading inside a known 3D scene &mdash; using no camera.</p>
-      </div>
+      <figure class="has-text-centered">
+        <a class="fig-frame" href="./static/images/teaser.png" target="_blank" rel="noopener">
+          <img src="./static/images/teaser.png" width="2200" height="981"
+               alt="A free-form description (left, as a dialog) localizes the observer inside a known 3D living-room scene (right), shown with the predicted viewing frustum and a scene-graph overlay of the objects.">
+        </a>
+        <figcaption class="figcap">From a free-form description of the surroundings, LangLoc estimates the observer&rsquo;s 2D floor position and heading inside a <em>known</em> 3D scene &mdash; using no camera. <span class="enlarge">(click to enlarge)</span></figcaption>
+      </figure>
     </div>
   </div>
 </section>
 
-<!-- ============ TL;DR ============ -->
-<section class="section" style="padding-top:1.5rem;padding-bottom:0.5rem;">
+<!-- ============ TL;DR + HIGHLIGHTS ============ -->
+<section class="section" style="padding-top:1rem;padding-bottom:0.5rem;">
   <div class="container is-max-desktop">
     <div class="columns is-centered">
       <div class="column is-four-fifths">
         <div class="content tldr">
-          <p><strong>TL;DR.</strong> LangLoc is the first pipeline for <em>fine-grained</em> indoor localization from natural language alone. It (1)&nbsp;retrieves the scene with a dual-branch GATv2&nbsp;+&nbsp;CLIP encoder, (2)&nbsp;estimates position and heading by scoring a dense floor grid through ray-cast object visibility, and (3)&nbsp;resolves residual ambiguity with a Bayesian yes/no dialog.</p>
+          <p><strong>TL;DR.</strong> LangLoc is the first to resolve an <em>intra-scene pose</em> from language alone &mdash; prior work stops at coarse scene retrieval. It (1)&nbsp;retrieves the scene with a dual-branch GATv2&nbsp;+&nbsp;CLIP encoder, (2)&nbsp;estimates position and heading by scoring a dense floor grid through ray-cast object visibility, and (3)&nbsp;resolves residual ambiguity with a Bayesian yes/no dialog.</p>
         </div>
+      </div>
+    </div>
+    <div class="hl-grid">
+      <div class="hl-card">
+        <span class="hl-icon"><i class="fas fa-video-slash" aria-hidden="true"></i></span>
+        <div class="hl-num">No camera</div>
+        <p>Localize from a sentence &mdash; private and lightweight, with no images to send.</p>
+      </div>
+      <div class="hl-card">
+        <span class="hl-icon"><i class="fas fa-trophy" aria-hidden="true"></i></span>
+        <div class="hl-num">+8&nbsp;pp Top-1</div>
+        <p>Dual-branch GATv2&nbsp;+&nbsp;CLIP retrieval beats the previous best.</p>
+      </div>
+      <div class="hl-card">
+        <span class="hl-icon"><i class="fas fa-crosshairs" aria-hidden="true"></i></span>
+        <div class="hl-num">0.95&nbsp;m median</div>
+        <p>Ray-cast floor-grid scoring recovers position and heading.</p>
+      </div>
+      <div class="hl-card">
+        <span class="hl-icon"><i class="fas fa-comments" aria-hidden="true"></i></span>
+        <div class="hl-num">Yes/no dialog</div>
+        <p>A Bayesian module asks targeted questions to pin down ambiguous poses.</p>
       </div>
     </div>
   </div>
@@ -141,7 +244,7 @@
   <div class="container is-max-desktop">
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
-        <h2 class="title is-3">Abstract</h2>
+        <h2 class="title is-3 title-accent">Abstract</h2>
         <div class="content has-text-justified">
           <p>
             We tackle fine-grained indoor localization from natural language: given a free-form description of one&rsquo;s surroundings, estimate the observer&rsquo;s 2D position and heading within a known 3D environment.
@@ -160,20 +263,26 @@
   <div class="container is-max-desktop">
     <div class="columns is-centered">
       <div class="column is-full-width">
-        <h2 class="title is-3 has-text-centered">Method</h2>
-        <div class="content has-text-centered">
-          <img src="./static/images/overview.jpg" alt="LangLoc overview"/>
-          <p class="figcap"><strong>LangLoc overview.</strong> A free-form description is parsed into a text scene graph, matched against a database of 3D scene graphs for retrieval, then localized within the chosen scene and refined through dialog.</p>
-        </div>
+        <h2 class="title is-3 has-text-centered title-accent">Method</h2>
+        <figure class="has-text-centered" style="margin-bottom:1.2rem;">
+          <a class="fig-frame" href="./static/images/overview.jpg" target="_blank" rel="noopener">
+            <img src="./static/images/overview.jpg" width="2000" height="1108" loading="lazy"
+                 alt="LangLoc overview: a free-form description is parsed into a text scene graph, matched against a database of 3D scene graphs to retrieve the scene, then localized within it and refined through a yes/no dialog.">
+          </a>
+          <figcaption class="figcap"><strong>LangLoc overview.</strong> A free-form description is parsed into a text scene graph, matched against a database of 3D scene graphs for retrieval, then localized within the chosen scene and refined through dialog. <span class="enlarge">(click to enlarge)</span></figcaption>
+        </figure>
         <div class="content has-text-justified">
-          <p><span class="stage-num">1. Scene retrieval.</span> A dual-branch GATv2 encoder with CLIP semantic features encodes the text-derived query graph and the database scene graphs into a shared space, ranking candidate scenes by a combination of learned-embedding, global-CLIP, and label-overlap similarity. This sets a new state of the art, improving Top-1 recall by 8&nbsp;percentage points over prior work.</p>
-          <p><span class="stage-num">2. Fine localization.</span> Within the retrieved scene, LangLoc samples a dense floor grid and scores each candidate viewpoint by ray-casting which described objects are visible, yielding a 2D position and a heading direction &mdash; reaching about 1&nbsp;m median position error without any image.</p>
+          <p><span class="stage-num">1. Scene retrieval.</span> A dual-branch GATv2 encoder with CLIP semantic features embeds the text-derived query graph and the database scene graphs into a shared space, ranking candidate scenes by a blend of learned-embedding, global-CLIP, and label-overlap similarity &mdash; improving Top-1 recall by 8&nbsp;percentage points over prior work.</p>
+          <p><span class="stage-num">2. Fine localization.</span> Within the retrieved scene, LangLoc samples a dense floor grid and scores each candidate viewpoint by ray-casting which described objects are visible, yielding a 2D position and a heading direction &mdash; reaching a 0.95&nbsp;m median position error without any image.</p>
           <p><span class="stage-num">3. Dialog disambiguation.</span> When a description matches several viewpoints, a Bayesian module asks targeted yes/no questions (e.g.&nbsp;&ldquo;Is there a chair to the left of the table?&rdquo;) and updates a pose posterior until the location is resolved.</p>
         </div>
-        <div class="content has-text-centered" style="margin-top:1.2rem;">
-          <img src="./static/images/pipeline.png" alt="Fine-localization pipeline"/>
-          <p class="figcap"><strong>Fine-localization pipeline.</strong> The parsed query is matched to 3D objects; a dense floor grid is scored by ray-cast visibility, and a field-of-view aggregation step estimates the final position and heading.</p>
-        </div>
+        <figure class="has-text-centered" style="margin-top:1.2rem;">
+          <a class="fig-frame" href="./static/images/pipeline.png" target="_blank" rel="noopener">
+            <img src="./static/images/pipeline.png" width="1036" height="461" loading="lazy"
+                 alt="Fine-localization pipeline: the parsed query is matched to 3D objects, a dense floor grid is scored by ray-cast visibility, and a field-of-view aggregation step estimates the final position and heading.">
+          </a>
+          <figcaption class="figcap"><strong>Fine-localization pipeline.</strong> The parsed query is matched to 3D objects; a dense floor grid is scored by ray-cast visibility, and a field-of-view aggregation step estimates the final position and heading. <span class="enlarge">(click to enlarge)</span></figcaption>
+        </figure>
       </div>
     </div>
   </div>
@@ -184,18 +293,28 @@
   <div class="container is-max-desktop">
     <div class="columns is-centered">
       <div class="column is-full-width">
-        <h2 class="title is-3 has-text-centered">Qualitative Results</h2>
+        <h2 class="title is-3 has-text-centered title-accent">Qualitative Results</h2>
         <div class="content has-text-centered">
           <p class="has-text-justified">Predicted (yellow) vs.&nbsp;ground-truth (red) viewing frustums on 3RScan and ScanNet. LangLoc recovers both the floor position and the heading from language alone.</p>
         </div>
         <div class="columns is-centered">
           <div class="column has-text-centered">
-            <img src="./static/images/qual_3rscan.png" alt="Qualitative result on 3RScan"/>
-            <p class="figcap">3RScan</p>
+            <figure>
+              <a class="fig-frame" href="./static/images/qual_3rscan.jpg" target="_blank" rel="noopener">
+                <img src="./static/images/qual_3rscan.jpg" width="1200" height="1019" loading="lazy"
+                     alt="3RScan example: predicted (yellow) and ground-truth (red) viewing frustums overlaid on the reconstructed indoor scene.">
+              </a>
+              <figcaption class="figcap">3RScan</figcaption>
+            </figure>
           </div>
           <div class="column has-text-centered">
-            <img src="./static/images/qual_scannet.png" alt="Qualitative result on ScanNet"/>
-            <p class="figcap">ScanNet</p>
+            <figure>
+              <a class="fig-frame" href="./static/images/qual_scannet.jpg" target="_blank" rel="noopener">
+                <img src="./static/images/qual_scannet.jpg" width="1200" height="1045" loading="lazy"
+                     alt="ScanNet example: predicted (yellow) and ground-truth (red) viewing frustums overlaid on the reconstructed indoor scene.">
+              </a>
+              <figcaption class="figcap">ScanNet</figcaption>
+            </figure>
           </div>
         </div>
       </div>
@@ -206,8 +325,16 @@
 <!-- ============ BIBTEX ============ -->
 <section class="section" id="BibTeX">
   <div class="container is-max-desktop content">
-    <h2 class="title">BibTeX</h2>
-    <p>The BibTeX citation will be added once the paper is on arXiv and in the ECCV&nbsp;2026 proceedings &mdash; <em>coming soon</em>.</p>
+    <h2 class="title title-accent" style="text-align:center;">BibTeX</h2>
+    <pre class="bibtex-block"><code>@inproceedings{langloc2026,
+  title     = {LangLoc: Tell Me What You See},
+  author    = {Panwar, Shaurya Kishore and Zendehdel Nobari, Roham and
+               Lau, Shirley Feng Yi and Shaik, Abu Bakr Rahman and
+               G\"unther, Manuel and Pollefeys, Marc and Barath, Daniel},
+  booktitle = {Proceedings of the European Conference on Computer Vision (ECCV)},
+  year      = {2026},
+}</code></pre>
+    <p class="has-text-centered" style="color:#717171;margin-top:0.6rem;">The final entry (pages, DOI) will be added once the ECCV&nbsp;2026 proceedings are published.</p>
   </div>
 </section>
 
@@ -217,7 +344,7 @@
     <div class="columns is-centered">
       <div class="column is-8">
         <div class="content has-text-centered">
-          <h3>Acknowledgements</h3>
+          <h2>Acknowledgements</h2>
           <p>
             We thank the <a href="https://cvg.ethz.ch/">Computer Vision and Geometry Group (CVG)</a> at ETH&nbsp;Z&uuml;rich and the <a href="https://www.ifi.uzh.ch/en/aiml.html">Artificial Intelligence and Machine Learning (AIML) Group</a> at the University of Z&uuml;rich. This project received no external funding.
           </p>
