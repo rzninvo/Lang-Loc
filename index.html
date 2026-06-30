@@ -5,21 +5,21 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#2960c4">
 
-<title>LangLoc: Tell Me What You See — Indoor Localization (ECCV 2026)</title>
+<title>LangLoc: Tell Me What You See (ECCV 2026)</title>
 <meta name="description" content="LangLoc: fine-grained indoor localization from natural language. Retrieve the scene, estimate 2D position and heading from a visibility floor-grid, and resolve ambiguity through a Bayesian yes/no dialog. ECCV 2026.">
 <meta name="keywords" content="LangLoc, language localization, indoor localization, scene retrieval, scene graph, GATv2, CLIP, dialog, ECCV 2026">
 
 <!-- Open Graph / Twitter share cards -->
 <meta property="og:type" content="website">
 <meta property="og:title" content="LangLoc: Tell Me What You See (ECCV 2026)">
-<meta property="og:description" content="Fine-grained indoor localization from a natural-language description — no camera. +8 pp Top-1 retrieval, ~0.95 m median pose, and a Bayesian yes/no dialog.">
+<meta property="og:description" content="Fine-grained indoor localization from a natural-language description. No camera, no GPS. Retrieve the scene, localize within it, and disambiguate with a Bayesian yes/no dialog.">
 <meta property="og:url" content="https://rzninvo.github.io/Lang-Loc/">
 <meta property="og:image" content="https://rzninvo.github.io/Lang-Loc/static/images/og_card.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="LangLoc: Tell Me What You See (ECCV 2026)">
-<meta name="twitter:description" content="Fine-grained indoor localization from a natural-language description — no camera. +8 pp Top-1 retrieval, ~0.95 m median pose.">
+<meta name="twitter:description" content="Fine-grained indoor localization from a natural-language description. No camera, no GPS.">
 <meta name="twitter:image" content="https://rzninvo.github.io/Lang-Loc/static/images/og_card.jpg">
 
 <!-- favicon + manifest -->
@@ -47,9 +47,6 @@
   .pubtitle-sub { color:#5b5b5b; font-weight:600; }
   .conf-badge { color:#5a6573; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; font-size:0.92rem; }
   .hero-tagline { color:#3a3a3a; font-weight:400; margin-top:0.55rem; }
-  .hero-stats { margin-top:0.7rem; color:#454545; font-size:0.98rem; }
-  .hero-stats strong { color:var(--accent); font-weight:700; }
-  .hero-stats .sep { color:#cdcdcd; margin:0 0.5rem; }
 
   /* author byline: one cohesive near-black list; link affordance on hover */
   .publication-authors .author-block { white-space:nowrap; }
@@ -122,13 +119,8 @@
       <div class="columns is-centered">
         <div class="column has-text-centered">
           <h1 class="title is-1 publication-title">LangLoc: <span class="pubtitle-sub">&ldquo;Tell Me What You See&rdquo;</span></h1>
-          <p class="is-size-5 conf-badge">European Conference on Computer Vision (ECCV) 2026</p>
-          <p class="is-size-6 hero-tagline">Fine-grained indoor localization from a natural-language description &mdash; no camera, no GPS.</p>
-          <p class="hero-stats">
-            <strong>+8&nbsp;pp</strong> Top-1 retrieval <span class="sep">&middot;</span>
-            <strong>0.95&nbsp;m</strong> median pose <span class="sep">&middot;</span>
-            <strong>13k+</strong> queries over <strong>1.3k+</strong> scans
-          </p>
+          <p class="is-size-5 conf-badge">ECCV 2026</p>
+          <p class="is-size-6 hero-tagline">Fine-grained indoor localization from a natural-language description. No camera, no GPS.</p>
 
           <div class="is-size-5 publication-authors" style="margin-top:0.9rem;">
             <span class="author-block"><a href="https://github.com/KlrShaK">Shaurya Kishore Panwar</a><sup>1,2,&#42;</sup>,</span>
@@ -179,7 +171,7 @@
           </div>
 
           <div class="org-logos">
-            <img class="logo-cvg" src="./static/images/logo_cvg.png" alt="Computer Vision and Geometry Group, ETH Zürich"/>
+            <img class="logo-cvg" src="./static/images/logo_cvg_dark.png" alt="Computer Vision and Geometry Group, ETH Zürich"/>
             <img class="logo-eth" src="./static/images/logo_eth.png" alt="ETH Zürich"/>
             <img class="logo-uzh" src="./static/images/logo_uzh.png" alt="University of Zürich"/>
           </div>
@@ -198,7 +190,7 @@
           <img src="./static/images/teaser.png" width="2200" height="981"
                alt="A free-form description (left, as a dialog) localizes the observer inside a known 3D living-room scene (right), shown with the predicted viewing frustum and a scene-graph overlay of the objects.">
         </a>
-        <figcaption class="figcap">From a free-form description of the surroundings, LangLoc estimates the observer&rsquo;s 2D floor position and heading inside a <em>known</em> 3D scene &mdash; using no camera. <span class="enlarge">(click to enlarge)</span></figcaption>
+        <figcaption class="figcap">From a free-form description of the surroundings, LangLoc estimates the observer&rsquo;s 2D floor position and heading inside a <em>known</em> 3D scene, using no camera. <span class="enlarge">(click to enlarge)</span></figcaption>
       </figure>
     </div>
   </div>
@@ -210,7 +202,7 @@
     <div class="columns is-centered">
       <div class="column is-four-fifths">
         <div class="content tldr">
-          <p><strong>TL;DR.</strong> LangLoc is the first to resolve an <em>intra-scene pose</em> from language alone &mdash; prior work stops at coarse scene retrieval. It (1)&nbsp;retrieves the scene with a dual-branch GATv2&nbsp;+&nbsp;CLIP encoder, (2)&nbsp;estimates position and heading by scoring a dense floor grid through ray-cast object visibility, and (3)&nbsp;resolves residual ambiguity with a Bayesian yes/no dialog.</p>
+          <p><strong>TL;DR.</strong> LangLoc is the first to resolve an <em>intra-scene pose</em> from language alone; prior work stops at coarse scene retrieval. It (1)&nbsp;retrieves the scene with a dual-branch GATv2&nbsp;+&nbsp;CLIP encoder, (2)&nbsp;estimates position and heading by scoring a dense floor grid through ray-cast object visibility, and (3)&nbsp;resolves residual ambiguity with a Bayesian yes/no dialog.</p>
         </div>
       </div>
     </div>
@@ -218,17 +210,17 @@
       <div class="hl-card">
         <span class="hl-icon"><i class="fas fa-video-slash" aria-hidden="true"></i></span>
         <div class="hl-num">No camera</div>
-        <p>Localize from a sentence &mdash; private and lightweight, with no images to send.</p>
+        <p>Localize from a sentence: private and lightweight, with no images to send.</p>
       </div>
       <div class="hl-card">
-        <span class="hl-icon"><i class="fas fa-trophy" aria-hidden="true"></i></span>
-        <div class="hl-num">+8&nbsp;pp Top-1</div>
-        <p>Dual-branch GATv2&nbsp;+&nbsp;CLIP retrieval beats the previous best.</p>
+        <span class="hl-icon"><i class="fas fa-search" aria-hidden="true"></i></span>
+        <div class="hl-num">Scene retrieval</div>
+        <p>A dual-branch GATv2&nbsp;+&nbsp;CLIP encoder finds the right scene from the description.</p>
       </div>
       <div class="hl-card">
         <span class="hl-icon"><i class="fas fa-crosshairs" aria-hidden="true"></i></span>
-        <div class="hl-num">0.95&nbsp;m median</div>
-        <p>Ray-cast floor-grid scoring recovers position and heading.</p>
+        <div class="hl-num">Fine localization</div>
+        <p>Ray-cast floor-grid scoring recovers the 2D position and heading.</p>
       </div>
       <div class="hl-card">
         <span class="hl-icon"><i class="fas fa-comments" aria-hidden="true"></i></span>
@@ -248,7 +240,7 @@
         <div class="content has-text-justified">
           <p>
             We tackle fine-grained indoor localization from natural language: given a free-form description of one&rsquo;s surroundings, estimate the observer&rsquo;s 2D position and heading within a known 3D environment.
-            Language queries are lightweight, privacy-preserving, and need no camera &mdash; yet prior work stops at coarse scene retrieval and cannot resolve an intra-scene pose.
+            Language queries are lightweight, privacy-preserving, and need no camera. Yet prior work stops at coarse scene retrieval and cannot resolve an intra-scene pose.
             We close this gap with <em>LangLoc</em>, a three-stage pipeline that (i)&nbsp;retrieves the correct scene via a dual-branch GATv2 encoder with CLIP semantic features, surpassing the previous best by 8 percentage points in Top-1 recall; (ii)&nbsp;estimates position and heading by scoring a dense floor grid through ray-cast object visibility, reaching a median error of 0.95&nbsp;m; and (iii)&nbsp;resolves residual ambiguity through a Bayesian dialog module that asks targeted yes/no questions and updates a pose posterior until the location is pinpointed.
             To support this task we contribute a benchmark of 13,000+ pose-indexed natural-language descriptions over 1,300+ indoor 3D scans.
           </p>
@@ -272,8 +264,8 @@
           <figcaption class="figcap"><strong>LangLoc overview.</strong> A free-form description is parsed into a text scene graph, matched against a database of 3D scene graphs for retrieval, then localized within the chosen scene and refined through dialog. <span class="enlarge">(click to enlarge)</span></figcaption>
         </figure>
         <div class="content has-text-justified">
-          <p><span class="stage-num">1. Scene retrieval.</span> A dual-branch GATv2 encoder with CLIP semantic features embeds the text-derived query graph and the database scene graphs into a shared space, ranking candidate scenes by a blend of learned-embedding, global-CLIP, and label-overlap similarity &mdash; improving Top-1 recall by 8&nbsp;percentage points over prior work.</p>
-          <p><span class="stage-num">2. Fine localization.</span> Within the retrieved scene, LangLoc samples a dense floor grid and scores each candidate viewpoint by ray-casting which described objects are visible, yielding a 2D position and a heading direction &mdash; reaching a 0.95&nbsp;m median position error without any image.</p>
+          <p><span class="stage-num">1. Scene retrieval.</span> A dual-branch GATv2 encoder with CLIP semantic features embeds the text-derived query graph and the database scene graphs into a shared space, ranking candidate scenes by a blend of learned-embedding, global-CLIP, and label-overlap similarity.</p>
+          <p><span class="stage-num">2. Fine localization.</span> Within the retrieved scene, LangLoc samples a dense floor grid and scores each candidate viewpoint by ray-casting which described objects are visible, yielding a 2D position and a heading direction, all without any image.</p>
           <p><span class="stage-num">3. Dialog disambiguation.</span> When a description matches several viewpoints, a Bayesian module asks targeted yes/no questions (e.g.&nbsp;&ldquo;Is there a chair to the left of the table?&rdquo;) and updates a pose posterior until the location is resolved.</p>
         </div>
         <figure class="has-text-centered" style="margin-top:1.2rem;">
